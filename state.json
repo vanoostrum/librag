@@ -1,1 +1,1 @@
-{"claims": {}, "receipts": {}}
+{"claims": {"probe-issue": {"event_id": "evt-owner-b", "expires": 1791318387.742338, "owner": "owner-b", "stage": "spec"}}, "receipts": {}}
