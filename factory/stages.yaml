@@ -1,0 +1,212 @@
+# Enabled flags describe allowed stage contracts, not live Cursor activation.
+# Runtime activation is separately recorded in config.yaml and SETUP_LOG.md.
+version: 2
+defaults:
+  loop_cap: 3
+  branch_pattern: <key>-<num>/<slug>
+  pr_title_pattern: '[<KEY>-<num>] <title>'
+  commit_trailers:
+  - 'Factory-Issue: <KEY>-<num>'
+  - 'Factory-Stage: <stage>'
+  run_record: stage | model | started | finished | outcome | notes
+  escalation_state: Needs human
+  reporting:
+    human: slack.item_thread
+    detail: slack.log_channel
+    record: linear.comment
+  event_contract: factory/event-contract.md
+  completion: confirmed implementation merge and thread report; no publishing
+channels:
+  interface: config.slack.interface
+  log: config.slack.log
+stages:
+- name: front-desk
+  linear_state: null
+  trigger:
+  - slack.message_posted: configured interface channel, top-level and thread replies
+  - slack.reaction_added: configured interface channel, white_check_mark
+  skill: factory/front-desk
+  model_class: fast
+  outputs:
+  - linear.issue
+  - linear.state_change
+  - slack.thread_reply
+  - github.pr_merge
+  next_state: Specifying
+  on_failure: reply in thread asking for clarification; no state change
+  loop_cap: 2
+  gate: false
+  enabled: true
+- name: spec
+  linear_state: Specifying
+  trigger:
+    linear.status_changed: Specifying
+  skill: factory/write-spec
+  delegates_to:
+  - factory/plan-tasks
+  model_class: reasoning
+  outputs:
+  - repo.spec_file
+  - github.spec_pr
+  - slack.gate_message
+  next_state: Spec review
+  on_failure: Needs human
+  loop_cap: 3
+  gate: false
+  enabled: true
+- name: spec-gate
+  linear_state: Spec review
+  trigger:
+    human.approval: ✅ reaction or 'approve' reply in item thread (handled by front-desk)
+  skill: factory/front-desk
+  model_class: fast
+  outputs:
+  - github.spec_pr_merged
+  next_state: Building
+  on_feedback: Specifying
+  on_failure: Needs human
+  loop_cap: 0
+  gate: true
+  enabled: true
+- name: build
+  linear_state: Building
+  trigger:
+    linear.status_changed: Building
+  skill: factory/implement-task
+  delegates_to:
+  - project/verify-* (only at readiness 3)
+  model_class: coding
+  outputs:
+  - github.code_pr
+  - repo.commits
+  next_state: Verifying
+  on_failure: Needs human
+  loop_cap: 3
+  gate: false
+  enabled: true
+  precondition: factory-docs work, or readiness 3 with verified project adapter
+- name: verify
+  linear_state: Verifying
+  trigger:
+    github.ci_completed: <key>-* branches
+  skill: null
+  model_class: null
+  outputs:
+  - github.check_run
+  next_state: Reviewing
+  on_failure: ci-fix
+  loop_cap: 0
+  gate: false
+  enabled: true
+  precondition: implementation PR, current head, complete required check set, approved spec
+- name: ci-fix
+  linear_state: Verifying
+  trigger:
+    github.workflow_run_completed: configured verification workflow, failure, current factory PR head
+  skill: factory/fix-ci-failure
+  delegates_to:
+  - project/verify-* (application failures only)
+  model_class: coding
+  outputs:
+  - repo.commits
+  next_state: Verifying
+  on_failure: Needs human
+  loop_cap: 3
+  gate: false
+  enabled: true
+- name: review
+  linear_state: Reviewing
+  trigger:
+    github.ci_completed: configured checks successful; implementation PR only
+  skill: factory/review-against-spec
+  model_class: review-different-family
+  outputs:
+  - github.pr_review_comment
+  - slack.gate_message
+  next_state: Ready to merge
+  on_changes_requested: Building
+  on_failure: Needs human
+  loop_cap: 3
+  gate: false
+  enabled: true
+  precondition: implementation PR, current head, complete required check set, approved spec
+- name: comment-fix
+  linear_state: Reviewing
+  trigger:
+    github.pr_review_comment: PR from <key>-* branch
+  skill: factory/implement-task
+  model_class: coding
+  outputs:
+  - repo.commits
+  - github.pr_comment_reply
+  next_state: Verifying
+  on_failure: Needs human
+  loop_cap: 3
+  gate: false
+  enabled: true
+  precondition: claimed feedback cycle; no simultaneous build or CI-fix owner
+- name: merge-gate
+  linear_state: Ready to merge
+  trigger:
+    human.approval: ✅ reaction or 'approve' reply in item thread (handled by front-desk)
+  skill: factory/front-desk
+  model_class: fast
+  outputs:
+  - github.implementation_pr_merged
+  - tracker.merge_sha
+  next_state: null
+  on_feedback: Building
+  on_failure: Needs human
+  loop_cap: 0
+  gate: true
+  enabled: true
+  completion_handler: merge-completed
+  pending_state: Ready to merge
+- name: ship
+  linear_state: Shipping
+  trigger:
+    github.push: main
+  skill: null
+  model_class: null
+  outputs:
+  - release.build
+  next_state: null
+  on_failure: Needs human
+  loop_cap: 0
+  gate: false
+  enabled: false
+  disabled_reason: Publishing is outside the current scope; no automation or adapter is configured.
+- name: release-notes
+  linear_state: Shipping
+  trigger:
+    github.workflow_run_completed: Release, conclusion=success, branch main
+  skill: factory/write-release-notes
+  delegates_to:
+  - project/release-*
+  model_class: fast
+  outputs:
+  - release.notes
+  - slack.thread_reply
+  next_state: Done
+  on_failure: Needs human
+  loop_cap: 1
+  gate: false
+  enabled: false
+  disabled_reason: Publishing is outside the current scope; no automation or adapter is configured.
+- name: merge-completed
+  enabled: true
+  linear_state: Ready to merge
+  trigger:
+    github.pr_merged: implementation PR, configured default branch
+  skill: factory/write-release-notes
+  mode: merge-completion
+  model_class: fast
+  outputs:
+  - slack.thread_reply
+  - linear.run_record
+  - linear.state_change
+  next_state: Done
+  on_failure: Needs human
+  loop_cap: 3
+  gate: false
+  precondition: confirmed merged PR and durable Gate 2 approval record for the merged head

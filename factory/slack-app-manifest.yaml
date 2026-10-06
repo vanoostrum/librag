@@ -1,0 +1,25 @@
+_metadata:
+  major_version: 2
+  minor_version: 1
+display_information:
+  name: LibRag Factory Setup
+  description: Bootstrap librag and librag-log; runtime events use Cursor integration.
+  background_color: '#2c2d30'
+features:
+  bot_user:
+    display_name: librag-factory-setup
+    always_online: false
+oauth_config:
+  scopes:
+    bot:
+    - channels:manage
+    - channels:read
+    - channels:join
+    - channels:history
+    - chat:write
+    - pins:write
+    - pins:read
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
