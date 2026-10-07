@@ -26,12 +26,12 @@ Ask only for missing workspace/account access, approver identity, unavailable te
 
 ## Working rules
 
-- Work autonomously within this scope. First read this prompt, `AGENTS.md`, `factory/config.yaml`, `factory/linear.yaml`, `factory/stages.yaml`, `factory/event-contract.md`, the skill README and automation README. Continue the existing `SETUP_LOG.md`; do not overwrite it or mark live resources verified merely because files exist.
+- Work autonomously within this scope. First read this prompt, `AGENTS.md`, `factory/config.yaml`, `factory/linear.yaml`, `factory/stages.yaml`, the automation README, and `docs/adr/`. Continue the existing `SETUP_LOG.md`; do not overwrite it or mark live resources verified merely because files exist.
 - Before creating a team/channel/app/automation/label/post, query for an exact match. A dedicated LibRag team is required: do not rename/reuse another project's team. If a previous run already created LibRag, reuse that dedicated team. Keep unused default states; never delete or repurpose another project's resources.
 - Check current official docs before API/UI changes. Prefer available authenticated connectors/MCP, verified APIs, and Cursor `/automate` over manual work. A historical 404 does not establish current API availability. Never invent undocumented endpoints or claim capabilities without probes.
 - Keep secrets out of chat/logs/Git. Prefer existing scoped OAuth/MCP connections; if keys are necessary, use a dedicated external secret file such as `~/.config/librag-factory/.env` with mode 600 and tell the human exactly which variable to set. Never copy the source project's env file. Commit only IDs/URLs/names and secret names.
 - Keep changes on the setup branch and open/update a reviewable setup PR. Do not push to `main`, bypass protection, or merge without the human's explicit gate. Existing source docs and architecture handoffs stay intact except targeted factory adaptations.
-- Runtime stages must apply `factory/event-contract.md`. Prove shared event receipts/serialization before activating overlapping mutating handlers. If Cursor cannot enforce them, configure a minimal shared guard adapter, verify its atomic operations, and record it; do not call a Linear comment, memory, or an agent-local lock an atomic guard.
+- Runtime stages follow the runtime rules in `AGENTS.md`. Prove shared event receipts/serialization before activating overlapping mutating handlers. If Cursor cannot enforce them, configure a minimal shared guard adapter, verify its atomic operations, and record it; do not call a Linear comment, memory, or an agent-local lock an atomic guard.
 - Preserve stack neutrality in factory contracts. Instance bindings and Cursor setup may name this repo/team/channels; framework commands belong in future project skills.
 
 ### Manual step protocol
@@ -62,8 +62,6 @@ I will verify: <specific read/probe>
 | State | Linear type | Meaning |
 |---|---|---|
 | Triage | backlog | Intake/clarification or queued for later project readiness |
-| Specifying | started | Eligible issue specification |
-| Spec review | started | Gate 1, human spec approval |
 | Building | started | Approved factory/docs implementation now; application work later |
 | Verifying | started | Generic contract CI now; project CI later |
 | Reviewing | started | Independent implementation review |
@@ -85,7 +83,7 @@ Do not add Shipping for this scope. Retain unused default states and record them
 
 ## D. Runtime capabilities and guard mechanisms
 
-1. Configure Cursor GitHub/Slack/Linear integrations and repo Linux environment. Use Linear editing tools or `https://mcp.linear.app/mcp` if necessary. Verify new-state creation triggers (issue created directly in a state versus status change); the front desk creates Triage then transitions to Specifying to avoid that ambiguity.
+1. Configure Cursor GitHub/Slack/Linear integrations and repo Linux environment. Use Linear editing tools or `https://mcp.linear.app/mcp` if necessary. Verify that the build trigger fires on a status change to Building.
 2. Probe threaded Slack send/read in a designated setup thread, Linear comments/transitions in a setup issue, PR/query/merge permissions under GitHub protection, and reading the existing skills from `main`. Do not assume PR creation includes merge or channel-send includes thread-send. Add the least necessary verified tool/MCP/API capability when missing.
 3. Resolve the human Slack approver IDs and store them. Verify gate records bind issue/PR/head/spec/message and reject old approvals.
 4. Verify a shared atomic run-claim and durable receipt mechanism for all handlers. Record mechanism and evidence in config. If the harness offers no sufficient mechanism, implement/configure the smallest shared adapter for guard state only; test parallel claims and duplicate delivery. If access or hosting for that adapter is unavailable, report that concrete blocker and leave mutating automations disabled. Do not introduce the application scaffold or publishing to solve it.
@@ -99,8 +97,8 @@ Do not add Shipping for this scope. Retain unused default states and record them
 
 ## F. Cursor automations — reuse checked-in definitions
 
-1. Derive bindings from `factory/stages.yaml` and each existing `factory/automations/*.md`; use the real repo/team/channel IDs, actual lowercase issue-key branch filters, current models and configured tools. Keep prompts one line pointing to the existing skill and shared event contract.
-2. Create/update **disabled** automations: front-desk message/reaction (split only if needed), spec, build (factory/docs mode), ci-fixer, spec-reviewer, comment-fixer, merge-completed. Do not create release-notes or publishing automation. Document IDs/URLs/triggers/tools/filters in SETUP_LOG.
+1. Derive bindings from `factory/stages.yaml` and `factory/automations/README.md`; use the real repo/team/channel IDs, current models and configured tools. Keep prompts one line pointing to the existing skill.
+2. Create/update **disabled** automations: front-desk message/reaction (split only if needed), build (factory/docs mode), ci-fixer, spec-reviewer, comment-fixer, merge-completed. Do not create release-notes or publishing automation. Document IDs/URLs/triggers/tools/filters in SETUP_LOG.
 3. Prefer Cursor `/automate` or a currently supported API/provider if available. If the agent cannot configure an automation, provide concrete field values derived from the file and one batched manual setup step; never ask the human to reconstruct the definitions.
 4. Enforce implementation-only filters for review/comment-fix/completion and full skill guards even when filters are limited. For CI, query all configured required checks for the current PR head. Account for early CI/merge events by reconciling live state after a transition.
 5. Run `validate_factory.py --runtime` after filling bindings/models/probes. Activate stage handlers, completion and front desk last. Set `runtime.activated` only after verification. A missing receipt/serialization or merge/thread capability blocks activation, not asset preparation.
@@ -109,9 +107,9 @@ Do not add Shipping for this scope. Retain unused default states and record them
 
 Ask the human to post in #librag: **“Document the factory handoff: application setup is step 2, build/lint/test adapters are step 3, and publishing is out of scope. Add the short guide at docs/factory-handoff.md.”**
 
-Watch: one LibRag issue → spec PR → Gate 1 → human approval → spec merge → docs implementation PR → Factory Contracts → independent AC/evidence review → Gate 2 → human approval → confirmed implementation merge → completion thread → Done.
+Watch: one LibRag issue → questions in the thread → spec in Linear → human approval → docs implementation PR → Factory Contracts → independent AC/evidence review → Gate 2 → human approval → confirmed implementation merge → completion thread → Done.
 
-Also verify and record: status creates no issue; clarification resumes one intake; repeated delivery produces no duplicate side effects; spec CI never enters implementation review; old approvals/current-head mismatches are ignored; one writer owns a feedback cycle; failures count without commits; the fourth repair never starts; missing/failed contract checks block merges; completion retries do not merge/post twice; an application feature request remains Triage at readiness 1. Use controlled docs/config failures and restore them on branches, never weaken main protection.
+Also verify and record: status creates no issue; clarification resumes one intake; repeated delivery produces no duplicate side effects; old approvals/current-head mismatches are ignored; one writer owns a feedback cycle; failures count without commits; the fourth repair never starts; missing/failed contract checks block merges; completion retries do not merge/post twice; an application feature request remains Triage at readiness 1. Use controlled docs/config failures and restore them on branches, never weaken main protection.
 
 Do not use a health/version endpoint, Docker build, real book data or product feature as the smoke test. No application setup or publishing belongs in this exercise.
 

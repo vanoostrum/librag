@@ -1,33 +1,47 @@
 ---
 name: front-desk
-description: Handle configured factory Slack intake, clarification, status, feedback and revision-bound human approvals; never perform stage implementation.
+description: Handle a #librag message or reaction. Start or link a work item, question the human until the acceptance criteria are clear, write the spec into Linear, handle approvals, and answer status questions.
 ---
 
 # front-desk
 
-## Purpose
-Translate human conversation into tracker state and protected gate merges.
+Each message or ✅ reaction starts a fresh run. Read the Slack thread and its linked Linear issue to see where things stand.
 
-## Inputs
-Slack event, current issue/PR facts, and the shared configuration and event contract.
+## Start a work item
 
-## Outputs
-One intake issue per root thread, status/feedback replies, gate records and confirmed spec/implementation merges.
+- **New request** in a top-level message: create a LibRag issue in Triage. Quote the request and add `Slack-Thread: <permalink>`.
+- **Existing issue** named in a top-level message (`LIBRAG-12` or its URL): use that issue and its description as the request. Add `Slack-Thread: <permalink>` to it. If it is already linked to another thread, reply with that thread's link and stop.
+- **Status question:** answer from Linear. Create and change nothing.
+- **Application work** below readiness 3: add `needs-project-setup`, leave it in Triage, explain why in the thread, and stop.
 
-## Done criteria
-The event has one recorded outcome; controls create no accidental work item; merges require a configured approver and current gate revision.
+## Question the human
 
-## Steps
-1. Read the shared README and event contract. Validate bindings, deduplicate the event and acquire run ownership before mutations. Ignore bot Slack events and the log channel.
-2. Classify **status first**, then approval, existing-thread feedback/clarification, then new intake. Status queries summarize open issues without creating an issue or changing state.
-3. For new intake, look up `(channel, root_thread_ts)` before creation. Create one issue in Triage with the quoted request, `Slack-Thread: <permalink>`, type/risk labels, `Factory-Work-Kind: factory-docs|application`, and intake identity. If clarification is needed, store the question/round on that issue and ask in the thread, at most two rounds. Follow-up replies resume the same intake.
-4. At readiness 1, application requests stay Triage with `needs-project-setup`. Explain the later setup/verification boundary. Ready docs/factory requests transition to Specifying. Initial product architecture and plan creation are outside this task.
-5. Approval: resolve the exact current gate record, authorize the Slack user, verify message timestamp, PR/head/spec revision and complete checks. Reject ambiguous/stale approvals and state mismatches. For Spec review, squash-merge the spec with trailers and confirm GitHub merged it, then set Building. For Ready to merge, preserve trailers, merge only with current checks and confirm the merge; leave the state for merge-completed to reconcile. No publishing action follows.
-6. Feedback at a gate invalidates its approval record. Add `Feedback from Slack: <text>` to Linear; return to Specifying or Building under a new feedback cycle. Non-gate replies append relevant context. Resume paused intake only when readiness allows it.
-7. Record receipts, outcome and reporting under the common rules; release your own claim.
+Aim for a functional spec that the implementer and reviewer can test against. Ask about behavior and acceptance criteria, not technical design.
 
-## Escalation
-Unmatched approvals are explained without merging. Conflicts/protection failures or lost ownership escalate. A pending check leaves the issue at its gate.
+- Ask the questions that matter most for implementation and testing: scope, expected behavior, important edge cases, and what done looks like. Number them and ask them together.
+- Do not assume answers to these. Keep asking until the important unknowns are settled.
+- Leave small technical or functional details to the implementer.
+- If the human says to go ahead with open questions, record them in the spec as assumptions.
 
-## Reporting
-Shared reporting, stage `front-desk`. Log unchanged status replies as receipt outcomes without unnecessary tracker chatter.
+## Spec and approval request
+
+Replace the spec section of the issue description:
+
+```
+## Spec (rev N)
+Goal:
+Acceptance criteria:
+1.
+Out of scope:
+Assumptions:
+```
+
+Increment N on every change. Post a short summary in the thread with the goal, acceptance criteria, out of scope, revision, and issue link. End it with: "React ✅ or reply approve to start implementation." Add a Linear comment `Gate: spec rev N, message <ts>`.
+
+## Approvals and feedback
+
+A ✅ or an approve reply counts only if it comes from a configured approver and refers to the latest gate message, and that gate message's revision still matches the issue.
+
+- **Spec gate:** move the issue to Building.
+- **Merge gate** (Ready to merge): confirm that the gate's head SHA is still the PR head and that the required checks are green. Squash-merge with the trailers, then confirm the merge on GitHub. Leave the state for merge-completed.
+- **Feedback instead of approval:** at the spec gate, revise the spec as a new revision and ask again. At the merge gate, add the feedback to Linear and move the issue to Building.

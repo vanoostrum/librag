@@ -29,27 +29,34 @@ class GuardPolicyTests(unittest.TestCase):
             checks['Project'] = {'sha': 'new', 'conclusion': outcome}
             self.assertFalse(current_checks_green(['Factory Contracts', 'Project'], checks, 'new'))
 
-    def test_approval_binds_revision_message_and_person(self):
-        gate = dict(issue_id='i', gate='merge', pr_number=7, head_sha='head', spec_sha='spec', gate_message_ts='ts')
+    def test_merge_approval_binds_revision_message_head_and_person(self):
+        gate = dict(issue_id='i', gate='merge', pr_number=7, head_sha='head', spec_rev='2', gate_message_ts='ts')
         approval = dict(gate, user_id='human')
         self.assertTrue(approval_matches(gate, approval, gate, ['human']))
         self.assertFalse(approval_matches(gate, approval, gate, ['other']))
-        for field in ('head_sha', 'spec_sha', 'gate_message_ts', 'pr_number'):
+        for field in ('head_sha', 'spec_rev', 'gate_message_ts', 'pr_number'):
             current = dict(gate, **{field: 'changed'})
             self.assertFalse(approval_matches(gate, approval, current, ['human']))
         self.assertFalse(approval_matches(dict(gate, invalidated=True), approval, gate, ['human']))
 
+    def test_spec_approval_needs_no_pr_but_binds_revision(self):
+        gate = dict(issue_id='i', gate='spec', spec_rev='3', gate_message_ts='ts')
+        approval = dict(gate, user_id='human')
+        self.assertTrue(approval_matches(gate, approval, gate, ['human']))
+        self.assertFalse(approval_matches(gate, approval, dict(gate, spec_rev='4'), ['human']))
+        self.assertFalse(approval_matches(dict(gate, gate='unknown'), approval, gate, ['human']))
+
     def facts(self):
         return dict(binding_matches=True, already_processed=False, claim_owned=True, attempts=0,
-                    pr_kind='implementation', open_pr=True, event_sha='new', head_sha='new',
+                    factory_pr=True, open_pr=True, event_sha='new', head_sha='new',
                     state='Verifying', approved_spec=True, all_checks_green=True)
 
-    def test_spec_and_stale_ci_never_enter_implementation_review(self):
+    def test_unrelated_and_stale_ci_never_enter_review(self):
         facts = self.facts()
         self.assertEqual(event_decision('review', facts), 'allow')
-        facts['pr_kind'] = 'spec'
+        facts['factory_pr'] = False
         self.assertEqual(event_decision('review', facts), 'noop')
-        facts['pr_kind'] = 'implementation'
+        facts['factory_pr'] = True
         facts['event_sha'] = 'old'
         self.assertEqual(event_decision('review', facts), 'noop')
         facts['event_sha'] = 'new'

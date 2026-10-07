@@ -94,18 +94,19 @@ Created with provider `cursor/cursor` 0.7.0, scope `user`, `enabled=false`, `mem
 | Name | ID | URL |
 |---|---|---|
 | librag-front-desk | `6572b625-c1c2-11f1-bb68-864e54d14197` | https://cursor.com/automations/6572b625-c1c2-11f1-bb68-864e54d14197 |
-| librag-spec | `6572a6f8-c1c2-11f1-bb68-864e54d14197` | https://cursor.com/automations/6572a6f8-c1c2-11f1-bb68-864e54d14197 |
 | librag-build | `6574556a-c1c2-11f1-bb68-864e54d14197` | https://cursor.com/automations/6574556a-c1c2-11f1-bb68-864e54d14197 |
 | librag-ci-fixer | `657337b2-c1c2-11f1-bb68-864e54d14197` | https://cursor.com/automations/657337b2-c1c2-11f1-bb68-864e54d14197 |
 | librag-spec-reviewer | `6572ba9a-c1c2-11f1-bb68-864e54d14197` | https://cursor.com/automations/6572ba9a-c1c2-11f1-bb68-864e54d14197 |
 | librag-comment-fixer | `65757452-c1c2-11f1-bb68-864e54d14197` | https://cursor.com/automations/65757452-c1c2-11f1-bb68-864e54d14197 |
 | librag-merge-completed | `65707ebf-c1c2-11f1-bb68-864e54d14197` | https://cursor.com/automations/65707ebf-c1c2-11f1-bb68-864e54d14197 |
 
-Tools: generalized Slack send, Slack read, and PR comments where the stage needs them. Prompts are the one-line skill instructions in `factory/automations/`. Linear triggers are limited to the LibRag team and the Specifying or Building state. Git triggers are limited to `vanoostrum/librag`. There is no branch-name filter in provider 0.7.0, so spec PRs are excluded by the skill.
+Tools: generalized Slack send, Slack read, and PR comments where the stage needs them. Prompts are one line each: run the skill for this event. The Linear trigger is limited to the LibRag team and the Building state. Git triggers are limited to `vanoostrum/librag`. Provider 0.7.0 has no branch-name filter, so skills ignore PRs from branches other than factory issue branches.
+
+2026-10-07 rework (ADR 0002): `librag-spec` (`6572a6f8-…`) was destroyed. Front desk now runs on `claude-opus-5-thinking-high` and handles questioning, the spec in Linear, and spec approval. Prompts no longer mention the event contract. All six automations are still disabled, and a follow-up plan showed no changes. The Linear states Specifying and Spec review still exist but are unused.
 
 ## Deviations and fixes
 
-- Provider 0.7.0 has no workflow-run trigger and no separate pull-request review-comment trigger. CI handlers use CI completed (`failure` or `success`). The comment handler uses PR `commented`. Skills still ignore stale runs, spec PRs, and unowned comments.
+- Provider 0.7.0 has no workflow-run trigger and no separate pull-request review-comment trigger. CI handlers use CI completed (`failure` or `success`). The comment handler uses PR `commented`. Skills still ignore stale runs, unrelated PRs, and unowned comments.
 - Generalized Slack send causes Cursor to add a read-Slack action. That action is part of the saved automations.
 - The first apply reported a provider consistency error after the server added that read action. All seven automations were still created disabled. The tainted instances were untainted and a refresh plan proposed no resource replacement.
 - Slack thread read and the approver lookup need scopes the installed setup bot does not have, even though `factory/slack-app-manifest.yaml` lists `channels:history`.

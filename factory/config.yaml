@@ -18,12 +18,8 @@ slack:
 approvals:
   slack_user_ids: []
   bind_to:
-  - issue_id
-  - gate
-  - pr_number
-  - head_sha
-  - spec_sha
-  - gate_message_ts
+    spec: [issue_id, gate, spec_rev, gate_message_ts]
+    merge: [issue_id, gate, spec_rev, gate_message_ts, pr_number, head_sha]
 checks:
   factory_required:
   - Factory Contracts

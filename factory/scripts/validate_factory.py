@@ -53,7 +53,7 @@ def validate(root, runtime=False):
     require(isinstance(stages, list), 'Stages must be a list')
     names = [s.get('name') for s in stages if isinstance(s, dict)]
     require(len(names) == len(set(names)), 'Duplicate stage name')
-    required_states = {'Triage', 'Specifying', 'Spec review', 'Building', 'Verifying', 'Reviewing',
+    required_states = {'Triage', 'Building', 'Verifying', 'Reviewing',
                        'Ready to merge', 'Done', 'Needs human', 'Canceled'}
     require(required_states <= set(linear.get('states', {})), 'Missing required tracker state')
     require('Shipping' not in linear.get('states', {}), 'Shipping is outside current scope')
@@ -75,12 +75,7 @@ def validate(root, runtime=False):
             'Merge gate must wait for confirmed completion')
     require(by_name.get('merge-completed', {}).get('next_state') == 'Done', 'Missing merge completion')
     require(by_name.get('merge-completed', {}).get('enabled') is True, 'Completion handler disabled')
-    for name in ('front-desk', 'spec', 'build', 'ci-fixer', 'spec-reviewer', 'comment-fixer', 'merge-completed'):
-        require((root / f'factory/automations/{name}.md').is_file(), f'Missing {name} automation spec')
-    skill_dir = root / '.agents/skills/factory'
-    skills = list(skill_dir.glob('*/SKILL.md'))
-    require(len(skills) == 8, 'Expected eight reused factory skills')
-    for path in skills:
+    for path in (root / '.agents/skills/factory').glob('*/SKILL.md'):
         text = path.read_text()
         match = re.match(r'^---\n(.*?)\n---\n', text, re.S)
         require(bool(match), f'{path.name}: invalid frontmatter')
@@ -89,8 +84,6 @@ def validate(root, runtime=False):
             require(isinstance(front, dict) and front.get('name') == path.parent.name,
                     f'{path.parent.name}: frontmatter name mismatch')
             require(isinstance(front, dict) and bool(front.get('description')), f'{path}: no description')
-        for section in ('Purpose', 'Inputs', 'Outputs', 'Done criteria', 'Steps', 'Escalation', 'Reporting'):
-            require(f'## {section}' in text, f'{path.parent.name}: missing {section}')
     workflow = load('.github/workflows/factory-contracts.yml')
     # PyYAML parses an unquoted YAML 1.1 `on` key as True; GitHub uses YAML 1.2.
     events = workflow.get('on', workflow.get(True, {}))

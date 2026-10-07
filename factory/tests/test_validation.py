@@ -47,7 +47,7 @@ class AssetValidationTests(unittest.TestCase):
 
     def test_cross_project_destination_and_missing_skill_are_rejected(self):
         self.change_config(lambda config: config.update(repository='someone/another-project'))
-        (self.root / '.agents/skills/factory/write-spec/SKILL.md').unlink()
+        (self.root / '.agents/skills/factory/front-desk/SKILL.md').unlink()
         errors = validate(self.root)
         self.assertTrue(any('Wrong destination' in error for error in errors))
         self.assertTrue(any('missing skill' in error for error in errors))

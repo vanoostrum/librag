@@ -29,9 +29,15 @@ def current_checks_green(required, checks, head_sha):
                for name in required)
 
 
+GATE_FIELDS = {
+    'spec': ('issue_id', 'gate', 'spec_rev', 'gate_message_ts'),
+    'merge': ('issue_id', 'gate', 'spec_rev', 'gate_message_ts', 'pr_number', 'head_sha'),
+}
+
+
 def approval_matches(gate, approval, current, allowed_users):
-    fields = ('issue_id', 'gate', 'pr_number', 'head_sha', 'spec_sha', 'gate_message_ts')
-    if not allowed_users or approval.get('user_id') not in allowed_users:
+    fields = GATE_FIELDS.get(gate.get('gate'))
+    if not fields or not allowed_users or approval.get('user_id') not in allowed_users:
         return False
     if not all(gate.get(key) and approval.get(key) == gate[key]
                and current.get(key) == gate[key] for key in fields):
@@ -51,11 +57,8 @@ def event_decision(stage, facts):
         return 'wait'
     if facts.get('attempts', 0) >= 3:
         return 'escalate'
-    if stage in ('review', 'comment-fix', 'merge-completed'):
-        if facts.get('pr_kind') == 'spec':
-            return 'noop'
-        if facts.get('pr_kind') != 'implementation':
-            return 'escalate'
+    if stage in ('review', 'ci-fix', 'comment-fix', 'merge-completed') and not facts.get('factory_pr'):
+        return 'noop'
     if stage in ('review', 'ci-fix', 'comment-fix'):
         if not facts.get('open_pr') or facts.get('event_sha') != facts.get('head_sha'):
             return 'noop'

@@ -6,12 +6,6 @@ states:
   Triage:
     id: 8004df9c-11a3-4d55-9c14-4e4540116bad
     type: backlog
-  Specifying:
-    id: 12c9a27c-cde3-413e-a70a-ebdeb48c7f23
-    type: started
-  Spec review:
-    id: 6fa90aca-97f5-4190-b32d-ef6f5a0719a3
-    type: started
   Building:
     id: eaf52667-9bae-4ab6-8210-228480c7ab37
     type: started
@@ -41,7 +35,13 @@ labels:
   risk:high: 3b0cf031-86e6-4c15-8639-22373920f1ea
   factory: 6b4f098e-6784-411c-a0d7-734e1ec4a3ef
   needs-project-setup: 6942195d-851d-4e14-bfc9-5c22b3f82b2e
-unused_default_states:
+unused_states:
+  Specifying:
+    id: 12c9a27c-cde3-413e-a70a-ebdeb48c7f23
+    type: started
+  Spec review:
+    id: 6fa90aca-97f5-4190-b32d-ef6f5a0719a3
+    type: started
   Todo:
     id: 1f3c06ce-4085-4956-800b-c98931a282ea
     type: unstarted

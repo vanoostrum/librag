@@ -17,7 +17,7 @@ Reuse the existing factory contracts for a Python/FastAPI project without repeat
 | Cursor cloud agents and automations | Stage execution; concrete capabilities are probed during setup. |
 | GitHub | PRs, generic contract check and protected human-approved merges. |
 
-Lifecycle: Triage → Specifying → Spec review (Gate 1) → Building → Verifying → Reviewing → Ready to merge (Gate 2) → Done. Needs human and Canceled are alternate states. Spec PRs never enter implementation review. A merge-completed handler confirms implementation merges and reports completion; no publishing stage is active.
+Lifecycle: Triage → Specifying → Spec review (Gate 1) → Building → Verifying → Reviewing → Ready to merge (Gate 2) → Done. Needs human and Canceled are alternate states. Spec PRs never enter implementation review. A merge-completed handler confirms implementation merges and reports completion; no publishing stage is active. Superseded in part by [ADR 0002](0002-spec-in-slack-and-linear.md): the spec stages are merged into front desk, and specs live in Linear.
 
 Factory files describe neutral contracts; project instance values live in `factory/config.yaml` and `factory/linear.yaml`, and Cursor bindings live in automation specifications. Factory skills delegate stack craft only after a verified project adapter exists. Reviewer and builder must use different model vendors.
 

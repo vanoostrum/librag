@@ -1,31 +1,11 @@
 ---
 name: write-release-notes
-description: Report confirmed approved implementation merges and close their issues in merge-completion mode; release publishing mode is disabled.
+description: Report a confirmed, approved implementation merge in its Slack thread and move the issue to Done. Publishing is disabled.
 ---
 
 # write-release-notes
 
-## Purpose
-Close the current no-publishing lifecycle with accurate merge information.
-
-## Inputs
-Merged implementation PR event, Gate 2 record, issue/spec and confirmed GitHub merge/head SHAs.
-
-## Outputs
-Short completion notes in the issue thread, merge evidence/run record, issue in Done.
-
-## Done criteria
-The exact approved implementation was merged; reporting is complete and idempotent. No local execution or publishing claim is made.
-
-## Steps
-1. Read shared rules and require **merge-completion mode**. Publishing mode and release workflow events return noop while disabled.
-2. Ignore spec PRs, unrelated repos, open/unmerged PRs, and duplicate completed events. Acquire issue ownership and resolve the durable Gate 2 record, even if the tracker transition raced the GitHub event.
-3. Verify approval matched the merged head and approved spec; confirm GitHub merge SHA and issue attribution. Unauthorized/manual unapproved factory merges escalate rather than silently closing.
-4. Record merge SHA and draft concise completion/inspection notes from the ACs. Post once: `<KEY>-<num> merged: <PR URL> (<merge SHA>). <what changed / how to inspect>`. Publishing and local execution remain unverified/out of scope.
-5. Reconcile previously posted notes on retry. Record outcome and move only this issue to Done after reporting succeeds. Never rediscover all open issues as shipped work.
-
-## Escalation
-Missing approval, attribution or reporting access follows common escalation. A reporting retry must not re-merge the PR.
-
-## Reporting
-Shared reporting, stage `merge-completed`.
+1. Run only in merge-completion mode for a merged PR from a factory issue branch. Ignore anything else.
+2. Confirm that the merged head matches the latest merge gate and spec revision. Escalate an unapproved merge instead of closing it.
+3. Post once: `<KEY>-<num> merged: <PR URL> (<merge SHA>). <what changed and how to inspect it>`. On a retry, check for an earlier post first.
+4. Move only this issue to Done. Never merge again, and never claim publishing or local execution.

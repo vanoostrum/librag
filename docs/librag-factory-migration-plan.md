@@ -6,7 +6,7 @@ Revised 6 October 2026. Supersedes the earlier scaffold-first migration proposal
 
 - Destination: `vanoostrum/librag`, local `~/projects/vanoostrum/librag`.
 - Execution: Cursor, running `docs/factory-setup-prompt.md`.
-- Reuse copied `docs/`, `factory/`, `AGENTS.md`, and all eight factory skills rather than generating them again.
+- Reuse copied `docs/`, `factory/`, `AGENTS.md`, and the factory skills rather than generating them again. ADR 0002 later merged the spec skills into front desk.
 - New dedicated Linear team **LibRag**, proposed key LIBRAG; Cursor records the actual ID/key.
 - Slack intake **#librag**, logs **#librag-log**; verify the existing workspace before writes.
 - Current lifecycle ends at an approved implementation merged and reported. No publishing/deployment/release workflow.
