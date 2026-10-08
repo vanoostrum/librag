@@ -1,1 +1,1 @@
-{"claims": {}, "receipts": {"probe-delivery": {"outcome": "success", "stage": "spec"}, "slack-1791490247.905919": {"at": 1791490481.8345356, "outcome": "success", "stage": "front-desk"}}}
+{"claims": {"LIBRAG-3": {"event_id": "slack-1791490788.629819", "expires": 1791491765.8868136, "owner": "bc-35fa1948-3b07-54d4-8764-c806e9def275", "stage": "front-desk"}}, "receipts": {"probe-delivery": {"outcome": "success", "stage": "spec"}, "slack-1791490247.905919": {"at": 1791490481.8345356, "outcome": "success", "stage": "front-desk"}}}
