@@ -30,8 +30,8 @@ class AssetValidationTests(unittest.TestCase):
     def test_current_assets_pass_but_runtime_needs_real_prerequisites(self):
         self.assertEqual(validate(self.root), [])
         errors = validate(self.root, runtime=True)
-        self.assertTrue(any('no named approvers' in error for error in errors))
         self.assertTrue(any('unverified slack_threads' in error for error in errors))
+        self.assertTrue(any('unverified linear_write' in error for error in errors))
         self.assertTrue(any('unverified protected_merge' in error for error in errors))
 
     def test_activated_flag_cannot_bypass_runtime_validation(self):
