@@ -19,6 +19,7 @@ oauth_config:
     - chat:write
     - pins:write
     - pins:read
+    - users:read
 settings:
   org_deploy_enabled: false
   socket_mode_enabled: false

@@ -110,5 +110,7 @@ Tools: generalized Slack send, Slack read, and PR comments where the stage needs
 - Generalized Slack send causes Cursor to add a read-Slack action. That action is part of the saved automations.
 - The first apply reported a provider consistency error after the server added that read action. All seven automations were still created disabled. The tainted instances were untainted and a refresh plan proposed no resource replacement.
 - Slack thread read and the approver lookup need scopes the installed setup bot does not have, even though `factory/slack-app-manifest.yaml` lists `channels:history`.
-- GitHub administration is blocked by the current token, so labels and branch protection are not applied. Protection waits until this setup PR is on `main` anyway.
+- GitHub administration was blocked by the first token. On 2026-10-08 a new token (admin on the repo, expires 2026-11-05) read labels, rulesets, and Actions permissions, created the seven factory labels, and opened [PR #1](https://github.com/vanoostrum/librag/pull/1), where Factory Contracts passed. Branch protection waits until PR #1 is on `main`.
+- On 2026-10-08 the Linear API key read the LibRag team, and the setup bot was a member of #librag and #librag-log. The bot still lacked `channels:history` and `users:read`.
+- On 2026-10-08 front desk got an MCP action `server = "Linear"`. Cursor returned no `server_id`, so it is not verified that the name matches a configured server.
 - Smoke test is not started. Activating handlers before the skills are on `main`, before protection, and before a named approver would skip the gates.
