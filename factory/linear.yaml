@@ -1,0 +1,50 @@
+team:
+  name: LibRag
+  key: LIBRAG
+  id: 71f22498-2676-45e7-ada7-7b9f2fd61c8b
+states:
+  Triage:
+    id: 8004df9c-11a3-4d55-9c14-4e4540116bad
+    type: backlog
+  Building:
+    id: eaf52667-9bae-4ab6-8210-228480c7ab37
+    type: started
+  Verifying:
+    id: 464383f7-27af-4dac-984c-c8bb3b1f00cf
+    type: started
+  Reviewing:
+    id: 0214fc6e-6855-4e5a-8a74-995905fbd4ed
+    type: started
+  Ready to merge:
+    id: d2c5bcb1-70a7-4cf9-af56-6d3c21cb0805
+    type: started
+  Done:
+    id: e693f663-7a2d-4db9-9940-3a383f3a5626
+    type: completed
+  Needs human:
+    id: a78e7e7b-d608-4c7e-9130-ac9e96fbf86f
+    type: started
+  Canceled:
+    id: 8ef7645e-7e16-4bd7-af7c-2a3d439a9635
+    type: canceled
+labels:
+  type:feature: f5577035-6ce1-413e-bab4-a500e0eaf06b
+  type:bug: 7f6d140d-06cc-443f-9a1e-c64fec9f1ebb
+  type:chore: 0ab919df-da3a-4cac-b767-fdedda80fbdf
+  risk:low: 4717fd6d-95a8-41f0-be79-d89b3ccb5767
+  risk:high: 3b0cf031-86e6-4c15-8639-22373920f1ea
+  factory: 6b4f098e-6784-411c-a0d7-734e1ec4a3ef
+  needs-project-setup: 6942195d-851d-4e14-bfc9-5c22b3f82b2e
+unused_states:
+  Specifying:
+    id: 12c9a27c-cde3-413e-a70a-ebdeb48c7f23
+    type: started
+  Spec review:
+    id: 6fa90aca-97f5-4190-b32d-ef6f5a0719a3
+    type: started
+  Todo:
+    id: 1f3c06ce-4085-4956-800b-c98931a282ea
+    type: unstarted
+  Duplicate:
+    id: f17b2349-709a-476e-b087-26bc8570006b
+    type: duplicate

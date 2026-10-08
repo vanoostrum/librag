@@ -1,0 +1,57 @@
+version: 1
+repository: vanoostrum/librag
+default_branch: main
+readiness:
+  step: 1
+  application_implementation_enabled: false
+  publishing_enabled: false
+slack:
+  workspace: clearblocks
+  workspace_id: T0C4RLU9EK0
+  interface:
+    name: librag
+    id: C0C824T9C1W
+  log:
+    name: librag-log
+    id: C0C79MG62U9
+  guidance_message_ts: '1791317249.418609'
+approvals:
+  slack_user_ids:
+  - U0C4NGQ0QFP
+  bind_to:
+    spec: [issue_id, gate, spec_rev, gate_message_ts]
+    merge: [issue_id, gate, spec_rev, gate_message_ts, pr_number, head_sha]
+checks:
+  factory_required:
+  - Factory Contracts
+  project_required: []
+  project_verify_skill: null
+models:
+  reasoning:
+    id: claude-opus-5-thinking-high
+    vendor: anthropic
+  coding:
+    id: gpt-5.6-sol-high
+    vendor: openai
+  review-different-family:
+    id: claude-fable-5-thinking-high
+    vendor: anthropic
+  fast:
+    id: gemini-3.7-flash-high
+    vendor: google
+runtime:
+  activated: false
+  serialization:
+    mechanism: git-ref-cas
+    evidence: refs/heads/factory-guards at ffac02b364cad0dd1a5199264659ea9ef5b0f28e; parallel claims returned acquired for owner-b and busy for owner-a
+  receipts:
+    mechanism: git-ref-cas
+    evidence: the same ref rejected a second record of probe-delivery as duplicate
+  guard_ref: refs/heads/factory-guards
+  capabilities:
+    slack_threads: true
+    linear_write: false
+    protected_merge: false
+    revision_approval: true
+    event_deduplication: true
+    run_serialization: true

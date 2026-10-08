@@ -1,0 +1,64 @@
+# Enabled flags describe allowed stage contracts, not live Cursor activation.
+# Runtime rules for every stage are in AGENTS.md.
+version: 3
+defaults:
+  loop_cap: 3
+  escalation_state: Needs human
+stages:
+- name: front-desk
+  linear_state: Triage
+  trigger:
+  - slack.message_posted: configured interface channel, top-level and thread replies
+  - slack.reaction_added: configured interface channel, white_check_mark
+  skill: factory/front-desk
+  model_class: reasoning
+  next_state: Building
+  enabled: true
+- name: build
+  linear_state: Building
+  trigger:
+    linear.status_changed: Building
+  skill: factory/implement-task
+  model_class: coding
+  next_state: Verifying
+  enabled: true
+- name: ci-fix
+  linear_state: Verifying
+  trigger:
+    github.ci_completed: failure on a factory issue PR
+  skill: factory/fix-ci-failure
+  model_class: coding
+  next_state: Verifying
+  enabled: true
+- name: review
+  linear_state: Reviewing
+  trigger:
+    github.ci_completed: success on a factory issue PR
+  skill: factory/review-against-spec
+  model_class: review-different-family
+  next_state: Ready to merge
+  enabled: true
+- name: comment-fix
+  linear_state: Reviewing
+  trigger:
+    github.pr_comment: factory issue PR, owned feedback round
+  skill: factory/implement-task
+  model_class: coding
+  next_state: Verifying
+  enabled: true
+- name: merge-gate
+  linear_state: Ready to merge
+  trigger:
+    human.approval: handled by front-desk
+  skill: factory/front-desk
+  model_class: reasoning
+  next_state: null
+  enabled: true
+- name: merge-completed
+  linear_state: Ready to merge
+  trigger:
+    github.pr_merged: factory issue PR into main
+  skill: factory/write-release-notes
+  model_class: fast
+  next_state: Done
+  enabled: true
