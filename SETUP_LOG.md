@@ -10,15 +10,15 @@ Prepared files are not evidence of live runtime configuration. Record IDs/URLs/n
 - [x] Defined factory-first readiness, two human gates, merged-and-reported completion, no publishing.
 - [x] Added generic contract validation and guard policy tests.
 
-Preparation validation: factory assets pass static validation; all eight skills pass the skill frontmatter validator; ten guard/asset validation tests pass locally. Live integration and GitHub Actions execution remain unverified until Cursor executes the runbook.
+Preparation validation: factory assets pass static validation; all eight skills pass the skill frontmatter validator; 38 unit tests pass locally. Live integration and GitHub Actions execution remain unverified until Cursor executes the runbook.
 
 ## Cursor execution checklist — step 1 only
 
 - [x] A. Read assets, inspect current GitHub/Slack/Linear/Cursor connections and verify docs.
 - [x] B. Create/select a new dedicated LibRag team; record actual key/team/state/label IDs.
-- [ ] C. Create/reuse #librag and #librag-log in the selected workspace; record IDs, invite Cursor, pin guidance idempotently. Channels and the pin exist. The Cursor Slack app is not invited yet.
-- [ ] D. Configure named approvers and current available model mapping. Models are recorded. The approver Slack member ID is not.
-- [ ] E. Configure and prove shared receipts/run serialization, threaded replies, Linear writes and protected merges. Receipts, serialization and Linear writes are proven. Thread read and protected merge are not.
+- [x] C. Create/reuse #librag and #librag-log in the selected workspace; record IDs, invite Cursor, pin guidance idempotently. Channels, the pin, and Cursor's membership are recorded below.
+- [x] D. Configure named approvers and current available model mapping. Models are recorded. The approver is `U0C4NGQ0QFP` (theo) in `factory/config.yaml`.
+- [ ] E. Configure and prove shared receipts/run serialization, threaded replies, Linear writes and protected merges. Receipts, serialization, and thread read are proven. A Linear write through the automation MCP, and protected merge, are not.
 - [ ] F. Review/merge setup PR, verify Factory Contracts, apply branch protection without bypassing human gates.
 - [x] G. Create disabled automations from existing specs; record IDs/URLs, tool access and filters.
 - [ ] H. Validate runtime config, activate handlers then front desk, exercise docs-only happy path and failure/replay boundaries. `runtime.activated` stays false.
@@ -57,7 +57,7 @@ Checked 2026-10-06 against the current Linear GraphQL API, Slack Web API, GitHub
 - `#librag` `C0C824T9C1W`. Pinned guidance `1791317249.418609`. Pins were empty before that post.
 - `#librag-log` `C0C79MG62U9`. Purpose: `LibRag factory diagnostics. No top-level request processing.`
 - Thread send probe in `#librag-log`: parent `1791317267.787839`, reply `1791317268.028429` with that `thread_ts`.
-- `conversations.history` and `conversations.replies` return `missing_scope` (`channels:history`). `users.lookupByEmail` returns `missing_scope`. The approver Slack member ID is still unknown, so `approvals.slack_user_ids` is empty.
+- Initial probe: `conversations.history` and `conversations.replies` returned `missing_scope` (`channels:history`), and `users.lookupByEmail` returned `missing_scope`. Superseded on 2026-10-08: both history calls succeed, and `approvals.slack_user_ids` is `U0C4NGQ0QFP`. See Deviations.
 - The Cursor Slack app has not been invited to either channel.
 
 ### Models
@@ -76,7 +76,7 @@ From `GET https://api.cursor.com/v0/models` on this date. Builder and reviewer u
 `factory/scripts/guard_store.py` stores claims and receipts in `state.json` on `refs/heads/factory-guards`. Updates are fast-forward pushes. Ref tip after the probe: `ffac02b364cad0dd1a5199264659ea9ef5b0f28e`.
 
 - Parallel claims for `probe-issue`: `owner-b` acquired, `owner-a` busy.
-- Receipt `probe-delivery`: first record `ok`, second `duplicate`.
+- Receipt `probe-delivery`: first record `ok`, second `duplicate`. That probe stored a finished receipt. Current code treats only `success`, `noop`, and `escalated` as finished. `started` and `failed` can be recorded again, and `begin` claims before it writes a receipt.
 - In-process races are covered by `factory/tests/test_guard_store.py`. Revision binding is covered by `factory/tests/test_policy.py`.
 - The local `GH_TOKEN` cannot create git blobs (`403`). The probe used SSH as `vanoostrum`.
 
@@ -109,11 +109,11 @@ Tools: generalized Slack send, Slack read, and PR comments where the stage needs
 - Provider 0.7.0 has no workflow-run trigger and no separate pull-request review-comment trigger. CI handlers use CI completed (`failure` or `success`). The comment handler uses PR `commented`. Skills still ignore stale runs, unrelated PRs, and unowned comments.
 - Generalized Slack send causes Cursor to add a read-Slack action. That action is part of the saved automations.
 - The first apply reported a provider consistency error after the server added that read action. All seven automations were still created disabled. The tainted instances were untainted and a refresh plan proposed no resource replacement.
-- Slack thread read and the approver lookup need scopes the installed setup bot does not have, even though `factory/slack-app-manifest.yaml` lists `channels:history`.
+- The first Slack app install could not read threads or look up users, even though `factory/slack-app-manifest.yaml` listed `channels:history`. Reinstalling the scopes fixed both. See the 2026-10-08 note below.
 - GitHub administration was blocked by the first token. On 2026-10-08 a new token (admin on the repo, expires 2026-11-05) read labels, rulesets, and Actions permissions, created the seven factory labels, and opened [PR #1](https://github.com/vanoostrum/librag/pull/1), where Factory Contracts passed. Branch protection waits until PR #1 is on `main`.
-- On 2026-10-08 the Linear API key read the LibRag team, and the setup bot was a member of #librag and #librag-log. After the scopes were reinstalled, the bot had `channels:history` and `users:read`, `conversations.history` and `conversations.replies` succeeded, and `users.info` confirmed that `U0C4NGQ0QFP` is the human user theo. That ID is the approver. The #librag members are theo, factorysetup (`U0C4MUBPSD9`), and Cursor (`U0C4P52LKDK`).
-- On 2026-10-08 the Cursor Linear app (`1d8f7643-e165-46a6-b76f-5e5654b329da`) was installed in Clearblocks but was a member of only the Nap Time team, not LibRag. `linear_write` is false until automations have a resolved Linear MCP server. At 20:12 the Cursor app was a member of both LIBRAG and NAP.
-- On 2026-10-08 a read-only cloud agent probe through the Cursor SDK failed at startup: `The SCM integration does not have access to repository vanoostrum/librag`. The Cursor GitHub App needs access to this repo before any automation can clone it. After theo granted the app access at 20:14, the same probe finished. It listed MCP servers `cursor, cursor-cloud, cursor-subscriptions, Linear, Notion`, found 68 Linear tools, and read every LIBRAG state. All six automations now have the action `mcp = { server = "Linear" }`, which uses theo's OAuth. Linear edits appear as theo. A follow-up Terraform plan showed no changes, and all six are still disabled. `linear_write` is true.
+- On 2026-10-08 the Linear API key read the LibRag team, and the setup bot was a member of #librag and #librag-log. After the scopes were reinstalled, the bot had `channels:history` and `users:read`, `conversations.history` and `conversations.replies` succeeded, and `users.info` confirmed that `U0C4NGQ0QFP` is the human user theo. That ID is the approver. The #librag members are theo, factorysetup (`U0C4MUBPSD9`), and Cursor (`U0C4P52LKDK`). `slack_threads` is true because that thread read succeeded.
+- On 2026-10-08 the Cursor Linear app (`1d8f7643-e165-46a6-b76f-5e5654b329da`) was installed in Clearblocks but was a member of only the Nap Time team, not LibRag. At 20:12 the Cursor app was a member of both LIBRAG and NAP.
+- On 2026-10-08 a read-only cloud agent probe through the Cursor SDK failed at startup: `The SCM integration does not have access to repository vanoostrum/librag`. The Cursor GitHub App needs access to this repo before any automation can clone it. After theo granted the app access at 20:14, the same probe finished. It listed MCP servers `cursor, cursor-cloud, cursor-subscriptions, Linear, Notion`, found 68 Linear tools, and read every LIBRAG state. All six automations now have the action `mcp = { server = "Linear" }`, which uses theo's OAuth. Linear edits would appear as theo. A follow-up Terraform plan showed no changes, and all six are still disabled. The probe was read-only, so `linear_write` stays false until a write through that MCP is recorded.
 - On 2026-10-08 a read-only probe of `gh` in a cloud VM found `gh` 2.102.0, Python 3.12.3, and PyYAML 6.0.1. The VM's `GH_TOKEN` is a git-only placeholder, and the API rejects it with 401. With `GH_TOKEN` unset, `gh` uses the stored `cursor` login, a GitHub App token (`ghs_`), which listed PRs and check runs. `factory/scripts/cli.py` retries `gh` that way when GitHub returns "Bad credentials". Merging through that login is not yet proven; the smoke test will show it.
 - On 2026-10-08 front desk got an MCP action `server = "Linear"`. Cursor returned no `server_id`, so it is not verified that the name matches a configured server.
-- Smoke test is not started. Activating handlers before the skills are on `main`, before protection, and before a named approver would skip the gates.
+- Smoke test is not started. The approver is configured. Activating handlers before the skills are on `main` and before branch protection would skip the gates.

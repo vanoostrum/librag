@@ -4,12 +4,26 @@
 import argparse
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 import yaml
 
+from policy import scope_violations
 
-def validate(root, runtime=False):
+
+def changed_paths(root, base):
+    result = subprocess.run(
+        ['git', '-C', str(root), 'diff', '--name-only', f'{base}...HEAD'],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or 'git diff failed').strip()
+        raise RuntimeError(detail[-800:])
+    return [line for line in result.stdout.splitlines() if line]
+
+
+def validate(root, runtime=False, diff_base=None):
     errors = []
 
     def require(condition, message):
@@ -124,15 +138,32 @@ def validate(root, runtime=False):
         for capability in ('slack_threads', 'linear_write', 'protected_merge', 'revision_approval',
                            'event_deduplication', 'run_serialization'):
             require(state.get('capabilities', {}).get(capability) is True, f'Runtime: unverified {capability}')
+    if diff_base:
+        try:
+            paths = changed_paths(root, diff_base)
+        except RuntimeError as exc:
+            errors.append(f'Diff: {exc}')
+        else:
+            ready = cfg.get('readiness', {})
+            checks = cfg.get('checks', {})
+            bad = scope_violations(
+                ready.get('step'),
+                paths,
+                application_enabled=ready.get('application_implementation_enabled') is True,
+                project_adapter=bool(checks.get('project_verify_skill')),
+            )
+            if bad:
+                errors.append('Outside readiness scope: ' + ', '.join(bad))
     return errors
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--runtime', action='store_true')
+    parser.add_argument('--diff-base', help='git ref; every path changed since this ref must be in scope')
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[2])
     args = parser.parse_args()
-    errors = validate(args.root, args.runtime)
+    errors = validate(args.root, args.runtime, args.diff_base)
     if errors:
         for error in errors:
             print(f'ERROR: {error}', file=sys.stderr)

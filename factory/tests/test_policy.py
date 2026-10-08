@@ -5,12 +5,19 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from policy import approval_matches, current_checks_green, eligible_work, event_decision
+from policy import approval_matches, current_checks_green, eligible_work, event_decision, scope_violations
 
 
 class GuardPolicyTests(unittest.TestCase):
     def test_factory_before_app_and_no_scope_escape(self):
         self.assertTrue(eligible_work(1, 'factory-docs', ['docs/factory-handoff.md']))
+        self.assertFalse(eligible_work(1, 'factory-docs', []))
+        self.assertEqual(scope_violations(1, []), [])
+        self.assertEqual(scope_violations(1, ['docs/a.md', 'Dockerfile']), ['Dockerfile'])
+        self.assertEqual(
+            scope_violations(3, ['src/app.py'], application_enabled=True, project_adapter=True),
+            [],
+        )
         for path in ['src/librag/main.py', 'Dockerfile', '../docs/x.md', 'docs/../src/app.py']:
             with self.subTest(path=path):
                 self.assertFalse(eligible_work(1, 'factory-docs', [path]))
@@ -62,6 +69,16 @@ class GuardPolicyTests(unittest.TestCase):
         facts['event_sha'] = 'new'
         facts['all_checks_green'] = False
         self.assertEqual(event_decision('review', facts), 'wait')
+
+    def test_attempt_cap_does_not_hide_a_noop(self):
+        stale = dict(self.facts(), attempts=3, factory_pr=False)
+        self.assertEqual(event_decision('review', stale), 'noop')
+        stale['factory_pr'] = True
+        stale['event_sha'] = 'old'
+        self.assertEqual(event_decision('review', stale), 'noop')
+        waiting = dict(self.facts(), attempts=3, merged=False)
+        self.assertEqual(event_decision('merge-completed', waiting), 'wait')
+        self.assertEqual(event_decision('ci-fix', dict(self.facts(), attempts=3)), 'escalate')
 
     def test_replay_ownership_and_no_fourth_attempt(self):
         facts = self.facts()

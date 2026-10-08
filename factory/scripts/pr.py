@@ -1,8 +1,10 @@
 """Branch, commit, and pull request conventions for factory issues.
 
-branch  checks out the issue branch, reusing an existing `<key>-<num>/*` branch on retries.
+branch  checks out the issue branch. One existing `<key>-<num>/*` branch is reused.
+        More than one is an error.
 commit  commits staged changes with the Factory-Issue and Factory-Stage trailers.
 upsert  pushes the branch and creates or updates its PR with the standard title and body.
+        Refuses an empty diff and paths outside the readiness allowlist.
 """
 
 import argparse
@@ -10,8 +12,12 @@ import json
 import re
 import subprocess
 import sys
+from pathlib import Path
+
+import yaml
 
 from cli import run
+from policy import scope_violations
 
 ISSUE = re.compile(r'^[A-Z][A-Z0-9]*-\d+$')
 
@@ -35,19 +41,23 @@ def branch_name(issue, title):
     return prefix(issue) + slug(title)
 
 
-def existing_branch(issue, run=run):
+def matching_branches(issue, run=run):
     out = run('git', 'ls-remote', '--heads', 'origin')
-    heads = sorted(name for line in out.splitlines() if 'refs/heads/' in line
-                   for name in [line.split('refs/heads/', 1)[1]] if name.startswith(prefix(issue)))
-    return heads[0] if heads else None
+    return sorted(
+        name for line in out.splitlines() if 'refs/heads/' in line
+        for name in [line.split('refs/heads/', 1)[1]] if name.startswith(prefix(issue))
+    )
 
 
 def checkout(issue, title, run=run):
     run('git', 'fetch', '--quiet', 'origin')
-    found = existing_branch(issue, run)
+    found = matching_branches(issue, run)
+    if len(found) > 1:
+        raise ValueError(f'multiple branches for {issue}: {", ".join(found)}')
     if found:
-        run('git', 'switch', '--quiet', '-C', found, f'origin/{found}')
-        return found
+        name = found[0]
+        run('git', 'switch', '--quiet', '-C', name, f'origin/{name}')
+        return name
     name = branch_name(issue, title)
     run('git', 'switch', '--quiet', '-C', name, 'origin/main')
     return name
@@ -85,10 +95,33 @@ def load_evidence(path):
     return rows
 
 
+def changed_paths(run=run):
+    out = run('git', 'diff', '--name-only', 'origin/main...HEAD')
+    return [line for line in out.splitlines() if line]
+
+
+def enforce_scope(run=run):
+    paths = changed_paths(run)
+    if not paths:
+        raise ValueError('no changes against origin/main')
+    config = yaml.safe_load((Path(__file__).resolve().parents[1] / 'config.yaml').read_text())
+    ready = config.get('readiness', {})
+    checks = config.get('checks', {})
+    bad = scope_violations(
+        ready.get('step'),
+        paths,
+        application_enabled=ready.get('application_implementation_enabled') is True,
+        project_adapter=bool(checks.get('project_verify_skill')),
+    )
+    if bad:
+        raise ValueError('outside factory scope at this readiness: ' + ', '.join(bad))
+
+
 def upsert(issue, title, body, run=run):
     branch = run('git', 'rev-parse', '--abbrev-ref', 'HEAD')
     if not branch.startswith(prefix(issue)):
         raise ValueError(f'current branch {branch} is not a {prefix(issue)}* branch')
+    enforce_scope(run)
     run('git', 'push', '--quiet', '-u', 'origin', 'HEAD')
     full_title = f'[{issue}] {title}'
     found = json.loads(run('gh', 'pr', 'list', '--head', branch, '--state', 'open',

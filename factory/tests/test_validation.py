@@ -6,6 +6,8 @@ import sys
 import tempfile
 import unittest
 
+import subprocess
+
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
@@ -30,8 +32,9 @@ class AssetValidationTests(unittest.TestCase):
     def test_current_assets_pass_but_runtime_needs_real_prerequisites(self):
         self.assertEqual(validate(self.root), [])
         errors = validate(self.root, runtime=True)
-        self.assertTrue(any('unverified slack_threads' in error for error in errors))
+        self.assertTrue(any('unverified linear_write' in error for error in errors))
         self.assertTrue(any('unverified protected_merge' in error for error in errors))
+        self.assertFalse(any('unverified slack_threads' in error for error in errors))
 
     def test_activated_flag_cannot_bypass_runtime_validation(self):
         self.change_config(lambda config: config['runtime'].update(activated=True))
@@ -50,6 +53,21 @@ class AssetValidationTests(unittest.TestCase):
         errors = validate(self.root)
         self.assertTrue(any('Wrong destination' in error for error in errors))
         self.assertTrue(any('missing skill' in error for error in errors))
+
+    def test_diff_base_rejects_paths_outside_readiness(self):
+        repo = self.root
+        git = ['git', '-C', str(repo)]
+        commit = ['-c', 'user.email=factory@example.com', '-c', 'user.name=Factory']
+        subprocess.run([*git, 'init', '-b', 'main'], check=True, capture_output=True)
+        subprocess.run([*git, 'add', 'factory/config.yaml'], check=True, capture_output=True)
+        subprocess.run([*git, *commit, 'commit', '-m', 'base'], check=True, capture_output=True)
+        app = repo / 'src'
+        app.mkdir()
+        (app / 'app.py').write_text('print(1)\n')
+        subprocess.run([*git, 'add', 'src/app.py'], check=True, capture_output=True)
+        subprocess.run([*git, *commit, 'commit', '-m', 'app'], check=True, capture_output=True)
+        errors = validate(repo, diff_base='HEAD~1')
+        self.assertTrue(any('src/app.py' in error for error in errors))
 
 
 if __name__ == '__main__':

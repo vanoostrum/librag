@@ -8,6 +8,9 @@ def eligible_work(step, work_kind, changed_paths=(), project_adapter=False):
         return step == 3 and project_adapter
     if work_kind != 'factory-docs':
         return False
+    # An empty list is a missing diff, not an in-scope change.
+    if not changed_paths:
+        return False
     files = {'AGENTS.md', 'README.md', 'SETUP_LOG.md', '.gitignore',
              '.github/pull_request_template.md', '.github/workflows/factory-contracts.yml'}
     prefixes = ('docs/', 'factory/', '.agents/skills/factory/')
@@ -18,6 +21,13 @@ def eligible_work(step, work_kind, changed_paths=(), project_adapter=False):
         if path not in files and not path.startswith(prefixes):
             return False
     return True
+
+
+def scope_violations(step, paths, application_enabled=False, project_adapter=False):
+    """Paths a change may not touch at this readiness. An empty diff has none."""
+    if application_enabled and project_adapter and step == 3:
+        return []
+    return [path for path in paths if not eligible_work(step, 'factory-docs', [path])]
 
 
 def current_checks_green(required, checks, head_sha):
@@ -46,32 +56,36 @@ def approval_matches(gate, approval, current, allowed_users):
 
 
 def event_decision(stage, facts):
-    """Return allow/noop/wait/escalate. Caller must enforce durable ownership externally."""
+    """Return allow/noop/wait/escalate. Caller must enforce durable ownership externally.
+
+    Irrelevant events noop before the attempt cap, so a stale or foreign delivery
+    cannot move an issue to Needs human.
+    """
     if not facts.get('binding_matches'):
         return 'noop'
     if facts.get('already_processed'):
         return 'noop'
     if stage == 'front-desk' and facts.get('is_bot'):
         return 'noop'
-    if not facts.get('claim_owned'):
-        return 'wait'
-    if facts.get('attempts', 0) >= 3:
-        return 'escalate'
     if stage in ('review', 'ci-fix', 'comment-fix', 'merge-completed') and not facts.get('factory_pr'):
         return 'noop'
     if stage in ('review', 'ci-fix', 'comment-fix'):
         if not facts.get('open_pr') or facts.get('event_sha') != facts.get('head_sha'):
             return 'noop'
-    if stage == 'review':
-        if facts.get('state') not in ('Verifying', 'Reviewing'):
-            return 'noop'
-        if not facts.get('approved_spec') or not facts.get('all_checks_green'):
-            return 'wait'
     if stage == 'comment-fix' and facts.get('feedback_owner') != 'comment-fix':
         return 'noop'
+    if stage == 'review' and facts.get('state') not in ('Verifying', 'Reviewing'):
+        return 'noop'
+    if not facts.get('claim_owned'):
+        return 'wait'
+    if stage == 'review':
+        if not facts.get('approved_spec') or not facts.get('all_checks_green'):
+            return 'wait'
     if stage == 'merge-completed':
         if not facts.get('merged'):
             return 'wait'
         if not facts.get('approved_merged_head') or not facts.get('merge_sha'):
             return 'escalate'
+    if facts.get('attempts', 0) >= 3:
+        return 'escalate'
     return 'allow'

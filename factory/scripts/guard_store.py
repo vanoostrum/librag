@@ -1,21 +1,30 @@
 """Atomic claims and receipts on a shared git ref.
 
 policy.py decides what a stage may do. This module only stores the facts that
-decision needs: one live claim per issue and one receipt per event. The compare
-and swap is a fast-forward push of refs/heads/factory-guards. A rejected push
-means another writer committed first; the caller re-reads and retries. Agent
-memory and Linear comments are not locks.
+decision needs: one live claim per issue and one receipt per event. begin claims
+before it records, and only a finished receipt (success, noop, escalated) blocks
+a retry. The compare and swap is a fast-forward push of refs/heads/factory-guards.
+A rejected fast-forward means another writer committed first; the caller re-reads
+and retries. Any other push failure is raised. Agent memory and Linear comments
+are not locks.
 """
 
 import argparse
 import json
 import subprocess
+import sys
 import threading
 import time
 
 REF = 'refs/heads/factory-guards'
 STATE_PATH = 'state.json'
 CLAIM_TTL_SECONDS = 900
+# started/failed stay open so a crash or a busy rejection can be retried.
+# success/noop/escalated are finished; a missing outcome is treated as finished.
+RETRYABLE_OUTCOMES = frozenset({'started', 'failed'})
+TERMINAL_OUTCOMES = frozenset({'success', 'noop', 'escalated'})
+KNOWN_OUTCOMES = RETRYABLE_OUTCOMES | TERMINAL_OUTCOMES
+PUSH_CONFLICT_MARKERS = ('non-fast-forward', 'fetch first', 'updates were rejected')
 
 
 class StoreConflict(RuntimeError):
@@ -74,9 +83,12 @@ class GitRefStore:
             ['push', self.remote, f'{commit}:{REF}'],
             check=False,
         )
-        if result.returncode != 0:
+        if result.returncode == 0:
+            return True
+        if _push_conflict(result):
             return False
-        return True
+        detail = (result.stderr or result.stdout or '').strip()
+        raise RuntimeError(detail[-800:] or f'git push failed ({result.returncode})')
 
     def _git(self, args, input_text=None, check=True):
         result = subprocess.run(
@@ -179,10 +191,21 @@ def release(store, issue, owner):
     return _mutate(store, change)
 
 
+def _push_conflict(result):
+    """A rejected fast-forward is a lost race. Auth and network failures are not."""
+    text = f'{result.stderr or ""}\n{result.stdout or ""}'.lower()
+    return any(marker in text for marker in PUSH_CONFLICT_MARKERS)
+
+
 def record_receipt(store, event_id, receipt):
+    outcome = receipt.get('outcome')
+    if outcome not in KNOWN_OUTCOMES:
+        raise ValueError(f'unknown receipt outcome {outcome!r}')
+
     def change(state):
         receipts = state.setdefault('receipts', {})
-        if event_id in receipts:
+        current = receipts.get(event_id)
+        if current and current.get('outcome') not in RETRYABLE_OUTCOMES:
             return 'duplicate'
         receipts[event_id] = receipt
         return None
@@ -190,9 +213,39 @@ def record_receipt(store, event_id, receipt):
     return _mutate(store, change)
 
 
-def receipt_exists(store, event_id):
+def receipt_status(store, event_id):
+    """done when the event finished, open when it can be retried, no when unseen."""
     _, state = store.read()
-    return event_id in state.get('receipts', {})
+    current = state.get('receipts', {}).get(event_id)
+    if not current:
+        return 'no'
+    if current.get('outcome') in RETRYABLE_OUTCOMES:
+        return 'open'
+    return 'done'
+
+
+def receipt_exists(store, event_id):
+    return receipt_status(store, event_id) != 'no'
+
+
+def begin(store, issue, stage, owner, event_id, now=None):
+    """Claim first, then record started. busy writes nothing. A finished event is released."""
+    claimed = claim(store, issue, stage, owner, event_id, now=now)
+    if claimed != 'acquired':
+        return claimed
+    try:
+        receipt = record_receipt(store, event_id, {
+            'stage': stage,
+            'outcome': 'started',
+            'at': time.time() if now is None else now,
+        })
+    except Exception:
+        release(store, issue, owner)
+        raise
+    if receipt == 'duplicate':
+        release(store, issue, owner)
+        return 'duplicate'
+    return 'ok'
 
 
 def main():
@@ -200,6 +253,11 @@ def main():
     parser.add_argument('--repo', default='.')
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('init')
+    begin_cmd = sub.add_parser('begin', help='claim the issue, then record this event as started')
+    begin_cmd.add_argument('--issue', required=True)
+    begin_cmd.add_argument('--stage', required=True)
+    begin_cmd.add_argument('--owner', required=True)
+    begin_cmd.add_argument('--event', required=True)
     claim_cmd = sub.add_parser('claim')
     claim_cmd.add_argument('--issue', required=True)
     claim_cmd.add_argument('--stage', required=True)
@@ -219,21 +277,30 @@ def main():
         print(ensure_ref(args.repo))
         return 0
     store = GitRefStore(args.repo)
+    if args.command == 'begin':
+        result = begin(store, args.issue, args.stage, args.owner, args.event)
+        print(result)
+        return 0 if result == 'ok' else 2
     if args.command == 'claim':
         result = claim(store, args.issue, args.stage, args.owner, args.event)
         print(result)
         return 0 if result == 'acquired' else 2
     if args.command == 'release':
-        print(release(store, args.issue, args.owner))
-        return 0
+        result = release(store, args.issue, args.owner)
+        print(result)
+        return 0 if result == 'ok' else 2
     if args.command == 'seen':
-        print('yes' if receipt_exists(store, args.event) else 'no')
+        print(receipt_status(store, args.event))
         return 0
-    receipt = record_receipt(store, args.event, {
-        'stage': args.stage,
-        'outcome': args.outcome,
-        'at': time.time(),
-    })
+    try:
+        receipt = record_receipt(store, args.event, {
+            'stage': args.stage,
+            'outcome': args.outcome,
+            'at': time.time(),
+        })
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 2
     print(receipt)
     return 0 if receipt == 'ok' else 2
 

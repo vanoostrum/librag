@@ -49,8 +49,8 @@ runtime:
     evidence: the same ref rejected a second record of probe-delivery as duplicate
   guard_ref: refs/heads/factory-guards
   capabilities:
-    slack_threads: false
-    linear_write: true
+    slack_threads: true
+    linear_write: false
     protected_merge: false
     revision_approval: true
     event_deduplication: true
