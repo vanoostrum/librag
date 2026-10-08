@@ -24,6 +24,7 @@ Publishing, hosting, image pushes, release credentials, and deployment are out o
 | `factory/stages.yaml` | Stage triggers and transitions. |
 | `factory/automations/` | Cursor automation bindings. |
 | `factory/scripts/guard_store.py` | Shared claim and receipt store. |
+| `factory/scripts/spec.py`, `pr.py`, `merge.py` | Spec section updates, branch/commit/PR conventions, and the guarded merge. |
 | `.agents/skills/factory/` | Stage skills. |
 | `SETUP_LOG.md` | Live resource IDs and verification evidence. |
 

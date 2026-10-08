@@ -25,10 +25,9 @@ Aim for a functional spec that the implementer and reviewer can test against. As
 
 ## Spec and approval request
 
-Replace the spec section of the issue description:
+Write the spec without its heading:
 
 ```
-## Spec (rev N)
 Goal:
 Acceptance criteria:
 1.
@@ -36,12 +35,12 @@ Out of scope:
 Assumptions:
 ```
 
-Increment N on every change. Post a short summary in the thread with the goal, acceptance criteria, out of scope, revision, and issue link. End it with: "React ✅ or reply approve to start implementation." Add a Linear comment `Gate: spec rev N, message <ts>`.
+Save the current issue description and the spec to files. Run `python3 factory/scripts/spec.py update --description <file> --spec <file>`, then write the resulting description back to the issue. The script prints the new revision, or `unchanged rev N` if nothing changed. Post a short summary in the thread with the goal, acceptance criteria, out of scope, revision, and issue link. End it with: "React ✅ or reply approve to start implementation." Add a Linear comment `Gate: spec rev N, message <ts>`.
 
 ## Approvals and feedback
 
 A ✅ or an approve reply counts only if it comes from a configured approver and refers to the latest gate message, and that gate message's revision still matches the issue.
 
 - **Spec gate:** move the issue to Building.
-- **Merge gate** (Ready to merge): confirm that the gate's head SHA is still the PR head and that the required checks are green. Squash-merge with the trailers, then confirm the merge on GitHub. Leave the state for merge-completed.
+- **Merge gate** (Ready to merge): run `python3 factory/scripts/merge.py --pr <n> --issue <KEY-num> --head <gate head SHA>`. It refuses if the head moved or a required check is not green on it, then squash-merges with the trailers and confirms the merge. On `refused`, report the reason in the thread and do not merge another way. Leave the state for merge-completed.
 - **Feedback instead of approval:** at the spec gate, revise the spec as a new revision and ask again. At the merge gate, add the feedback to Linear and move the issue to Building.
