@@ -13,6 +13,6 @@ Each prompt is one line: `Run .agents/skills/factory/<skill>/SKILL.md for this e
 | librag-comment-fixer | PR comment, `vanoostrum/librag` | implement-task (review feedback mode) | coding | PR comments, Send Slack, Linear, branch push |
 | librag-merge-completed | PR merged into `main`, `vanoostrum/librag` | write-release-notes | fast | Send Slack, Linear |
 
-There is no publishing automation.
+"Linear" is the personal Linear MCP server (`https://mcp.linear.app/mcp`), attached by name. Linear triggers depend on the Cursor Linear app being a member of the LibRag team. There is no publishing automation.
 
 The provider has no branch filter, so each skill ignores PRs that do not come from a `<key>-<num>/<slug>` branch. Keep automations disabled until this setup is on `main`, branch protection is applied, and an approver is configured. Turn on front desk last.

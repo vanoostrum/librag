@@ -50,7 +50,7 @@ runtime:
   guard_ref: refs/heads/factory-guards
   capabilities:
     slack_threads: false
-    linear_write: false
+    linear_write: true
     protected_merge: false
     revision_approval: true
     event_deduplication: true

@@ -31,7 +31,6 @@ class AssetValidationTests(unittest.TestCase):
         self.assertEqual(validate(self.root), [])
         errors = validate(self.root, runtime=True)
         self.assertTrue(any('unverified slack_threads' in error for error in errors))
-        self.assertTrue(any('unverified linear_write' in error for error in errors))
         self.assertTrue(any('unverified protected_merge' in error for error in errors))
 
     def test_activated_flag_cannot_bypass_runtime_validation(self):
