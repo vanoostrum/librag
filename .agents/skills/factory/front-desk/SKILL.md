@@ -12,7 +12,8 @@ Each message or ✅ reaction starts a fresh run. Read the Slack thread and its l
 - **New request** in a top-level message: create a LibRag issue in Triage. Quote the request and add `Slack-Thread: <permalink>`.
 - **Existing issue** named in a top-level message (`LIBRAG-12` or its URL): use that issue and its description as the request. Add `Slack-Thread: <permalink>` to it. If it is already linked to another thread, reply with that thread's link and stop.
 - **Status question:** answer from Linear. Create and change nothing.
-- **Application work** below readiness 3: add `needs-project-setup`, leave it in Triage, explain why in the thread, and stop.
+- **Project setup** at readiness 2: a request from an approver to set up the initial project is normal work. Only one setup issue may be open at a time.
+- **Other application work** below readiness 3: add `needs-project-setup`, leave it in Triage, explain why in the thread, and stop.
 
 ## Question the human
 

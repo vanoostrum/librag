@@ -8,7 +8,7 @@ This step covers integrations, automations, and contracts. The factory exercises
 
 ## Step 2. Initial project setup
 
-This step covers the initial setup of the project from the architecture and plan that already exist. You supply the existing architecture and project plan, and you run Docker locally; the factory must not invent or overwrite them. It is entered when `readiness.step` becomes 2, and it is left when that value becomes 3.
+This step covers the initial setup of the project from the architecture and plan that already exist. You supply the existing architecture and project plan, and you run Docker locally; the factory must not invent or overwrite them. It is entered when `readiness.step` becomes 2, and it is left when that value becomes 3. At this step a setup PR may create any project file, including its own CI workflow, and other application requests still wait in Triage.
 
 ## Step 3. Project verification
 

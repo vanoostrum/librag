@@ -55,6 +55,7 @@ class AssetValidationTests(unittest.TestCase):
         self.assertTrue(any('missing skill' in error for error in errors))
 
     def test_diff_base_rejects_paths_outside_readiness(self):
+        self.change_config(lambda config: config['readiness'].update(step=1))
         repo = self.root
         git = ['git', '-C', str(repo)]
         commit = ['-c', 'user.email=factory@example.com', '-c', 'user.name=Factory']
