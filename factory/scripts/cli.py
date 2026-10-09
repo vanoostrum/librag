@@ -3,14 +3,23 @@
 import os
 import subprocess
 
+from github_app import installation_token
+
 
 def run(*args):
+    env = os.environ.copy()
+    app_token = installation_token() if args and args[0] == 'gh' else None
+    if app_token:
+        # Replaces both the cloud git placeholder and any personal GH_TOKEN.
+        env['GH_TOKEN'] = app_token
+        env['GITHUB_TOKEN'] = app_token
     try:
-        return _run(args, os.environ)
+        return _run(args, env)
     except subprocess.CalledProcessError as error:
         # In Cursor cloud VMs GH_TOKEN holds a git-only placeholder that the API
         # rejects; the stored `cursor` gh login works once GH_TOKEN is unset.
-        if args[0] != 'gh' or 'GH_TOKEN' not in os.environ or 'Bad credentials' not in (error.stderr or ''):
+        # An app token is never swapped out for that login.
+        if app_token or args[0] != 'gh' or 'GH_TOKEN' not in os.environ or 'Bad credentials' not in (error.stderr or ''):
             raise
         return _run(args, {k: v for k, v in os.environ.items() if k != 'GH_TOKEN'})
 

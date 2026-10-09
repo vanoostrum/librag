@@ -42,7 +42,7 @@ These apply to every stage.
 - **One writer.** Only one stage fixes a given round of review feedback.
 - **Retries.** At most three automatic attempts per stage per feedback round, counting failed runs. Then move the issue to Needs human and say what was tried.
 - **Reporting.** Short updates go in the item's Slack thread. Detail goes to #librag-log, prefixed `[<KEY>-<num>] <stage>:`. Add one Linear comment per run: `Run record: stage | model | started | finished | outcome | notes`, with an outcome of `success`, `failed`, `escalated`, or `noop`.
-- **Git.** Use branch `<key>-<num>/<slug>` with a lowercase key, and PR title `[<KEY>-<num>] <title>`. Commits and the squash merge keep `Factory-Issue: <KEY>-<num>` and `Factory-Stage: <stage>` trailers. Never push to `main`, bypass required checks, or commit secrets.
+- **Git.** Use branch `<key>-<num>/<slug>` with a lowercase key, and PR title `[<KEY>-<num>] <title>`. Commits and the squash merge keep `Factory-Issue: <KEY>-<num>` and `Factory-Stage: <stage>` trailers. Commits, pushes, pull requests, and merges are made as `chef-willie[bot]` (`factory/config.yaml` `github_app`). Never push to `main`, bypass required checks, or commit secrets.
 
 ## Verification
 

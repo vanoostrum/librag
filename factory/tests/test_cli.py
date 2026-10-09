@@ -25,6 +25,21 @@ class FakeRun:
 
 
 class GhFallbackTests(unittest.TestCase):
+    def test_app_token_replaces_personal_and_placeholder_tokens(self):
+        import cli
+        import os
+        import stat
+        import tempfile
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = Path(tmp, 'gh')
+            fake.write_text('#!/bin/sh\necho "$GH_TOKEN"\n')
+            fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+            env = dict(PATH=f'{tmp}:{os.environ["PATH"]}', GH_TOKEN='personal-pat')
+            with mock.patch.dict(os.environ, env, clear=True), \
+                    mock.patch('cli.installation_token', return_value='ghs_app'):
+                self.assertEqual(cli.run('gh', 'api', 'user'), 'ghs_app')
+
     def test_rejected_gh_token_retries_with_stored_login(self):
         import cli
         import os
@@ -93,8 +108,11 @@ class PrTests(unittest.TestCase):
     def test_commit_adds_trailers(self):
         run = FakeRun([(('git', 'rev-parse'), 'abc')])
         self.assertEqual(pr.commit('LIBRAG-12', 'build', 'Add guide', run), 'abc')
-        self.assertEqual(run.calls[0], ('git', 'commit', '--quiet', '-m', 'Add guide', '--trailer',
-                                        'Factory-Issue: LIBRAG-12', '--trailer', 'Factory-Stage: build'))
+        self.assertEqual(run.calls[0], (
+            'git', '-c', 'user.name=chef-willie[bot]',
+            '-c', 'user.email=340283198+chef-willie[bot]@users.noreply.github.com',
+            'commit', '--quiet', '-m', 'Add guide', '--trailer',
+            'Factory-Issue: LIBRAG-12', '--trailer', 'Factory-Stage: build'))
 
     def test_body_lists_spec_thread_and_escaped_evidence(self):
         body = pr.render_body('LIBRAG-12', 3, 'https://linear.app/x', 'https://slack/t',
@@ -111,6 +129,19 @@ class PrTests(unittest.TestCase):
                        (('git', 'rev-parse', 'HEAD'), 'sha1')])
         self.assertEqual(pr.upsert('LIBRAG-12', 'Guide', 'body', run), ('created', 'https://github.com/o/r/pull/5', 'sha1'))
         self.assertIn('[LIBRAG-12] Guide', next(c for c in run.calls if c[:3] == ('gh', 'pr', 'create')))
+
+    def test_upsert_pushes_with_the_app_token(self):
+        from unittest import mock
+        diff = (('git', 'diff', '--name-only'), 'docs/factory-handoff.md\n')
+        run = FakeRun([(('git', 'rev-parse', '--abbrev-ref'), 'librag-12/guide'), diff,
+                       (('gh', 'pr', 'list'), '[{"number": 5, "url": "https://github.com/o/r/pull/5"}]'),
+                       (('git', 'rev-parse', 'HEAD'), 'sha1')])
+        with mock.patch('pr.installation_token', return_value='ghs_test'):
+            pr.upsert('LIBRAG-12', 'Guide', 'body', run)
+        push = next(c for c in run.calls if 'push' in c)
+        self.assertEqual(push[2], 'http.extraheader=Authorization: Bearer ghs_test')
+        self.assertIn('https://github.com/vanoostrum/librag.git', push)
+        self.assertIn('HEAD:refs/heads/librag-12/guide', push)
         run = FakeRun([(('git', 'rev-parse', '--abbrev-ref'), 'librag-12/guide'), diff,
                        (('gh', 'pr', 'list'), json.dumps([{'number': 5, 'url': 'u'}])),
                        (('git', 'rev-parse', 'HEAD'), 'sha2')])
