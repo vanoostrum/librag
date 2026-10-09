@@ -17,6 +17,7 @@ from pathlib import Path
 import yaml
 
 from cli import run
+from github_app import REPO, git_identity, installation_token
 from policy import scope_violations
 
 ISSUE = re.compile(r'^[A-Z][A-Z0-9]*-\d+$')
@@ -64,7 +65,9 @@ def checkout(issue, title, run=run):
 
 
 def commit(issue, stage, message, run=run):
-    run('git', 'commit', '--quiet', '-m', message,
+    name, email = git_identity()
+    run('git', '-c', f'user.name={name}', '-c', f'user.email={email}',
+        'commit', '--quiet', '-m', message,
         '--trailer', f'Factory-Issue: {issue}', '--trailer', f'Factory-Stage: {stage}')
     return run('git', 'rev-parse', 'HEAD')
 
@@ -122,7 +125,13 @@ def upsert(issue, title, body, run=run):
     if not branch.startswith(prefix(issue)):
         raise ValueError(f'current branch {branch} is not a {prefix(issue)}* branch')
     enforce_scope(run)
-    run('git', 'push', '--quiet', '-u', 'origin', 'HEAD')
+    if installation_token():
+        # A clean URL plus an empty credential helper makes git ask GIT_ASKPASS
+        # instead of reusing the x-access-token baked into origin.
+        run('git', '-c', 'credential.helper=',
+            'push', '--quiet', f'https://github.com/{REPO}.git', f'HEAD:refs/heads/{branch}')
+    else:
+        run('git', 'push', '--quiet', '-u', 'origin', 'HEAD')
     full_title = f'[{issue}] {title}'
     found = json.loads(run('gh', 'pr', 'list', '--head', branch, '--state', 'open',
                            '--json', 'number,url') or '[]')

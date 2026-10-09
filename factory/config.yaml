@@ -1,6 +1,12 @@
 version: 1
 repository: vanoostrum/librag
 default_branch: main
+github_app:
+  slug: chef-willie
+  id: '5254425'
+  installation_id: '169706504'
+  bot: chef-willie[bot]
+
 readiness:
   step: 1
   application_implementation_enabled: false
