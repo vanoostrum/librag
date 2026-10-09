@@ -27,6 +27,9 @@ def scope_violations(step, paths, application_enabled=False, project_adapter=Fal
     """Paths a change may not touch at this readiness. An empty diff has none."""
     if application_enabled and project_adapter and step == 3:
         return []
+    # Step 2 is the one-off project setup, which creates the application tree.
+    if step == 2:
+        return []
     return [path for path in paths if not eligible_work(step, 'factory-docs', [path])]
 
 

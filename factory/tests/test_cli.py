@@ -169,13 +169,15 @@ class PrTests(unittest.TestCase):
         self.assertEqual(pr.upsert('LIBRAG-12', 'Guide', 'body', run), ('updated', 'u', 'sha2'))
 
     def test_upsert_refuses_empty_or_out_of_scope_diffs(self):
+        from unittest import mock
         branch = (('git', 'rev-parse', '--abbrev-ref'), 'librag-12/guide')
         for diff, snippet in (
             ('', 'no changes'),
             ('src/librag/main.py\n', 'outside factory scope'),
         ):
             run = FakeRun([branch, (('git', 'diff', '--name-only'), diff)])
-            with self.subTest(diff=diff or 'empty'), self.assertRaises(ValueError) as caught:
+            with self.subTest(diff=diff or 'empty'), self.assertRaises(ValueError) as caught, \
+                    mock.patch('pr.yaml.safe_load', return_value={'readiness': {'step': 1}}):
                 pr.upsert('LIBRAG-12', 'Guide', 'body', run)
             self.assertIn(snippet, str(caught.exception))
             self.assertFalse(any(c[:2] == ('git', 'push') for c in run.calls))

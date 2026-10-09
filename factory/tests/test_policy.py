@@ -14,6 +14,8 @@ class GuardPolicyTests(unittest.TestCase):
         self.assertFalse(eligible_work(1, 'factory-docs', []))
         self.assertEqual(scope_violations(1, []), [])
         self.assertEqual(scope_violations(1, ['docs/a.md', 'Dockerfile']), ['Dockerfile'])
+        self.assertEqual(scope_violations(2, ['pyproject.toml', 'src/librag/main.py']), [])
+        self.assertEqual(scope_violations(3, ['src/app.py']), ['src/app.py'])
         self.assertEqual(
             scope_violations(3, ['src/app.py'], application_enabled=True, project_adapter=True),
             [],
