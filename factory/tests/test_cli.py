@@ -40,6 +40,26 @@ class GhFallbackTests(unittest.TestCase):
                     mock.patch('cli.installation_token', return_value='ghs_app'):
                 self.assertEqual(cli.run('gh', 'api', 'user'), 'ghs_app')
 
+    def test_git_push_receives_askpass_without_the_token_in_argv(self):
+        import cli
+        import os
+        import stat
+        import tempfile
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = Path(tmp, 'git')
+            fake.write_text(
+                '#!/bin/sh\n'
+                'for arg in "$@"; do case "$arg" in *ghs_app*) echo leaked; exit 1 ;; esac; done\n'
+                '[ -n "$LIBRAG_GIT_TOKEN" ] && [ -x "$GIT_ASKPASS" ] && echo authed || echo missing\n')
+            fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+            env = dict(PATH=f'{tmp}:{os.environ["PATH"]}')
+            with mock.patch.dict(os.environ, env, clear=True), \
+                    mock.patch('github_app.installation_token', return_value='ghs_app'):
+                self.assertEqual(
+                    cli.run('git', '-c', 'credential.helper=', 'push', 'https://github.com/vanoostrum/librag.git'),
+                    'authed')
+
     def test_rejected_gh_token_retries_with_stored_login(self):
         import cli
         import os
@@ -139,7 +159,8 @@ class PrTests(unittest.TestCase):
         with mock.patch('pr.installation_token', return_value='ghs_test'):
             pr.upsert('LIBRAG-12', 'Guide', 'body', run)
         push = next(c for c in run.calls if 'push' in c)
-        self.assertEqual(push[2], 'http.extraheader=Authorization: Bearer ghs_test')
+        self.assertEqual(push[2], 'credential.helper=')
+        self.assertNotIn('ghs_test', ' '.join(push))
         self.assertIn('https://github.com/vanoostrum/librag.git', push)
         self.assertIn('HEAD:refs/heads/librag-12/guide', push)
         run = FakeRun([(('git', 'rev-parse', '--abbrev-ref'), 'librag-12/guide'), diff,

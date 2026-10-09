@@ -3,16 +3,21 @@
 import os
 import subprocess
 
-from github_app import installation_token
+from github_app import git_auth_env, installation_token
 
 
 def run(*args):
     env = os.environ.copy()
-    app_token = installation_token() if args and args[0] == 'gh' else None
-    if app_token:
-        # Replaces both the cloud git placeholder and any personal GH_TOKEN.
-        env['GH_TOKEN'] = app_token
-        env['GITHUB_TOKEN'] = app_token
+    app_token = None
+    if args and args[0] == 'gh':
+        app_token = installation_token()
+        if app_token:
+            # Replaces both the cloud git placeholder and any personal GH_TOKEN.
+            env['GH_TOKEN'] = app_token
+            env['GITHUB_TOKEN'] = app_token
+    elif args and args[0] == 'git' and 'push' in args:
+        env = git_auth_env(env)
+        app_token = env.get('LIBRAG_GIT_TOKEN')
     try:
         return _run(args, env)
     except subprocess.CalledProcessError as error:

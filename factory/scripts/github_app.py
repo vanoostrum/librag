@@ -22,6 +22,7 @@ REPO = 'vanoostrum/librag'
 
 _cached = None
 _warned = False
+_askpass = None
 
 
 def git_identity():
@@ -62,6 +63,31 @@ def app_jwt(pem, now=None):
     finally:
         os.unlink(path)
     return f'{header}.{payload}.{b64url(sig)}'
+
+
+def askpass_path():
+    """Script git calls so the token stays in the environment, not in argv."""
+    global _askpass
+    if _askpass and os.path.exists(_askpass):
+        return _askpass
+    handle = tempfile.NamedTemporaryFile('w', prefix='librag-askpass-', suffix='.sh', delete=False)
+    handle.write('#!/bin/sh\ncase "$1" in\nUsername*) printf \'%s\\n\' x-access-token ;;\n'
+                 '*) printf \'%s\\n\' "$LIBRAG_GIT_TOKEN" ;;\nesac\n')
+    handle.close()
+    os.chmod(handle.name, 0o700)
+    _askpass = handle.name
+    return _askpass
+
+
+def git_auth_env(base):
+    token = installation_token()
+    if not token:
+        return base
+    env = dict(base)
+    env['GIT_ASKPASS'] = askpass_path()
+    env['GIT_TERMINAL_PROMPT'] = '0'
+    env['LIBRAG_GIT_TOKEN'] = token
+    return env
 
 
 def installation_token():

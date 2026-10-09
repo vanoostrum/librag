@@ -125,11 +125,10 @@ def upsert(issue, title, body, run=run):
     if not branch.startswith(prefix(issue)):
         raise ValueError(f'current branch {branch} is not a {prefix(issue)}* branch')
     enforce_scope(run)
-    token = installation_token()
-    if token:
-        # Push to a clean URL so an x-access-token baked into origin cannot
-        # authenticate the push as cursor[bot].
-        run('git', '-c', f'http.extraheader=Authorization: Bearer {token}',
+    if installation_token():
+        # A clean URL plus an empty credential helper makes git ask GIT_ASKPASS
+        # instead of reusing the x-access-token baked into origin.
+        run('git', '-c', 'credential.helper=',
             'push', '--quiet', f'https://github.com/{REPO}.git', f'HEAD:refs/heads/{branch}')
     else:
         run('git', 'push', '--quiet', '-u', 'origin', 'HEAD')
