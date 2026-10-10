@@ -43,6 +43,7 @@ These apply to every stage.
 - **Retries.** At most three automatic attempts per stage per feedback round, counting failed runs. Then move the issue to Needs human and say what was tried.
 - **Reporting.** Short updates go in the item's Slack thread. Detail goes to #librag-log, prefixed `[<KEY>-<num>] <stage>:`. Add one Linear comment per run: `Run record: stage | model | started | finished | outcome | notes`, with an outcome of `success`, `failed`, `escalated`, or `noop`.
 - **Git.** Use branch `<key>-<num>/<slug>` with a lowercase key, and PR title `[<KEY>-<num>] <title>`. Commits and the squash merge keep `Factory-Issue: <KEY>-<num>` and `Factory-Stage: <stage>` trailers. Commits, pushes, pull requests, and merges are made as `chef-willie[bot]` (`factory/config.yaml` `github_app`). Never push to `main`, bypass required checks, or commit secrets.
+- **Pull requests.** Open and update PRs only with `factory/scripts/pr.py upsert`, never with Cursor's PR tool (`open_git_pr`, ManagePullRequest). PRs are never drafts. If `upsert` fails, record `failed` and stop.
 
 ## Verification
 
