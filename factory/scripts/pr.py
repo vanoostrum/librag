@@ -3,8 +3,9 @@
 branch  checks out the issue branch. One existing `<key>-<num>/*` branch is reused.
         More than one is an error.
 commit  commits staged changes with the Factory-Issue and Factory-Stage trailers.
-upsert  pushes the branch and creates or updates its PR with the standard title and body.
-        Refuses an empty diff and paths outside the readiness allowlist.
+upsert  pushes the branch as chef-willie[bot] and creates or updates its PR with the standard
+        title and body, then marks a draft PR ready. Refuses an empty diff, paths outside the
+        readiness allowlist, and a missing chef-willie token.
 """
 
 import argparse
@@ -17,7 +18,7 @@ from pathlib import Path
 import yaml
 
 from cli import run
-from github_app import REPO, git_identity, installation_token
+from github_app import BOT_NAME, REPO, git_identity, installation_token
 from policy import scope_violations
 
 ISSUE = re.compile(r'^[A-Z][A-Z0-9]*-\d+$')
@@ -120,28 +121,40 @@ def enforce_scope(run=run):
         raise ValueError('outside factory scope at this readiness: ' + ', '.join(bad))
 
 
+def require_app_token():
+    refusal = (f'refusing to push or open a PR as anyone but {BOT_NAME}; '
+               'record the run as failed and do not use another PR tool')
+    try:
+        token = installation_token()
+    except (OSError, subprocess.CalledProcessError, ValueError, KeyError) as error:
+        raise ValueError(f'could not mint a {BOT_NAME} token ({error}); {refusal}') from error
+    if not token:
+        raise ValueError(f'GITHUB_APP_PRIVATE_KEY is unset; {refusal}')
+
+
 def upsert(issue, title, body, run=run):
     branch = run('git', 'rev-parse', '--abbrev-ref', 'HEAD')
     if not branch.startswith(prefix(issue)):
         raise ValueError(f'current branch {branch} is not a {prefix(issue)}* branch')
     enforce_scope(run)
-    if installation_token():
-        # A clean URL plus an empty credential helper makes git ask GIT_ASKPASS
-        # instead of reusing the x-access-token baked into origin.
-        run('git', '-c', 'credential.helper=',
-            'push', '--quiet', f'https://github.com/{REPO}.git', f'HEAD:refs/heads/{branch}')
-    else:
-        run('git', 'push', '--quiet', '-u', 'origin', 'HEAD')
+    require_app_token()
+    # A clean URL plus an empty credential helper makes git ask GIT_ASKPASS
+    # instead of reusing the x-access-token baked into origin.
+    run('git', '-c', 'credential.helper=',
+        'push', '--quiet', f'https://github.com/{REPO}.git', f'HEAD:refs/heads/{branch}')
     full_title = f'[{issue}] {title}'
     found = json.loads(run('gh', 'pr', 'list', '--head', branch, '--state', 'open',
                            '--json', 'number,url') or '[]')
     if found:
-        run('gh', 'pr', 'edit', str(found[0]['number']), '--title', full_title, '--body', body)
+        number = str(found[0]['number'])
+        run('gh', 'pr', 'edit', number, '--title', full_title, '--body', body)
         url, action = found[0]['url'], 'updated'
     else:
         url = run('gh', 'pr', 'create', '--base', 'main', '--head', branch,
                   '--title', full_title, '--body', body).splitlines()[-1]
-        action = 'created'
+        number, action = url.rstrip('/').rsplit('/', 1)[-1], 'created'
+    if json.loads(run('gh', 'pr', 'view', number, '--json', 'isDraft') or '{}').get('isDraft'):
+        run('gh', 'pr', 'ready', number)
     return action, url, run('git', 'rev-parse', 'HEAD')
 
 
