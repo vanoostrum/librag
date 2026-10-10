@@ -71,7 +71,8 @@ class GhFallbackTests(unittest.TestCase):
             fake.write_text('#!/bin/sh\n[ -n "$GH_TOKEN" ] && { echo "HTTP 401: Bad credentials" >&2; exit 1; }\necho stored\n')
             fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
             env = dict(os.environ, PATH=f'{tmp}:{os.environ["PATH"]}', GH_TOKEN='placeholder')
-            with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch.dict(os.environ, env, clear=True), \
+                    mock.patch('cli.installation_token', return_value=None):
                 self.assertEqual(cli.run('gh', 'pr', 'list'), 'stored')
 
 
@@ -142,13 +143,52 @@ class PrTests(unittest.TestCase):
         self.assertIn('| 1. a \\| b | docs/x.md line 4 |', body)
 
     def test_upsert_creates_then_updates(self):
+        from unittest import mock
         diff = (('git', 'diff', '--name-only'), 'docs/factory-handoff.md\n')
         run = FakeRun([(('git', 'rev-parse', '--abbrev-ref'), 'librag-12/guide'), diff,
                        (('gh', 'pr', 'list'), '[]'),
                        (('gh', 'pr', 'create'), 'https://github.com/o/r/pull/5'),
+                       (('gh', 'pr', 'view'), '{"isDraft": false}'),
                        (('git', 'rev-parse', 'HEAD'), 'sha1')])
-        self.assertEqual(pr.upsert('LIBRAG-12', 'Guide', 'body', run), ('created', 'https://github.com/o/r/pull/5', 'sha1'))
-        self.assertIn('[LIBRAG-12] Guide', next(c for c in run.calls if c[:3] == ('gh', 'pr', 'create')))
+        with mock.patch('pr.installation_token', return_value='ghs_test'):
+            self.assertEqual(pr.upsert('LIBRAG-12', 'Guide', 'body', run),
+                             ('created', 'https://github.com/o/r/pull/5', 'sha1'))
+        create = next(c for c in run.calls if c[:3] == ('gh', 'pr', 'create'))
+        self.assertIn('[LIBRAG-12] Guide', create)
+        self.assertNotIn('--draft', create)
+        self.assertIn(('gh', 'pr', 'view', '5', '--json', 'isDraft'), run.calls)
+        self.assertFalse(any(c[:3] == ('gh', 'pr', 'ready') for c in run.calls))
+
+    def test_upsert_marks_a_draft_pr_ready(self):
+        from unittest import mock
+        diff = (('git', 'diff', '--name-only'), 'docs/factory-handoff.md\n')
+        for listed, created in (('[]', 'https://github.com/o/r/pull/7'),
+                                ('[{"number": 7, "url": "https://github.com/o/r/pull/7"}]', None)):
+            responses = [(('git', 'rev-parse', '--abbrev-ref'), 'librag-12/guide'), diff,
+                         (('gh', 'pr', 'list'), listed),
+                         (('gh', 'pr', 'view'), '{"isDraft": true}'),
+                         (('git', 'rev-parse', 'HEAD'), 'sha1')]
+            if created:
+                responses.append((('gh', 'pr', 'create'), created))
+            run = FakeRun(responses)
+            with self.subTest(created=bool(created)), mock.patch('pr.installation_token', return_value='ghs_test'):
+                pr.upsert('LIBRAG-12', 'Guide', 'body', run)
+                self.assertEqual(run.calls[-2], ('gh', 'pr', 'ready', '7'))
+
+    def test_upsert_refuses_without_an_app_token(self):
+        from unittest import mock
+        import urllib.error
+        diff = (('git', 'diff', '--name-only'), 'docs/factory-handoff.md\n')
+        for name, patch in (
+            ('unset', dict(return_value=None)),
+            ('mint failed', dict(side_effect=urllib.error.HTTPError('u', 401, 'Unauthorized', {}, None))),
+        ):
+            run = FakeRun([(('git', 'rev-parse', '--abbrev-ref'), 'librag-12/guide'), diff])
+            with self.subTest(name), self.assertRaises(ValueError) as caught, \
+                    mock.patch('pr.installation_token', **patch):
+                pr.upsert('LIBRAG-12', 'Guide', 'body', run)
+            self.assertIn('chef-willie[bot]', str(caught.exception))
+            self.assertFalse(any('push' in c or c[0] == 'gh' for c in run.calls), name)
 
     def test_upsert_pushes_with_the_app_token(self):
         from unittest import mock
@@ -166,7 +206,8 @@ class PrTests(unittest.TestCase):
         run = FakeRun([(('git', 'rev-parse', '--abbrev-ref'), 'librag-12/guide'), diff,
                        (('gh', 'pr', 'list'), json.dumps([{'number': 5, 'url': 'u'}])),
                        (('git', 'rev-parse', 'HEAD'), 'sha2')])
-        self.assertEqual(pr.upsert('LIBRAG-12', 'Guide', 'body', run), ('updated', 'u', 'sha2'))
+        with mock.patch('pr.installation_token', return_value='ghs_test'):
+            self.assertEqual(pr.upsert('LIBRAG-12', 'Guide', 'body', run), ('updated', 'u', 'sha2'))
 
     def test_upsert_refuses_empty_or_out_of_scope_diffs(self):
         from unittest import mock
