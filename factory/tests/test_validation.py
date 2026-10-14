@@ -63,7 +63,7 @@ class AssetValidationTests(unittest.TestCase):
         subprocess.run([*git, 'add', 'factory/config.yaml'], check=True, capture_output=True)
         subprocess.run([*git, *commit, 'commit', '-m', 'base'], check=True, capture_output=True)
         app = repo / 'src'
-        app.mkdir()
+        app.mkdir(exist_ok=True)
         (app / 'app.py').write_text('print(1)\n')
         subprocess.run([*git, 'add', 'src/app.py'], check=True, capture_output=True)
         subprocess.run([*git, *commit, 'commit', '-m', 'app'], check=True, capture_output=True)

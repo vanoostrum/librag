@@ -1,0 +1,60 @@
+[project]
+name = "librag"
+version = "0.1.0"
+description = "LibRag web application"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+]
+
+[dependency-groups]
+dev = [
+    "fastapi-cli",
+    "httpx2",
+    "mypy",
+    "pytest",
+    "ruff",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.0,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+# Factory code is checked by Factory Contracts. Project CI does not rewrite it.
+extend-exclude = ["factory"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812", # Conflicts with the Ruff formatter (missing-trailing-comma).
+    "COM819", # Conflicts with the Ruff formatter (prohibited-trailing-comma).
+    "D203", # Conflicts with the Ruff formatter and with D211 (blank line before class).
+    "D206", # Conflicts with the Ruff formatter (docstring-tab-indentation).
+    "D213", # Conflicts with D212 (multi-line docstring summary on the first line).
+    "D300", # Conflicts with the Ruff formatter (triple-single-quotes).
+    "E111", # Conflicts with the Ruff formatter (indentation-with-invalid-multiple).
+    "E114", # Conflicts with the Ruff formatter (indentation-with-invalid-multiple-comment).
+    "E117", # Conflicts with the Ruff formatter (over-indented).
+    "Q000", # Conflicts with the Ruff formatter (bad-quotes-inline-string).
+    "Q001", # Conflicts with the Ruff formatter (bad-quotes-multiline-string).
+    "Q002", # Conflicts with the Ruff formatter (bad-quotes-docstring).
+    "Q003", # Conflicts with the Ruff formatter (avoidable-escaped-quote).
+    "Q004", # Conflicts with the Ruff formatter (unnecessary-escaped-quote).
+    "W191", # Conflicts with the Ruff formatter (tab-indentation).
+]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest relies on assert. S101 is limited to tests; application code stays checked.
+"tests/**/*.py" = ["S101"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
