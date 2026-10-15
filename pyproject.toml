@@ -12,9 +12,9 @@ dependencies = [
 dev = [
     "fastapi-cli",
     "httpx2",
-    "mypy",
     "pytest",
     "ruff",
+    "ty",
 ]
 
 [build-system]
@@ -24,8 +24,6 @@ build-backend = "uv_build"
 [tool.ruff]
 target-version = "py312"
 line-length = 88
-# Factory code is checked by Factory Contracts. Project CI does not rewrite it.
-extend-exclude = ["factory"]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -51,10 +49,12 @@ ignore = [
 # pytest relies on assert. S101 is limited to tests; application code stays checked.
 "tests/**/*.py" = ["S101"]
 
-[tool.mypy]
-strict = true
-python_version = "3.12"
-files = ["src", "tests"]
+[tool.ty.environment]
+python-version = "3.12"
+
+[tool.ty.rules]
+# Fail on every diagnostic, not only on errors.
+all = "error"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
