@@ -24,7 +24,7 @@ uv run ruff format --check .
 Type-check:
 
 ```bash
-uv run mypy src tests
+uv run ty check
 ```
 
 Test:
