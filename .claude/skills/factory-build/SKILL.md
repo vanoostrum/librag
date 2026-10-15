@@ -21,10 +21,10 @@ A ticket whose spec gate is approved.
    3. Run the full verify (see the verify skill from the config). Fix until green.
    4. Commit with the `Factory-Issue` trailer.
 4. **Check the acceptance criteria.** Each one must be covered by a test, or explain in the PR why it cannot be.
-5. **Open the PR** as the bot user, against the base branch. If a PR for the branch already exists, push to it. The PR body has:
+5. **Open the PR** as the bot user, against the base branch. First look for an existing one: `gh api "repos/<repo>/pulls?head=<owner>:<branch>&state=open"`. If there is one, pushing updates it. Otherwise create it with `gh api repos/<repo>/pulls -f title=... -f head=<branch> -f base=<base> -f body=...`. The PR body has:
    - a one-line summary and the Linear ticket link;
    - a table of acceptance criteria → evidence (test name or file).
-6. **Wait for CI.** Watch the required check with `gh pr checks --watch`. If it fails, read the logs, fix, push. That counts as a failed attempt.
+6. **Wait for CI.** Poll `gh api repos/<repo>/commits/<head sha>/check-runs` about every 30 seconds until the required check has completed. If it failed, read the job log with `gh api repos/<repo>/actions/jobs/<job id>/logs`, fix, push. That counts as a failed attempt.
 7. Comment `🤖 build: success — PR <url>` on the ticket.
 
 ## Done when
