@@ -60,4 +60,5 @@ When asked to "work on" a ticket or a feature, run the steps in order from where
   - `git config user.name <bot user>` and `git config user.email <bot email>` before committing.
   - Use the token in the bot token env var for `git push` and `gh` (`GH_TOKEN=$FACTORY_GITHUB_TOKEN`).
   - If the env var is missing, stop and tell the human. Do not fall back to another identity.
+  - Use `gh api` with REST endpoints only. The cloud sandbox blocks GitHub's GraphQL API, so `gh pr ...` commands fail there.
 - **Git.** Branch `<team lowercase>-<num>/<slug>`, e.g. `librag-12/version-endpoint`. PR title `[<TEAM>-<num>] <title>`. Every commit ends with the trailer `Factory-Issue: <TEAM>-<num>`. Never push to the base branch. Never commit secrets.
