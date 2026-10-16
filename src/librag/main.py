@@ -1,6 +1,8 @@
 # Copyright (C) 2026 Theo van Oostrum
 """LibRag HTTP application."""
 
+from importlib.metadata import version as package_version
+
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
@@ -29,3 +31,9 @@ def homepage() -> str:
 def health() -> dict[str, str]:
     """Return the service health status."""
     return {"status": "ok"}
+
+
+@app.get("/version")
+def version() -> dict[str, str]:
+    """Return the installed LibRag version, as declared in pyproject.toml."""
+    return {"version": package_version("librag")}
