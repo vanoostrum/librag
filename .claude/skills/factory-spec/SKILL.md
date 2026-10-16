@@ -20,7 +20,7 @@ One of:
    - Description: if it is truly ambiguous, ask at most 2 short questions. Then create a ticket in the Linear team from the config, with a short title and the description. Tell the human the key.
 2. Move the ticket to **In Progress**.
 3. **Read the code** that the change touches, so the spec fits what exists.
-4. **Write the spec** into the ticket description, below the original text, under `## Spec`:
+4. **Write the spec** into the ticket description, below the original text, under `## Spec`. Use the `clear-technical-prose` skill for its text:
    - **Goal:** one or two sentences.
    - **Scope:** what changes.
    - **Out of scope:** what does not.
