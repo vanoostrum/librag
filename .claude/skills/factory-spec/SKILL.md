@@ -28,7 +28,7 @@ One of:
    - **Plan:** a few ordered tasks, each small enough to test on its own.
    - **Risks:** only if there are any.
    If a spec already exists and the human gave feedback, update it instead and note what changed.
-5. **Gate.** Post `🤖 Gate: spec` with the acceptance criteria and "Reply approve, or give feedback." Ask the same in chat. Stop.
+5. **Gate.** Post `🤖 Gate: spec` with the acceptance criteria and "Reply approve, or give feedback." In chat, ask for approval with the ticket link and the number of criteria. Stop.
 
 ## Done when
 

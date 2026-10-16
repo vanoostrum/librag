@@ -18,9 +18,9 @@ A ticket with an open PR and a green required check.
 
    > Read the `## Spec` of the Linear ticket and the PR diff. For each acceptance criterion, answer met / not met, with evidence (test name, file and line). Then list real problems only: bugs, missing tests, security issues, changes outside the scope. No style nitpicks; ruff and ty handle those. Write the review with the `clear-technical-prose` skill. End with PASS or FAIL.
 
-3. **Post the review** as a PR comment.
+3. **Post the review** as a PR comment. Do not repeat it in chat.
 4. **If FAIL:** go back to `factory-build` with the review as input. That counts as a failed attempt for review.
-5. **If PASS:** post `🤖 Gate: merge` on the ticket with the PR link and the criteria table. Ask the same in chat. Stop.
+5. **If PASS:** post `🤖 Gate: merge` on the ticket with the PR link and the criteria table. In chat, ask for approval with the PR link and the review link. Stop.
 
 ## Done when
 
