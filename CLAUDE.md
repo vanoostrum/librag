@@ -27,9 +27,6 @@ This repo is worked on by a software factory: Claude Code agents take a Linear t
 | Linear team | `LIBRAG` |
 | GitHub repo | `vanoostrum/librag` |
 | Base branch | `main` |
-| Bot user | `cbchef` |
-| Bot email | `343190287+cbchef@users.noreply.github.com` |
-| Bot token env var | `FACTORY_GITHUB_TOKEN` |
 | Required CI check | `checks` |
 | Verify skill | `project-verify` |
 
@@ -56,9 +53,5 @@ When asked to "work on" a ticket or a feature, run the steps in order from where
 
   Any other human reply is feedback: go back to the step before the gate and use it.
 - **Retries.** At most 3 failed attempts per step. Then move the ticket to **Needs human**, comment what was tried and what blocks, and tell the human.
-- **GitHub identity.** All git and GitHub actions run as the bot user, never as the human:
-  - `git config user.name <bot user>` and `git config user.email <bot email>` before committing.
-  - Use the token in the bot token env var for `git push` and `gh` (`GH_TOKEN=$FACTORY_GITHUB_TOKEN`).
-  - If the env var is missing, stop and tell the human. Do not fall back to another identity.
-  - Use `gh api` with REST endpoints only. The cloud sandbox blocks GitHub's GraphQL API, so `gh pr ...` commands fail there.
+- **GitHub.** Use the session's built-in GitHub connection; no extra token is needed. Use `gh api` with REST endpoints only. The cloud sandbox blocks GitHub's GraphQL API, so `gh pr ...` commands fail there.
 - **Git.** Branch `<team lowercase>-<num>/<slug>`, e.g. `librag-12/version-endpoint`. PR title `[<TEAM>-<num>] <title>`. Every commit ends with the trailer `Factory-Issue: <TEAM>-<num>`. Never push to the base branch. Never commit secrets.
