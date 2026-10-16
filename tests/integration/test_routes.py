@@ -1,7 +1,9 @@
 # Copyright (C) 2026 Theo van Oostrum
 """HTTP tests for the LibRag routes."""
 
+import tomllib
 from http import HTTPStatus
+from pathlib import Path
 
 import pytest
 from fastapi.routing import APIRoute
@@ -10,6 +12,7 @@ from fastapi.testclient import TestClient
 from librag.main import app
 
 _DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+_PYPROJECT = Path(__file__).resolve().parents[2] / "pyproject.toml"
 
 
 @pytest.fixture
@@ -34,6 +37,15 @@ def test_health(client: TestClient) -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_version(client: TestClient) -> None:
+    """GET /version returns the version declared in pyproject.toml."""
+    expected = tomllib.loads(_PYPROJECT.read_text())["project"]["version"]
+    response = client.get("/version")
+    assert response.status_code == HTTPStatus.OK
+    assert response.headers["content-type"] == "application/json"
+    assert response.json() == {"version": expected}
+
+
 @pytest.mark.parametrize("path", _DOCS_PATHS)
 def test_builtin_docs_are_disabled(client: TestClient, path: str) -> None:
     """FastAPI's built-in documentation routes are turned off."""
@@ -41,7 +53,7 @@ def test_builtin_docs_are_disabled(client: TestClient, path: str) -> None:
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-def test_only_homepage_and_health_are_registered() -> None:
-    """The application serves no routes besides / and /health."""
+def test_only_expected_routes_are_registered() -> None:
+    """The application serves no routes besides /, /health and /version."""
     paths = sorted(route.path for route in app.routes if isinstance(route, APIRoute))
-    assert paths == ["/", "/health"]
+    assert paths == ["/", "/health", "/version"]
