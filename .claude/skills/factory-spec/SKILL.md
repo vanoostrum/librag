@@ -20,7 +20,7 @@ One of:
    - Description: if it is truly ambiguous, ask at most 2 short questions. Then create a ticket in the Linear team from the config, with a short title and the description. Tell the human the key.
 2. Move the ticket to **In Progress**.
 3. **Read the code** that the change touches, so the spec fits what exists.
-4. **Write the spec** into the ticket description, below the original text, under `## Spec`:
+4. **Write the spec** into the ticket description, below the original text, under `## Spec`. Use the `clear-technical-prose` skill for its text:
    - **Goal:** one or two sentences.
    - **Scope:** what changes.
    - **Out of scope:** what does not.
@@ -28,7 +28,7 @@ One of:
    - **Plan:** a few ordered tasks, each small enough to test on its own.
    - **Risks:** only if there are any.
    If a spec already exists and the human gave feedback, update it instead and note what changed.
-5. **Gate.** Post `🤖 Gate: spec` with the acceptance criteria and "Reply approve, or give feedback." Ask the same in chat. Stop.
+5. **Gate.** Post `🤖 Gate: spec` with the acceptance criteria and "Reply approve, or give feedback." In chat, ask for approval with the ticket link and the number of criteria. Stop.
 
 ## Done when
 
