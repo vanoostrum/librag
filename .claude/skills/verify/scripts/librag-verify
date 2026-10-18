@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# Drive a disposable LibRag instance over HTTP and keep evidence.
+# Usage: librag-verify <launch|doctor|get|cleanup> [args]
+# State and evidence live in <repo>/.verify/<run id>/. Cleanup removes run/, keeps evidence/.
+set -euo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+RUN_ID="${LIBRAG_VERIFY_RUN:?Set LIBRAG_VERIFY_RUN to a run id, e.g. export LIBRAG_VERIFY_RUN=\$(date +%Y%m%d-%H%M%S)}"
+BASE="$REPO/.verify/$RUN_ID"
+RUN="$BASE/run"
+EVIDENCE="$BASE/evidence"
+
+die() { echo "librag-verify: $*" >&2; exit 1; }
+
+free_port() {
+  "$REPO/.venv/bin/python" -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'
+}
+
+url() { echo "http://127.0.0.1:$(cat "$RUN/port")"; }
+
+launch() {
+  [[ -f "$RUN/pid" ]] && die "run $RUN_ID already has an instance (pid $(cat "$RUN/pid")). Run cleanup first."
+  mkdir -p "$RUN" "$EVIDENCE"
+  (cd "$REPO" && uv sync --frozen --quiet)
+  local port="${LIBRAG_VERIFY_PORT:-$(free_port)}"
+  echo "$port" > "$RUN/port"
+  (cd "$REPO" && exec .venv/bin/python -m uvicorn librag.main:app --host 127.0.0.1 --port "$port" > "$RUN/server.log" 2>&1) &
+  echo $! > "$RUN/pid"
+  for _ in $(seq 1 50); do
+    if curl -fsS "http://127.0.0.1:$port/health" > /dev/null 2>&1; then
+      echo "ready: http://127.0.0.1:$port pid=$(cat "$RUN/pid") run=$RUN_ID"
+      return 0
+    fi
+    kill -0 "$(cat "$RUN/pid")" 2> /dev/null || { cat "$RUN/server.log" >&2; die "server exited during startup"; }
+    sleep 0.2
+  done
+  cat "$RUN/server.log" >&2
+  die "not ready after 10s"
+}
+
+doctor() {
+  [[ -f "$RUN/pid" ]] || die "no instance for run $RUN_ID. Run launch."
+  local pid port expected actual owner
+  pid="$(cat "$RUN/pid")"; port="$(cat "$RUN/port")"
+  kill -0 "$pid" 2> /dev/null || die "pid $pid is not running"
+  owner="$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2> /dev/null | head -1 || true)"
+  [[ "$owner" == "$pid" ]] || die "port $port is owned by pid '${owner:-none}', not by our pid $pid"
+  [[ "$(curl -fsS "$(url)/health")" == '{"status":"ok"}' ]] || die "/health is not {\"status\":\"ok\"}"
+  expected="$(sed -n 's/^version = "\(.*\)"$/\1/p' "$REPO/pyproject.toml" | head -1)"
+  actual="$(curl -fsS "$(url)/version")"
+  [[ "$actual" == "{\"version\":\"$expected\"}" ]] || die "/version is $actual, pyproject.toml says $expected. Run uv sync and relaunch."
+  echo "ok: $(url) pid=$pid version=$expected run=$RUN_ID"
+}
+
+get() {
+  local feature="${1:?feature id}" path="${2:?path, e.g. /health}" name
+  [[ -f "$RUN/port" ]] || die "no instance for run $RUN_ID. Run launch."
+  name="$(echo "$path" | tr -c 'A-Za-z0-9\n' '_' | sed 's/^_*//; s/^$/root/')"
+  local dir="$EVIDENCE/$feature"; mkdir -p "$dir"
+  local status
+  status="$(curl -sS -D "$dir/$name.headers" -o "$dir/$name.body" -w '%{http_code}' "$(url)$path")"
+  echo "$status" > "$dir/$name.status"
+  printf 'GET %s\nstatus: %s\n%s\n' "$path" "$status" "$(cat "$dir/$name.body")" | tee "$dir/$name.txt"
+}
+
+cleanup() {
+  if [[ -f "$RUN/pid" ]]; then
+    local pid; pid="$(cat "$RUN/pid")"
+    if kill -0 "$pid" 2> /dev/null; then
+      kill "$pid"
+      for _ in $(seq 1 25); do kill -0 "$pid" 2> /dev/null || break; sleep 0.2; done
+      kill -0 "$pid" 2> /dev/null && kill -9 "$pid"
+    fi
+    [[ -f "$RUN/server.log" ]] && mkdir -p "$EVIDENCE" && cp "$RUN/server.log" "$EVIDENCE/server.log"
+  fi
+  rm -rf "$RUN"
+  echo "cleaned: run $RUN_ID. Evidence kept in $EVIDENCE"
+}
+
+case "${1:-}" in
+  launch) launch ;;
+  doctor) doctor ;;
+  get) shift; get "$@" ;;
+  cleanup) cleanup ;;
+  *) die "usage: librag-verify <launch|doctor|get <feature> <path>|cleanup>" ;;
+esac
