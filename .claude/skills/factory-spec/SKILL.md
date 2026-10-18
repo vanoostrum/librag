@@ -17,15 +17,22 @@ One of:
 
 1. **Get the ticket.**
    - Ticket key: read it, with all comments.
-   - Description: if it is truly ambiguous, ask at most 2 short questions. Then create a ticket in the Linear team from the config, with a short title and the description. Tell the human the key.
+   - Description: create a ticket in the Linear team from the config, with a short title and the description. Tell the human the key.
 2. Move the ticket to **In Progress**.
-3. **Read the code** that the change touches, so the spec fits what exists.
-4. **Write the spec** into the ticket description, below the original text, under `## Spec`. Use the `clear-technical-prose` skill for its text:
+3. **Grill.** Run the `grill-with-docs` skill on the ticket. It asks the human questions in rounds and reads the code to find facts. Follow it, with these factory rules:
+   - Read `GLOSSARY.md` and `docs/adr/` first, if they exist.
+   - Ask the rounds in chat. This is an exception to the Chat rule in `CLAUDE.md`.
+   - If the ticket is already clear, the first frontier can be empty. Then skip to the next step.
+   - Do not write `GLOSSARY.md` or ADR files in the repo now. Write the new and changed glossary terms and ADRs into the spec, under **Domain docs**. `factory-build` commits them.
+   - If the human gave spec feedback, grill only the decisions that the feedback opens again.
+4. **Write the spec** into the ticket description, below the original text, under `## Spec`. Use the `clear-technical-prose` skill for its text. Base it on the decisions and the code from the grill. Read more code if a plan task needs it.
    - **Goal:** one or two sentences.
    - **Scope:** what changes.
    - **Out of scope:** what does not.
+   - **Decisions:** the decisions from the grill, one line each.
    - **Acceptance criteria:** a numbered list. Each one is testable and observable, e.g. "GET /version returns 200 with `{"version": "<pyproject version>"}`".
    - **Plan:** a few ordered tasks, each small enough to test on its own.
+   - **Domain docs:** only if there are any. The exact `GLOSSARY.md` entries and ADR files to add or change, in the formats of the `domain-modeling` skill.
    - **Risks:** only if there are any.
    If a spec already exists and the human gave feedback, update it instead and note what changed.
 5. **Gate.** Post `🤖 Gate: spec` with the acceptance criteria and "Reply approve, or give feedback." In chat, ask for approval with the ticket link and the number of criteria. Stop.
