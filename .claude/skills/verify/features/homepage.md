@@ -20,8 +20,9 @@ Preconditions:
 - **Open the page.** Run `$V get homepage /`. Status is `200`.
 - **Check the type.** Read `.verify/$LIBRAG_VERIFY_RUN/evidence/homepage/root.headers`. It has `content-type: text/html; charset=utf-8`.
 - **Check the content.** Run `grep -c '<title>LibRag</title>\|<h1>LibRag</h1>' .verify/$LIBRAG_VERIFY_RUN/evidence/homepage/root.body`. The count is `2`.
+- **Screenshot.** Run `$V screenshot homepage /`. The image `.verify/$LIBRAG_VERIFY_RUN/evidence/homepage/root.png` shows the heading `LibRag`. Open the image and look at it; a file that exists is not proof.
 
 ## Gotchas
 
 - The page has no CSS, scripts, or links. A test that expects assets fails for the right reason.
-- The body starts with `<!DOCTYPE html>`. Compare markup, not a rendered screenshot.
+- The body starts with `<!DOCTYPE html>`. Check the markup for exact text, and use the screenshot to show that the page renders.

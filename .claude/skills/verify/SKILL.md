@@ -53,6 +53,15 @@ $V get <feature id> <path>
 - Saves `<name>.status`, `<name>.headers`, `<name>.body`, and a `<name>.txt` transcript under `.verify/<run id>/evidence/<feature id>/`. The name is the path with `/` and dots replaced, or `root` for `/`.
 - The app has only GET routes. For other methods, use `curl` against the URL that `launch` printed, and save the output under the same evidence folder.
 
+```bash
+$V screenshot <feature id> <path>
+```
+
+- Opens `<path>` in headless Chrome or Chromium and saves `<name>.png` in the same evidence folder.
+- Use it for routes that return HTML. A JSON route needs no screenshot; its response output is the proof.
+- The helper looks for `LIBRAG_VERIFY_BROWSER`, then `/opt/pw-browsers/chromium` (the cloud container), then Google Chrome or Chromium on macOS, then `chromium` or `google-chrome` on `PATH`. `LIBRAG_VERIFY_WINDOW` sets the size; the default is `1280,800`.
+- Screen recordings are for multi-step UI flows, such as filling in and sending a form. LibRag has no such flow yet. When one arrives, add a `record` command with Playwright video, and add a feature file for the flow.
+
 The feature map in [features/README.md](features/README.md) has one recipe per feature, with the exact paths and the expected results.
 
 ## Evidence
@@ -60,6 +69,7 @@ The feature map in [features/README.md](features/README.md) has one recipe per f
 A proof for a feature has, for every entry point that the feature file lists:
 
 - the transcript (`.txt`) and status, headers, and body of each request;
+- a screenshot (`.png`) for each HTML page;
 - the expected value next to the actual one, when you report it.
 
 Proof standards:
@@ -69,7 +79,7 @@ Proof standards:
 - Check the version against `pyproject.toml`, not against a value copied from an earlier run.
 - No mocks. The app has no external systems.
 
-In a factory PR, paste the transcripts into the PR body. `.verify/` is not committed, and a cloud container is deleted after the session.
+In the factory, `factory-build` pastes the transcripts into the PR body and attaches the screenshots to the Linear ticket. `.verify/` is not committed, and a cloud container is deleted after the session.
 
 ## Cleanup
 
@@ -84,4 +94,4 @@ $V cleanup
 
 ## Helpers
 
-- `scripts/librag-verify launch|doctor|get <feature> <path>|cleanup`: the only helper. It needs `bash`, `curl`, `lsof`, and `uv`, which are on macOS and on the cloud container.
+- `scripts/librag-verify launch|doctor|get <feature> <path>|screenshot <feature> <path>|cleanup`: the only helper. It needs `bash`, `curl`, `lsof`, and `uv`, which are on macOS and on the cloud container. `screenshot` also needs Chrome or Chromium.
