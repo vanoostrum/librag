@@ -29,6 +29,7 @@ This repo is worked on by a software factory: Claude Code agents take a Linear t
 | Base branch | `main` |
 | Required CI check | `checks` |
 | Verify skill | `project-verify` |
+| App driver skill | `verify` |
 
 ### Flow
 

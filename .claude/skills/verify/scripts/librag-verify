@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Drive a disposable LibRag instance over HTTP and keep evidence.
-# Usage: librag-verify <launch|doctor|get|cleanup> [args]
+# Usage: librag-verify <launch|doctor|get|screenshot|cleanup> [args]
 # State and evidence live in <repo>/.verify/<run id>/. Cleanup removes run/, keeps evidence/.
 set -euo pipefail
 
@@ -63,6 +63,31 @@ get() {
   printf 'GET %s\nstatus: %s\n%s\n' "$path" "$status" "$(cat "$dir/$name.body")" | tee "$dir/$name.txt"
 }
 
+find_browser() {
+  local candidate
+  for candidate in "${LIBRAG_VERIFY_BROWSER:-}" /opt/pw-browsers/chromium \
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+    "/Applications/Chromium.app/Contents/MacOS/Chromium" \
+    "$(command -v chromium || true)" "$(command -v google-chrome || true)"; do
+    [[ -n "$candidate" && -x "$candidate" ]] && { echo "$candidate"; return 0; }
+  done
+  die "no Chrome or Chromium found. Set LIBRAG_VERIFY_BROWSER to its binary."
+}
+
+screenshot() {
+  local feature="${1:?feature id}" path="${2:?path, e.g. /}" name browser
+  [[ -f "$RUN/port" ]] || die "no instance for run $RUN_ID. Run launch."
+  name="$(echo "$path" | tr -c 'A-Za-z0-9\n' '_' | sed 's/^_*//; s/^$/root/')"
+  local dir="$EVIDENCE/$feature"; mkdir -p "$dir"
+  browser="$(find_browser)"
+  "$browser" --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+    --window-size="${LIBRAG_VERIFY_WINDOW:-1280,800}" \
+    --screenshot="$dir/$name.png" "$(url)$path" > "$RUN/browser.log" 2>&1 \
+    || { cat "$RUN/browser.log" >&2; die "browser failed"; }
+  [[ -s "$dir/$name.png" ]] || die "no screenshot written"
+  echo "screenshot: $dir/$name.png"
+}
+
 cleanup() {
   if [[ -f "$RUN/pid" ]]; then
     local pid; pid="$(cat "$RUN/pid")"
@@ -81,6 +106,7 @@ case "${1:-}" in
   launch) launch ;;
   doctor) doctor ;;
   get) shift; get "$@" ;;
+  screenshot) shift; screenshot "$@" ;;
   cleanup) cleanup ;;
-  *) die "usage: librag-verify <launch|doctor|get <feature> <path>|cleanup>" ;;
+  *) die "usage: librag-verify <launch|doctor|get <feature> <path>|screenshot <feature> <path>|cleanup>" ;;
 esac
