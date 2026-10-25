@@ -7,13 +7,15 @@
 | Path | What |
 |---|---|
 | `src/librag/` | Application code. `main.py` holds the FastAPI app. |
-| `tests/unit/` | Tests that call functions directly. |
-| `tests/integration/` | Tests that go through HTTP with `TestClient`. |
-| `.github/workflows/ci.yml` | CI: ruff, ty, pytest. |
+| `tests/integration/` | Tests that go through HTTP with `TestClient`. The default place for tests. |
+| `tests/unit/` | Tests that call functions directly. Only where the test seam rule allows them. |
+| `.github/workflows/ci.yml` | CI: ruff, ty, pytest with a coverage report. |
 
 - Python 3.12, managed with **uv**. Add dependencies with `uv add`, never `pip`.
 - Lint with **ruff**, type-check with **ty**, test with **pytest**. All must pass.
 - Write tests first.
+- **Test seams.** Test a feature at the highest seam: its HTTP route, with `TestClient`. Add a unit test only when the route test cannot cover a case well: many input combinations, a case that no request can reach, or a failure that is hard to locate from the route. Do not repeat in a unit test what a route test already checks.
+- pytest reports line and branch coverage on every run. There is no minimum. A branch that no test reaches is a sign that a case needs a test.
 - How to run and verify: the `project-verify` skill.
 
 ## Factory

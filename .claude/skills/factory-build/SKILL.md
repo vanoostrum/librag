@@ -17,11 +17,11 @@ A ticket whose spec gate is approved.
 2. **Branch.** Create or check out the branch from the naming rule, based on the latest base branch.
 3. **Domain docs.** If the spec has **Domain docs**, write them to `GLOSSARY.md` and `docs/adr/` as the spec says. Commit them with the `Factory-Issue` trailer.
 4. **Per task in the plan:**
-   1. Write a failing test for it.
+   1. Write a failing test for it, at the test seam from the spec.
    2. Make it pass with the smallest change.
    3. Run the full verify (see the verify skill from the config) in a subagent. Fix until green.
    4. Commit with the `Factory-Issue` trailer.
-5. **Check the acceptance criteria.** Each one must be covered by a test, or explain in the PR why it cannot be.
+5. **Check the acceptance criteria.** Each one must be covered by a test, or explain in the PR why it cannot be. Read the coverage report: a new line or branch under `Missing` needs a test or a reason in the PR.
 6. **Prove it in the running app** with the app driver skill from the config. Run it in a subagent.
    - If the ticket adds or changes a route, first add or update its file in the skill's feature map.
    - Drive every feature that the ticket adds or changes. Use the recipes in the feature map.
