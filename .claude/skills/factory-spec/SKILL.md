@@ -25,12 +25,17 @@ One of:
    - If the ticket is already clear, the first frontier can be empty. Then skip to the next step.
    - Do not write `GLOSSARY.md` or ADR files in the repo now. Write the new and changed glossary terms and ADRs into the spec, under **Domain docs**. `factory-build` commits them.
    - If the human gave spec feedback, grill only the decisions that the feedback opens again.
+   - In the last round, ask the human to confirm the test seam: "Test through `<route>` with `TestClient`?" Name any unit test you propose and why.
 4. **Write the spec** into the ticket description, below the original text, under `## Spec`. Use the `clear-technical-prose` skill for its text. Base it on the decisions and the code from the grill. Read more code if a plan task needs it.
    - **Goal:** one or two sentences.
    - **Scope:** what changes.
    - **Out of scope:** what does not.
    - **Decisions:** the decisions from the grill, one line each.
    - **Acceptance criteria:** a numbered list. Each one is testable and observable, e.g. "GET /version returns 200 with `{"version": "<pyproject version>"}`".
+   - **Testing decisions:**
+     - **Test seam:** where the tests connect to the code, normally the HTTP route through `TestClient`. Follow the test seam rule in `CLAUDE.md`. Name any unit test and the reason for it.
+     - **What the tests check:** the behavior a client sees, such as status, headers, and body. Not the internals, so the tests stay valid when the code behind the route changes.
+     - **Prior art:** the existing tests to copy, e.g. `test_version` in `tests/integration/test_routes.py`.
    - **Plan:** a few ordered tasks, each small enough to test on its own.
    - **Domain docs:** only if there are any. The exact `GLOSSARY.md` entries and ADR files to add or change, in the formats of the `domain-modeling` skill.
    - **Risks:** only if there are any.

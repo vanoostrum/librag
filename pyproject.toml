@@ -13,6 +13,7 @@ dev = [
     "fastapi-cli",
     "httpx2",
     "pytest",
+    "pytest-cov",
     "ruff",
     "ty",
 ]
@@ -58,3 +59,9 @@ all = "error"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Report line and branch coverage on every run. There is no minimum.
+addopts = "--cov --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["librag"]
+branch = true

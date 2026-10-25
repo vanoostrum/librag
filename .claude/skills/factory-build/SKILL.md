@@ -17,21 +17,29 @@ A ticket whose spec gate is approved.
 2. **Branch.** Create or check out the branch from the naming rule, based on the latest base branch.
 3. **Domain docs.** If the spec has **Domain docs**, write them to `GLOSSARY.md` and `docs/adr/` as the spec says. Commit them with the `Factory-Issue` trailer.
 4. **Per task in the plan:**
-   1. Write a failing test for it.
+   1. Write a failing test for it, at the test seam from the spec.
    2. Make it pass with the smallest change.
    3. Run the full verify (see the verify skill from the config) in a subagent. Fix until green.
    4. Commit with the `Factory-Issue` trailer.
-5. **Check the acceptance criteria.** Each one must be covered by a test, or explain in the PR why it cannot be.
-6. **Open the PR** against the base branch. Write the PR body with the `clear-technical-prose` skill. First look for an existing one: `gh api "repos/<repo>/pulls?head=<owner>:<branch>&state=open"`. If there is one, pushing updates it. Otherwise create it with `gh api repos/<repo>/pulls -f title=... -f head=<branch> -f base=<base> -f body=...`. The PR body has:
+5. **Check the acceptance criteria.** Each one must be covered by a test, or explain in the PR why it cannot be. Read the coverage report: a new line or branch under `Missing` needs a test or a reason in the PR.
+6. **Prove it in the running app** with the app driver skill from the config. Run it in a subagent.
+   - If the ticket adds or changes a route, first add or update its file in the skill's feature map.
+   - Drive every feature that the ticket adds or changes. Use the recipes in the feature map.
+   - Evidence is the response output for every route, and a screenshot for every HTML page.
+   - The subagent returns pass or fail, the transcripts, and the paths of the screenshots.
+   - A fail counts as a failed attempt. Fix the code and go back to step 4.
+   - Attach each screenshot to the Linear ticket.
+7. **Open the PR** against the base branch. Write the PR body with the `clear-technical-prose` skill. First look for an existing one: `gh api "repos/<repo>/pulls?head=<owner>:<branch>&state=open"`. If there is one, pushing updates it. Otherwise create it with `gh api repos/<repo>/pulls -f title=... -f head=<branch> -f base=<base> -f body=...`. The PR body has:
    - a one-line summary and the Linear ticket link;
-   - a table of acceptance criteria → evidence (test name or file).
+   - a table of acceptance criteria → evidence (test name or file, and the app evidence);
+   - an **App evidence** section with the transcripts in fenced blocks, and links to the screenshots on the Linear ticket.
    - the domain docs that the PR adds or changes, if any.
-7. **Wait for CI** in a subagent. It polls `gh api repos/<repo>/commits/<head sha>/check-runs` about every 30 seconds until the required check has completed. If the check failed, the subagent reads the job log with `gh api repos/<repo>/actions/jobs/<job id>/logs` and returns the error. Fix and push. That counts as a failed attempt.
-8. Comment `🤖 build: success — PR <url>` on the ticket. Tell the human in chat in one line, with the PR link.
+8. **Wait for CI** in a subagent. It polls `gh api repos/<repo>/commits/<head sha>/check-runs` about every 30 seconds until the required check has completed. If the check failed, the subagent reads the job log with `gh api repos/<repo>/actions/jobs/<job id>/logs` and returns the error. Fix and push. That counts as a failed attempt.
+9. Comment `🤖 build: success — PR <url>` on the ticket. Tell the human in chat in one line, with the PR link.
 
 ## Done when
 
-The PR is open, the required check is green on its latest commit, and every acceptance criterion has evidence.
+The PR is open, the required check is green on its latest commit, every acceptance criterion has evidence, and the PR body has the app evidence.
 
 ## Escalation
 
