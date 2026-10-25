@@ -1,6 +1,7 @@
 ---
 name: factory-merge
 description: Factory step 4. Merge an approved factory pull request and close the Linear ticket. Use after the merge gate is approved.
+model: haiku
 ---
 
 # factory-merge

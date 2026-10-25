@@ -1,6 +1,7 @@
 ---
 name: factory-spec
 description: Factory step 1. Turn a feature description or a Linear ticket into a spec with testable acceptance criteria, then stop at the spec gate. Use when the human asks to work on a ticket or describes a new feature.
+model: opus
 ---
 
 # factory-spec

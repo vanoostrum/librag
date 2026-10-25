@@ -9,6 +9,7 @@
 | `src/librag/` | Application code. `main.py` holds the FastAPI app. |
 | `tests/integration/` | Tests that go through HTTP with `TestClient`. The default place for tests. |
 | `tests/unit/` | Tests that call functions directly. Only where the test seam rule allows them. |
+| `tests/repo/` | Tests that check repository configuration, such as `.claude/models.md`. |
 | `.github/workflows/ci.yml` | CI: ruff, ty, pytest with a coverage report. |
 
 - Python 3.12, managed with **uv**. Add dependencies with `uv add`, never `pip`.
@@ -33,6 +34,7 @@ This repo is worked on by a software factory: Claude Code agents take a Linear t
 | Required CI check | `checks` |
 | Verify skill | `project-verify` |
 | App driver skill | `verify` |
+| Models | `.claude/models.md` |
 
 ### Flow
 
@@ -58,7 +60,11 @@ When asked to "work on" a ticket or a feature, run the steps in order from where
   Any other human reply is feedback: go back to the step before the gate and use it.
 - **Writing for humans.** Write every chat message, Linear comment, spec, PR body, and review comment with the `clear-technical-prose` skill. The fixed formats in these rules keep their shape. The prose inside them follows the skill.
 - **Chat.** Send a chat message only at the end of a step, at a gate, when blocked, or for a grill round in `factory-spec`. The message gives the result, what you need from the human, and a link. The details go to the Linear ticket and the PR. Do not describe tool calls or progress in chat.
-- **Subagents.** Run verify, CI polling, and log reading in a subagent. The subagent returns pass or fail. For a fail it returns the error and the file. Do not paste tool output into chat.
+- **Models.** Each step and each subagent runs on the model in `.claude/models.md`:
+
+@.claude/models.md
+
+- **Subagents.** Run verify, CI polling, and log reading in a subagent, on the model from `.claude/models.md`. The subagent returns pass or fail. For a fail it returns the error and the file. Do not paste tool output into chat.
 - **Retries.** At most 3 failed attempts per step. Then move the ticket to **Needs human**, comment what was tried and what blocks, and tell the human.
 - **GitHub.** Use the session's built-in GitHub connection; no extra token is needed. Use `gh api` with REST endpoints only. The cloud sandbox blocks GitHub's GraphQL API, so `gh pr ...` commands fail there.
 - **Git.** Branch `<team lowercase>-<num>/<slug>`, e.g. `librag-12/version-endpoint`. PR title `[<TEAM>-<num>] <title>`. Every commit ends with the trailer `Factory-Issue: <TEAM>-<num>`. Never push to the base branch. Never commit secrets.

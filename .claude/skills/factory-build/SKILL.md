@@ -1,6 +1,7 @@
 ---
 name: factory-build
 description: Factory step 2. Implement an approved spec with tests first, verify it, and open a pull request. Use after the spec gate is approved, or when CI fails on a factory PR.
+model: sonnet
 ---
 
 # factory-build
@@ -19,10 +20,10 @@ A ticket whose spec gate is approved.
 4. **Per task in the plan:**
    1. Write a failing test for it, at the test seam from the spec.
    2. Make it pass with the smallest change.
-   3. Run the full verify (see the verify skill from the config) in a subagent. Fix until green.
+   3. Run the full verify (see the verify skill from the config) in a subagent on the `verify` model from `.claude/models.md`. Fix until green.
    4. Commit with the `Factory-Issue` trailer.
 5. **Check the acceptance criteria.** Each one must be covered by a test, or explain in the PR why it cannot be. Read the coverage report: a new line or branch under `Missing` needs a test or a reason in the PR.
-6. **Prove it in the running app** with the app driver skill from the config. Run it in a subagent.
+6. **Prove it in the running app** with the app driver skill from the config. Run it in a subagent on the `app driver` model from `.claude/models.md`.
    - If the ticket adds or changes a route, first add or update its file in the skill's feature map.
    - Drive every feature that the ticket adds or changes. Use the recipes in the feature map.
    - Evidence is the response output for every route, and a screenshot for every HTML page.
@@ -34,7 +35,7 @@ A ticket whose spec gate is approved.
    - a table of acceptance criteria → evidence (test name or file, and the app evidence);
    - an **App evidence** section with the transcripts in fenced blocks, and links to the screenshots on the Linear ticket.
    - the domain docs that the PR adds or changes, if any.
-8. **Wait for CI** in a subagent. It polls `gh api repos/<repo>/commits/<head sha>/check-runs` about every 30 seconds until the required check has completed. If the check failed, the subagent reads the job log with `gh api repos/<repo>/actions/jobs/<job id>/logs` and returns the error. Fix and push. That counts as a failed attempt.
+8. **Wait for CI** in a subagent on the `CI polling and log reading` model from `.claude/models.md`. It polls `gh api repos/<repo>/commits/<head sha>/check-runs` about every 30 seconds until the required check has completed. If the check failed, the subagent reads the job log with `gh api repos/<repo>/actions/jobs/<job id>/logs` and returns the error. Fix and push. That counts as a failed attempt.
 9. Comment `🤖 build: success — PR <url>` on the ticket. Tell the human in chat in one line, with the PR link.
 
 ## Done when
