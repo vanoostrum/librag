@@ -49,6 +49,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # pytest relies on assert. S101 is limited to tests; application code stays checked.
 "tests/**/*.py" = ["S101"]
+# Claude Code runs hook scripts as standalone files, not as a package.
+".claude/hooks/*.py" = ["INP001"]
 
 [tool.ty.environment]
 python-version = "3.12"

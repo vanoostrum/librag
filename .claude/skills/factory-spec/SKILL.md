@@ -5,7 +5,7 @@ description: Factory step 1. Turn a feature description or a Linear ticket into 
 
 # factory-spec
 
-Read the factory config and rules in `CLAUDE.md` first.
+Read the factory config and rules in `CLAUDE.md` first. Then load the `bstack` skill with the Skill tool, before any pstack skill.
 
 ## Input
 

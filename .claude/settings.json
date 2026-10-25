@@ -10,5 +10,18 @@
   },
   "enabledPlugins": {
     "pstack@pstack-claude": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/require_bstack.py\""
+          }
+        ]
+      }
+    ]
   }
 }

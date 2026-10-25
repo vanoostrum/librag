@@ -5,7 +5,7 @@ description: Factory step 2. Implement an approved spec with tests first, verify
 
 # factory-build
 
-Read the factory config and rules in `CLAUDE.md` first.
+Read the factory config and rules in `CLAUDE.md` first. Then load the `bstack` skill with the Skill tool, before any pstack skill.
 
 ## Input
 

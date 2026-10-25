@@ -1,6 +1,6 @@
 # Vendored skills
 
-The skills in this table come from other repositories. The pstack skills are not vendored: `.claude/settings.json` installs the whole pstack plugin from [michael-denyer/pstack-claude](https://github.com/michael-denyer/pstack-claude), pinned to tag `v0.9.102`. Its skills carry the `pstack:` prefix. To update it, change the `ref` in `.claude/settings.json`.
+The skills in this table come from other repositories. The pstack skills are not vendored: `.claude/settings.json` installs the whole pstack plugin from [michael-denyer/pstack-claude](https://github.com/michael-denyer/pstack-claude), pinned to tag `v0.9.102`. Its skills carry the `pstack:` prefix. To update it, change the `ref` in `.claude/settings.json`. The local `bstack` skill limits pstack's subagent fan-out.
 
 For each vendored skill, the first commit that added it is a literal copy. Later commits hold the local edits, so `git log -p -- <skill dir>` shows every change.
 
