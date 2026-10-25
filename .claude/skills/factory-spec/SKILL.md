@@ -32,7 +32,10 @@ One of:
    - **Out of scope:** what does not.
    - **Decisions:** the decisions from the grill, one line each.
    - **Acceptance criteria:** a numbered list. Each one is testable and observable, e.g. "GET /version returns 200 with `{"version": "<pyproject version>"}`".
-   - **Test seam:** where the tests connect to the code, normally the HTTP route through `TestClient`. Follow the test seam rule in `CLAUDE.md`. Name any unit test and the reason for it.
+   - **Testing decisions:**
+     - **Test seam:** where the tests connect to the code, normally the HTTP route through `TestClient`. Follow the test seam rule in `CLAUDE.md`. Name any unit test and the reason for it.
+     - **What the tests check:** the behavior a client sees, such as status, headers, and body. Not the internals, so the tests stay valid when the code behind the route changes.
+     - **Prior art:** the existing tests to copy, e.g. `test_version` in `tests/integration/test_routes.py`.
    - **Plan:** a few ordered tasks, each small enough to test on its own.
    - **Domain docs:** only if there are any. The exact `GLOSSARY.md` entries and ADR files to add or change, in the formats of the `domain-modeling` skill.
    - **Risks:** only if there are any.
