@@ -47,6 +47,14 @@ ticket. Inside a `factory-*` step:
 * If a cluster would clearly change the result, say so in the step's Linear
   comment, so the human can ask for it at the next gate.
 
+## Writing
+
+For every text a human reads (chat messages, Linear comments, specs, PR bodies,
+review comments, commit messages, docs), use the project's
+`clear-technical-prose` skill. Do not load pstack's `technical-writing` or
+`unslop` for these texts, even where poteto-mode says to. Two style guides for
+one text cost tokens and conflict.
+
 ## Budget routing
 
 When Poteto would fan out, first try to compress the work:
