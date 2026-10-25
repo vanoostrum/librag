@@ -1,0 +1,27 @@
+{
+  "extraKnownMarketplaces": {
+    "pstack-claude": {
+      "source": {
+        "source": "github",
+        "repo": "michael-denyer/pstack-claude",
+        "ref": "v0.9.102"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "pstack@pstack-claude": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/require_bstack.py\""
+          }
+        ]
+      }
+    ]
+  }
+}
