@@ -29,6 +29,7 @@ Current stage: 0
 - `factory-design` adds and changes pages, with the human, before the spec gate.
 - `factory-build` does not change the gallery, except for polish fixes asked at the merge gate. A polish fix changes the code and the gallery in the same PR.
 - Feedback that changes the design, not only polishes it, goes back to `factory-design`.
+- The replan check in `factory-next` marks the pages of later tickets stale when a decision changes their screen. `factory-design` redraws a stale page when its ticket is grilled.
 
 ## Rollout stages
 
