@@ -60,6 +60,14 @@ $V screenshot <feature id> <path>
 - Opens `<path>` in headless Chrome or Chromium and saves `<name>.png` in the same evidence folder.
 - Use it for routes that return HTML. A JSON route needs no screenshot; its response output is the proof.
 - The helper looks for `LIBRAG_VERIFY_BROWSER`, then `/opt/pw-browsers/chromium` (the cloud container), then Google Chrome or Chromium on macOS, then `chromium` or `google-chrome` on `PATH`. `LIBRAG_VERIFY_WINDOW` sets the size; the default is `1280,800`.
+```bash
+$V gallery <feature id> <page>
+```
+
+- Opens a gallery page from `design/`, such as `design/pages/search/empty.html`, from a file. It needs no server.
+- Saves `gallery_<page>.png` in the feature's evidence folder, next to the app screenshots.
+- For a ticket with the `ui` label, take the app screenshot and the gallery screenshot of the same screen state, so the two can be compared.
+
 - Screen recordings are for multi-step UI flows, such as filling in and sending a form. LibRag has no such flow yet. When one arrives, add a `record` command with Playwright video, and add a feature file for the flow.
 
 The feature map in [features/README.md](features/README.md) has one recipe per feature, with the exact paths and the expected results.
@@ -69,7 +77,7 @@ The feature map in [features/README.md](features/README.md) has one recipe per f
 A proof for a feature has, for every entry point that the feature file lists:
 
 - the transcript (`.txt`) and status, headers, and body of each request;
-- a screenshot (`.png`) for each HTML page;
+- a screenshot (`.png`) for each HTML page, and for a ticket with the `ui` label, the gallery screenshot of the same state;
 - the expected value next to the actual one, when you report it.
 
 Proof standards:
@@ -94,4 +102,4 @@ $V cleanup
 
 ## Helpers
 
-- `scripts/librag-verify launch|doctor|get <feature> <path>|screenshot <feature> <path>|cleanup`: the only helper. It needs `bash`, `curl`, `lsof`, and `uv`, which are on macOS and on the cloud container. `screenshot` also needs Chrome or Chromium.
+- `scripts/librag-verify launch|doctor|get <feature> <path>|screenshot <feature> <path>|gallery <feature> <page>|cleanup`: the only helper. It needs `bash`, `curl`, `lsof`, and `uv`, which are on macOS and on the cloud container. `screenshot` and `gallery` also need Chrome or Chromium.

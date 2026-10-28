@@ -8,7 +8,9 @@ Each `factory-*` skill has the same model in its `model:` header, and Claude Cod
 
 | Step | Skill | Model |
 |---|---|---|
+| Plan | `factory-plan` | opus |
 | Spec | `factory-spec` | opus |
+| Design | `factory-design` | opus |
 | Build | `factory-build` | sonnet |
 | Review | `factory-review` | opus |
 | Merge | `factory-merge` | haiku |

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Drive a disposable LibRag instance over HTTP and keep evidence.
-# Usage: librag-verify <launch|doctor|get|screenshot|cleanup> [args]
+# Usage: librag-verify <launch|doctor|get|screenshot|gallery|cleanup> [args]
 # State and evidence live in <repo>/.verify/<run id>/. Cleanup removes run/, keeps evidence/.
 set -euo pipefail
 
@@ -74,18 +74,31 @@ find_browser() {
   die "no Chrome or Chromium found. Set LIBRAG_VERIFY_BROWSER to its binary."
 }
 
-screenshot() {
-  local feature="${1:?feature id}" path="${2:?path, e.g. /}" name browser
-  [[ -f "$RUN/port" ]] || die "no instance for run $RUN_ID. Run launch."
-  name="$(echo "$path" | tr -c 'A-Za-z0-9\n' '_' | sed 's/^_*//; s/^$/root/')"
-  local dir="$EVIDENCE/$feature"; mkdir -p "$dir"
+shoot() {
+  local feature="$1" target="$2" name="$3" browser
+  local dir="$EVIDENCE/$feature"; mkdir -p "$dir" "$RUN"
   browser="$(find_browser)"
   "$browser" --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
     --window-size="${LIBRAG_VERIFY_WINDOW:-1280,800}" \
-    --screenshot="$dir/$name.png" "$(url)$path" > "$RUN/browser.log" 2>&1 \
+    --screenshot="$dir/$name.png" "$target" > "$RUN/browser.log" 2>&1 \
     || { cat "$RUN/browser.log" >&2; die "browser failed"; }
   [[ -s "$dir/$name.png" ]] || die "no screenshot written"
   echo "screenshot: $dir/$name.png"
+}
+
+screenshot() {
+  local feature="${1:?feature id}" path="${2:?path, e.g. /}" name
+  [[ -f "$RUN/port" ]] || die "no instance for run $RUN_ID. Run launch."
+  name="$(echo "$path" | tr -c 'A-Za-z0-9\n' '_' | sed 's/^_*//; s/^$/root/')"
+  shoot "$feature" "$(url)$path" "$name"
+}
+
+gallery() {
+  local feature="${1:?feature id}" page="${2:?gallery page, e.g. pages/search/empty.html}" name
+  page="${page#design/}"
+  [[ -f "$REPO/design/$page" ]] || die "no gallery page design/$page"
+  name="gallery_$(echo "${page%.html}" | tr -c 'A-Za-z0-9\n' '_')"
+  shoot "$feature" "file://$REPO/design/$page" "$name"
 }
 
 cleanup() {
@@ -107,6 +120,7 @@ case "${1:-}" in
   doctor) doctor ;;
   get) shift; get "$@" ;;
   screenshot) shift; screenshot "$@" ;;
+  gallery) shift; gallery "$@" ;;
   cleanup) cleanup ;;
-  *) die "usage: librag-verify <launch|doctor|get <feature> <path>|screenshot <feature> <path>|cleanup>" ;;
+  *) die "usage: librag-verify <launch|doctor|get <feature> <path>|screenshot <feature> <path>|gallery <feature> <page>|cleanup>" ;;
 esac
