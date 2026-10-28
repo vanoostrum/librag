@@ -14,6 +14,7 @@ Each `factory-*` skill has the same model in its `model:` header, and Claude Cod
 | Build | `factory-build` | sonnet |
 | Review | `factory-review` | opus |
 | Merge | `factory-merge` | haiku |
+| Next | `factory-next` | haiku |
 
 ## Factory subagents
 

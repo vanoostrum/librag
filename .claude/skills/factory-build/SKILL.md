@@ -10,11 +10,16 @@ Read the factory config and rules in `CLAUDE.md` first. Then load the `bstack` s
 
 ## Input
 
-A ticket whose spec gate is approved.
+A ticket in **Ready to build** whose spec gate is approved.
 
 ## Steps
 
-1. **Check the gate.** The spec gate must be approved. If not, stop and say so.
+1. **Check that the ticket is ready.**
+   - The spec gate must be approved.
+   - Each ticket that blocks it must be **Done**.
+   - **Stale spec.** Read the glossary terms, ADRs, and code merged since the `🤖 Gate: spec` comment. If they contradict the spec, do not guess. Move the ticket to **Todo**, comment `🤖 build: escalated — stale spec: <what changed>`, and tell the human. The spec lane grills only the decisions that changed.
+   - If a check fails for another reason, stop and say so.
+   Then move the ticket to **Building**.
 2. **Branch.** Create or check out the branch from the naming rule, based on the latest base branch.
 3. **Domain docs.** If the spec has **Domain docs**, write them to `GLOSSARY.md` and `docs/adr/` as the spec says. Commit them with the `Factory-Issue` trailer.
 4. **Per task in the plan:**

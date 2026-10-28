@@ -43,22 +43,28 @@ This repo is worked on by a software factory: Claude Code agents take a Linear t
 
 | Step | Skill | Linear state |
 |---|---|---|
-| Plan, once per project or increment, with a fresh-agent review | `factory-plan` | Plan ticket: In Progress |
-| 🚦 Gate 0: approve plan | — | Plan ticket: In Progress |
-| Spec, with `grill-with-docs` | `factory-spec` | In Progress |
-| Design, for tickets with the `ui` label | `factory-design` | In Progress |
-| 🚦 Gate 1: approve spec | — | In Progress |
-| Build + test | `factory-build` | In Progress |
-| Review | `factory-review` | In Review |
-| 🚦 Gate 2: approve merge | — | In Review |
-| Merge | `factory-merge` | Done |
+| Step | Skill | Lane | Linear state |
+|---|---|---|---|
+| Plan, once per project or increment, with a fresh-agent review | `factory-plan` | — | Plan ticket: Specifying |
+| 🚦 Gate 0: approve plan | — | — | Plan ticket: Specifying |
+| Pick the next ticket for each lane | `factory-next` | — | Todo, or Ready to build |
+| Spec, with `grill-with-docs` | `factory-spec` | spec | Specifying |
+| Design, for tickets with the `ui` label | `factory-design` | spec | Specifying |
+| 🚦 Gate 1: approve spec, with the replan check | — | spec | Specifying, then Ready to build |
+| Build + test | `factory-build` | build | Building |
+| Review | `factory-review` | build | In Review |
+| 🚦 Gate 2: approve merge | — | build | In Review |
+| Merge, with the replan check | `factory-merge` | build | Done |
 
-When asked to "work on" a ticket or a feature, run the steps in order from wherever the ticket is. Stop at each gate. Start at `factory-plan` for a project spec, or for new work that spans more than one or two tickets or adds a new user flow. Otherwise start at `factory-spec`. `factory-spec` runs `factory-design` itself.
+The factory works in two lanes, in parallel. The spec lane needs the human and runs one or two tickets ahead. The build lane runs on its own, up to the merge gate. `factory-next` picks the ticket for each lane and holds the lane rules, the replan check, and the milestone checkpoint.
+
+When asked to "work on" a ticket or a feature, run the steps in order from wherever the ticket is. Stop at each gate. Start at `factory-plan` for a project spec, or for new work that spans more than one or two tickets or adds a new user flow. Otherwise start at `factory-spec`. `factory-spec` runs `factory-design` itself. When asked to "work on the plan" or to "pick up the next ticket", run `factory-next`.
 
 ### Rules for every step
 
 - **Linear is the source of truth.** Read the ticket's current state and comments before acting. Do not rely on memory of earlier sessions.
 - **Factory comments.** Every comment the factory writes in Linear starts with `🤖`. Comments without it are from the human. Each step adds one comment when it ends: `🤖 <step>: <success|failed|escalated> — <one line>`.
+- **Dependencies.** A ticket with a Linear "blocked by" relation is not built until each ticket that blocks it is Done. `factory-next` and `factory-build` check this.
 - **Gates.** At a gate, post `🤖 Gate: plan`, `🤖 Gate: spec`, or `🤖 Gate: merge` with a short summary and the question, then stop and ask the human in chat too. The gate is approved when either:
   - the human says "approve" in this chat. Then post `🤖 Approved: <gate> (in chat)` on the ticket, or
   - a human comment on the ticket after the latest gate comment says "approve".
