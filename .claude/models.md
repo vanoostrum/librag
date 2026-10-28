@@ -8,7 +8,9 @@ Each `factory-*` skill has the same model in its `model:` header, and Claude Cod
 
 | Step | Skill | Model |
 |---|---|---|
+| Plan | `factory-plan` | opus |
 | Spec | `factory-spec` | opus |
+| Design | `factory-design` | opus |
 | Build | `factory-build` | sonnet |
 | Review | `factory-review` | opus |
 | Merge | `factory-merge` | haiku |
@@ -23,6 +25,7 @@ A factory step starts each of these subagents with the model in this table.
 | app driver | `factory-build` | sonnet |
 | CI polling and log reading | `factory-build` | haiku |
 | fresh reviewer | `factory-review` | opus |
+| plan reviewer | `factory-plan` | opus |
 
 ## pstack roles
 

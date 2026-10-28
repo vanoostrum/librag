@@ -12,6 +12,7 @@ This directory is the maintained source for verifying what an HTTP client sees f
 
 - Drive every request with `$V get <feature id> <path>`, so the evidence lands in the feature's folder.
 - Take a screenshot with `$V screenshot <feature id> <path>` for every HTML page.
+- For a screen with a gallery page in `design/pages/`, also run `$V gallery <feature id> <page>` for each state that you drive.
 - Use the paths exactly as written. `/health/` and `/health` are different routes.
 - The app keeps no state, so no recipe needs a reset.
 
