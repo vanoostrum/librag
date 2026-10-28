@@ -39,7 +39,25 @@ A project spec or a feature description from the human, as text, a file, or a li
    - **Tickets:** a table in build order, with title, goal, `ui` yes or no, depends on, and gallery pages.
    - **Changed pages:** for an increment, each existing gallery page that changes, and how.
    - **Risks:** only if there are any.
-8. **Gate.** Post `🤖 Gate: plan` with the ticket table, the gallery screenshots, and the PR link, and "Reply approve, or give feedback." In chat, ask for approval with the ticket link and the number of tickets. Stop.
+8. **Review in a fresh agent.** Start a subagent on the `plan reviewer` model from `.claude/models.md`, so the review is not biased by having written the plan. Give it only the plan ticket key and the PR number, and this task:
+
+   > Load the `bstack` skill first. Read the input and the `## Plan` of the Linear ticket, and the PR diff. Check that:
+   > - every flow and requirement in the input is covered by a ticket, and nothing out of scope is in a ticket;
+   > - each ticket is a vertical slice that a client can see and test on its own;
+   > - the dependencies have no cycles, and the build order respects them;
+   > - each ticket that adds or changes a screen has the `ui` label and a gallery page, and no main flow is missing a screen;
+   > - the gallery pages follow the rules in `design/README.md`. Open their screenshots on the Linear ticket;
+   > - the decisions agree with `GLOSSARY.md` and `docs/adr/`;
+   > - for an increment, every existing page and flow that changes is listed.
+   >
+   > List real problems only, each with the ticket or file it concerns. Write the review with the `clear-technical-prose` skill. End with PASS or FAIL.
+
+   Post the review as a PR comment. If it ends in FAIL, fix the plan, the tickets, or the gallery, go back to the step that the problem belongs to, and review again. That counts as a failed attempt.
+9. **Gate.** Post `🤖 Gate: plan` with the ticket table, the gallery screenshots, the PR link, and the review link, and "Reply approve, or give feedback." In chat, ask for approval with the ticket link, the number of tickets, and the review link. Stop.
+
+## Escalation
+
+After 3 failed attempts (review or CI), follow Retries in `CLAUDE.md`.
 
 ## After approval
 

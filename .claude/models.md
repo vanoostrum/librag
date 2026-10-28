@@ -25,6 +25,7 @@ A factory step starts each of these subagents with the model in this table.
 | app driver | `factory-build` | sonnet |
 | CI polling and log reading | `factory-build` | haiku |
 | fresh reviewer | `factory-review` | opus |
+| plan reviewer | `factory-plan` | opus |
 
 ## pstack roles
 

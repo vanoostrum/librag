@@ -43,7 +43,7 @@ This repo is worked on by a software factory: Claude Code agents take a Linear t
 
 | Step | Skill | Linear state |
 |---|---|---|
-| Plan, once per project or increment | `factory-plan` | Plan ticket: In Progress |
+| Plan, once per project or increment, with a fresh-agent review | `factory-plan` | Plan ticket: In Progress |
 | 🚦 Gate 0: approve plan | — | Plan ticket: In Progress |
 | Spec, with `grill-with-docs` | `factory-spec` | In Progress |
 | Design, for tickets with the `ui` label | `factory-design` | In Progress |
