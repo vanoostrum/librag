@@ -1,0 +1,3 @@
+# Keep every stateful part behind a swappable boundary
+
+The POC runs locally in Docker Compose, but a later phase deploys it on Vercel, where the filesystem and SQLite are not persistent and functions cannot run long jobs (`docs/poc/vercel-deployment.md`). So the POC keeps three boundaries from the start: EPUB originals go through a file store (a local folder now, object storage later), metadata goes through SQLAlchemy (SQLite now, a hosted Postgres later by changing the database URL), and ingestion runs in a separate worker process that polls a job table in the metadata database. We do not add Redis or a queue library: the job table is enough for one user, and it moves to a hosted database with the rest of the metadata.

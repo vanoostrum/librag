@@ -1,0 +1,3 @@
+# Embed through an API, rerank with a local model
+
+The query must be embedded with the same model that embedded the passages, and Vercel functions cannot load local model weights. We therefore embed through an API from the start (LiteLLM, default OpenAI `text-embedding-3-small`), so the Vercel phase needs no reindex. The reranker only scores candidates at query time, so it can change without a reindex: the POC uses a small local sentence-transformers CrossEncoder, as the brief asks, and the Vercel phase can swap in a hosted reranker. Both sit behind an application interface, and tests use deterministic fakes of both.
