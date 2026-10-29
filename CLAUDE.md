@@ -65,6 +65,14 @@ When asked to "work on" a ticket or a feature, run the steps in order from where
 - **Linear is the source of truth.** Read the ticket's current state and comments before acting. Do not rely on memory of earlier sessions.
 - **Factory comments.** Every comment the factory writes in Linear starts with `🤖`. Comments without it are from the human. Each step adds one comment when it ends: `🤖 <step>: <success|failed|escalated> — <one line>`.
 - **Dependencies.** A ticket with a Linear "blocked by" relation is not built until each ticket that blocks it is Done. `factory-next` and `factory-build` check this.
+- **Steering.** `factory-plan` and `factory-spec` take optional arguments after their input, as `key=value`. Scope is not an argument: `factory-plan` decides from the repo whether the work is a new project or an increment.
+
+  | Argument | Default | Effect |
+  |---|---|---|
+  | `design-variants=<n>` | `1` | `factory-design` draws `n` distinct prototypes of each new screen, side by side, and the human picks one. |
+  | `note=<text, file, or link>` | none | Guidance for any step, such as a document on the local or cloud deployment setup. Repeat it for more notes. |
+
+  The step writes the arguments under `## Steering` in the ticket description, with the default for each one not given. A ticket that `factory-plan` creates gets a copy of the plan ticket's `## Steering`. Arguments given to `factory-spec` replace those values on that ticket. Every step reads `## Steering` on its ticket before it starts, and follows the notes that concern it. It reads a file or link in a note when the note concerns its work.
 - **Gates.** At a gate, post `🤖 Gate: plan`, `🤖 Gate: spec`, or `🤖 Gate: merge` with a short summary and the question, then stop and ask the human in chat too. The gate is approved when either:
   - the human says "approve" in this chat. Then post `🤖 Approved: <gate> (in chat)` on the ticket, or
   - a human comment on the ticket after the latest gate comment says "approve".
