@@ -2,6 +2,7 @@
 name: factory-spec
 description: Factory step 1. Turn a feature description or a Linear ticket into a spec with testable acceptance criteria, then stop at the spec gate. Use when the human asks to work on a ticket or describes a new feature.
 model: opus
+argument-hint: "<ticket key or feature> [design-variants=<n>] [note=<text, file, or link>]..."
 ---
 
 # factory-spec
@@ -14,11 +15,14 @@ One of:
 - a ticket key, e.g. `LIBRAG-12`;
 - a feature description typed by the human.
 
+Optional steering arguments follow it, as Steering in `CLAUDE.md` describes.
+
 ## Steps
 
 1. **Get the ticket.**
    - Ticket key: read it, with all comments.
    - Description: create a ticket in the Linear team from the config, with a short title and the description. Tell the human the key.
+   - Steering arguments: write them under `## Steering` in the ticket description. They replace the values that are already there.
 2. Move the ticket to **Specifying**.
 3. **Grill.** Run the `grill-with-docs` skill on the ticket. It asks the human questions in rounds and reads the code to find facts. Follow it, with these factory rules:
    - Read `GLOSSARY.md` and `docs/adr/` first, if they exist.
