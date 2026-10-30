@@ -12,10 +12,6 @@ _Avoid_: Collection, corpus, knowledge base
 One work in the library, identified by its EPUB metadata, with its title, author and structure.
 _Avoid_: Document, file
 
-**Book version**:
-One uploaded EPUB file of a book, identified by its content hash. A book has one current version.
-_Avoid_: Revision, edition
-
 **Passage**:
 A short, continuous piece of a book's text within one chapter or section. It is the unit that LibRag indexes, retrieves and cites.
 _Avoid_: Chunk, snippet, fragment
@@ -25,7 +21,7 @@ Where a passage sits in its book: chapter, section, and position.
 _Avoid_: Page, offset
 
 **Ingestion job**:
-The work of turning one book version into indexed passages, with a status that the user can see.
+The work of turning one book's EPUB into indexed passages, with a status that the user can see.
 _Avoid_: Task, import
 
 **Index configuration**:
