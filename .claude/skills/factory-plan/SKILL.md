@@ -2,7 +2,7 @@
 name: factory-plan
 description: Factory step 0. Turn a project spec, or a set of features for a working app, into an approved plan of Linear tickets and a rough gallery, then stop at the plan gate. Use for new work that spans more than one or two tickets or adds a new user flow.
 model: opus
-argument-hint: "<spec, file, or link> [design-variants=<n>] [note=<text, file, or link>]..."
+argument-hint: "<spec, file, or link> [design-variants=<n>] [platforms=<list>] [note=<text, file, or link>]..."
 ---
 
 # factory-plan
@@ -31,12 +31,12 @@ A project spec or a feature description from the human, as text, a file, or a li
    - For an increment, ask only about the new scope and its effect on the existing app: migrations, flows that change, and what must keep working.
    - Write the glossary terms and ADRs directly to `GLOSSARY.md` and `docs/adr/` in step 6. They are the decisions every ticket of the plan shares.
 4. **Slice the work** into vertical tickets. Each ticket delivers something a client can see and test on its own. Give each one a title, a goal of one or two sentences, its dependencies, a Linear priority, and a milestone. A milestone is a set of tickets that gives the human something to try in the app. Give the `ui` label to each ticket that adds or changes a screen. Put the tickets in build order.
-5. **Design pass.** If any ticket has the `ui` label, run `factory-design` in project mode with the main flows and the plan ticket key. It reads `design-variants` and the notes from the plan ticket's `## Steering`. It sets the visual identity if there is none, and draws one rough page per main flow. For an increment, it extends the existing gallery and lists each existing page that changes. Add a ticket for each missing screen that it finds, and repeat this step for the new flows.
+5. **Design pass.** If any ticket has the `ui` label, run `factory-design` in project mode with the main flows and the plan ticket key. It reads `design-variants`, `platforms`, and the notes from the plan ticket's `## Steering`, and settles the platforms. It sets the visual identity if there is none, and draws one rough page per main flow. For an increment, it extends the existing gallery and lists each existing page that changes. Add a ticket for each missing screen that it finds, and repeat this step for the new flows.
 6. **Commit** the domain docs to the plan ticket's branch, next to the gallery commits from step 5, with the `Factory-Issue` trailer. Open a PR against the base branch, as `factory-build` step 7 describes. Its body has the plan.
 7. **Write the plan** into the plan ticket description, under `## Plan`, with the `clear-technical-prose` skill:
    - **Goal:** one or two sentences.
    - **Scope** and **Out of scope.**
-   - **Decisions:** the decisions from the grill, one line each.
+   - **Decisions:** the decisions from the grill, one line each. Include the platforms from `design/README.md`, if the design pass ran.
    - **Tickets:** a table in build order, with title, goal, priority, milestone, `ui` yes or no, depends on, and gallery pages.
    - **Changed pages:** for an increment, each existing gallery page that changes, and how.
    - **Risks:** only if there are any.

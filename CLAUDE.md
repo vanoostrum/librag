@@ -70,6 +70,7 @@ When asked to "work on" a ticket or a feature, run the steps in order from where
   | Argument | Default | Effect |
   |---|---|---|
   | `design-variants=<n>` | `1` | `factory-design` draws `n` distinct prototypes of each new screen, side by side, and the human picks one. |
+  | `platforms=<list>` | derived | The platforms the gallery covers, primary first, from `desktop`, `mobile`, `ios`, `android`; for example `platforms=ios,android`. By default `factory-design` derives them from the project, as `design/README.md` describes. |
   | `note=<text, file, or link>` | none | Guidance for any step, such as a document on the local or cloud deployment setup. Repeat it for more notes. |
 
   The step writes the arguments under `## Steering` in the ticket description, with the default for each one not given. A ticket that `factory-plan` creates gets a copy of the plan ticket's `## Steering`. Arguments given to `factory-spec` replace those values on that ticket. Every step reads `## Steering` on its ticket before it starts, and follows the notes that concern it. It reads a file or link in a note when the note concerns its work.
