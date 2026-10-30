@@ -6,7 +6,7 @@ The gallery is not a sign-off document. It is a living file in the repo, next to
 
 Current stage: 1
 
-Platforms: not set
+Platforms: desktop, mobile
 
 ## Platforms
 
