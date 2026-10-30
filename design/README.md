@@ -6,6 +6,21 @@ The gallery is not a sign-off document. It is a living file in the repo, next to
 
 Current stage: 0
 
+Platforms: not set
+
+## Platforms
+
+`Platforms` above lists the screens that LibRag targets, primary platform first. `factory-design` sets it on its first run, and changes it only when the human asks or the steering argument `platforms` says so.
+
+| Platform | What | Window |
+|---|---|---|
+| `desktop` | Web app in a desktop browser. | 1280×800 |
+| `mobile` | Web app in a phone browser. | 390×844 |
+| `ios` | Native iOS app. Follows Apple's Human Interface Guidelines. | 393×852 |
+| `android` | Native Android app. Follows Material Design. | 412×915 |
+
+`factory-design` derives the platforms from the project information: the plan or ticket, the notes under `## Steering`, `CLAUDE.md`, and the code. A web app gets `desktop, mobile`, unless the project says it is desktop-only or mobile-first. A native app gets `ios`, `android`, or both, and no web platform unless the project also has a web app. The human confirms the platforms in the first prototype round.
+
 ## Layout
 
 | Path | What |
@@ -20,9 +35,10 @@ Current stage: 0
 - Static HTML with realistic data, not lorem ipsum. Real copy where the ticket settled it.
 - Styles come only from `design/gallery.css`, linked with a relative path. No other CSS, no external fonts or scripts, so a page renders from a file without a server.
 - One file per state that the app can reach. The file name is the state: `default`, `empty`, `error`, `loading`, and so on.
+- A page covers every platform in `Platforms`. Web platforms share one page: it adapts to the window with media queries in `design/gallery.css`. Native platforms share one page while the iOS and Android screens are the same. Where they differ, the page splits into `<state>.ios.html` and `<state>.android.html`.
 - Each page has exactly one primary action.
 - Acceptance criteria cite pages by path, for example "GET /search with no results matches `design/pages/search/empty.html`".
-- Take screenshots with `$V gallery <feature id> <page>` from the `verify` skill.
+- Take screenshots with `$V gallery <feature id> <page> <platform>` from the `verify` skill, once for each platform.
 
 ## Who changes the gallery
 
@@ -37,7 +53,7 @@ The gallery grows in stages. At the start of each run, `factory-design` checks t
 
 | Stage | Trigger | Work |
 |---|---|---|
-| 1. Pages | The first ticket with the `ui` label, or a plan with screens. `factory-design` does this work inside that ticket, without a stage ticket. | Add `design/gallery.css` with the visual identity, and the first pages in `design/pages/`. Set `Current stage: 1`. |
+| 1. Pages | The first ticket with the `ui` label, or a plan with screens. `factory-design` does this work inside that ticket, without a stage ticket. | Set `Platforms`. Add `design/gallery.css` with the visual identity, and the first pages in `design/pages/`. Set `Current stage: 1`. |
 | 2. Components, patterns, and checks | Stage 1 is done and `design/pages/` holds 5 or more screens, or one element appears on 3 or more screens. | Extract `design/components/` and `design/patterns/` from the pages. Add `tests/design/`: Playwright tests over the gallery pages and the app's HTML routes that check WCAG AA contrast, that elements are visible, and that each page has one primary action that stands out. Add Playwright with `uv add --dev playwright` and a CI step that installs Chromium. Add `tests/design/` to the project table and the test seam rule in `CLAUDE.md`, and to `project-verify`. Set `Current stage: 2`. |
 | 3. Coverage and sync | Stage 2 is done. | Add a test that every HTML route of the app has a gallery page. Add a recurring task that compares the gallery with the live app and opens a ticket for each difference. Set `Current stage: 3`. |
 

@@ -74,12 +74,26 @@ find_browser() {
   die "no Chrome or Chromium found. Set LIBRAG_VERIFY_BROWSER to its binary."
 }
 
+# Window size for a platform from design/README.md. No platform: LIBRAG_VERIFY_WINDOW, or desktop.
+window_size() {
+  case "${1:-}" in
+    "") echo "${LIBRAG_VERIFY_WINDOW:-1280,800}" ;;
+    desktop) echo "1280,800" ;;
+    mobile) echo "390,844" ;;
+    ios) echo "393,852" ;;
+    android) echo "412,915" ;;
+    *) die "unknown platform '$1'. Use desktop, mobile, ios, or android." ;;
+  esac
+}
+
 shoot() {
-  local feature="$1" target="$2" name="$3" browser
+  local feature="$1" target="$2" name="$3" platform="${4:-}" browser size
   local dir="$EVIDENCE/$feature"; mkdir -p "$dir" "$RUN"
+  size="$(window_size "$platform")"
+  [[ -n "$platform" ]] && name="${name}_$platform"
   browser="$(find_browser)"
   "$browser" --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
-    --window-size="${LIBRAG_VERIFY_WINDOW:-1280,800}" \
+    --window-size="$size" \
     --screenshot="$dir/$name.png" "$target" > "$RUN/browser.log" 2>&1 \
     || { cat "$RUN/browser.log" >&2; die "browser failed"; }
   [[ -s "$dir/$name.png" ]] || die "no screenshot written"
@@ -90,7 +104,7 @@ screenshot() {
   local feature="${1:?feature id}" path="${2:?path, e.g. /}" name
   [[ -f "$RUN/port" ]] || die "no instance for run $RUN_ID. Run launch."
   name="$(echo "$path" | tr -c 'A-Za-z0-9\n' '_' | sed 's/^_*//; s/^$/root/')"
-  shoot "$feature" "$(url)$path" "$name"
+  shoot "$feature" "$(url)$path" "$name" "${3:-}"
 }
 
 gallery() {
@@ -98,7 +112,7 @@ gallery() {
   page="${page#design/}"
   [[ -f "$REPO/design/$page" ]] || die "no gallery page design/$page"
   name="gallery_$(echo "${page%.html}" | tr -c 'A-Za-z0-9\n' '_')"
-  shoot "$feature" "file://$REPO/design/$page" "$name"
+  shoot "$feature" "file://$REPO/design/$page" "$name" "${3:-}"
 }
 
 cleanup() {
@@ -122,5 +136,5 @@ case "${1:-}" in
   screenshot) shift; screenshot "$@" ;;
   gallery) shift; gallery "$@" ;;
   cleanup) cleanup ;;
-  *) die "usage: librag-verify <launch|doctor|get <feature> <path>|screenshot <feature> <path>|gallery <feature> <page>|cleanup>" ;;
+  *) die "usage: librag-verify <launch|doctor|get <feature> <path>|screenshot <feature> <path> [platform]|gallery <feature> <page> [platform]|cleanup>" ;;
 esac
