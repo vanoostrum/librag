@@ -1,0 +1,349 @@
+/* LibRag gallery stylesheet: the "Reading room" identity.
+   Warm paper, serif reading text, a sans-serif interface, one deep green accent.
+   Pages are responsive: the breakpoint at 640px switches to the phone layout. */
+
+:root {
+  --paper: #faf7f0;
+  --surface: #ffffff;
+  --surface-warn: #fffaf8;
+  --ink: #2b2622;
+  --ink-soft: #4a4239;
+  --ink-muted: #5e554b;
+  --rule: #e4ddcf;
+  --rule-strong: #c9bfae;
+  --rule-warn: #e8b9b3;
+  --accent: #2f5d50;
+  --accent-hover: #1f4036;
+  --ok: #1b6b3a;
+  --busy: #1a3f91;
+  --danger: #9b2c22;
+  --synthesis: #6b4ea0;
+  --serif: Charter, "Iowan Old Style", Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --radius: 10px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 40px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+}
+
+a { color: var(--accent); }
+a:hover { color: var(--accent-hover); }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Header and main navigation */
+
+.site-header { border-bottom: 1px solid var(--rule); }
+
+.site-header__inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.wordmark { font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
+
+.main-nav { display: flex; gap: var(--space-2); font-family: var(--sans); font-size: 15px; }
+
+.main-nav a {
+  padding: 10px 14px;
+  color: var(--ink-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.main-nav a[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+
+/* Page body */
+
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.page--reading { max-width: 760px; }
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.page-title { margin: 0; font-size: 36px; font-weight: 400; }
+
+.lede { margin: 6px 0 0; color: var(--ink-muted); font-size: 17px; }
+
+/* Buttons and links that act as buttons */
+
+.button-primary {
+  min-height: 44px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--accent);
+  color: #ffffff;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button-primary:hover { background: var(--accent-hover); }
+
+.action-links { display: flex; gap: var(--space-4); margin-top: auto; padding-top: var(--space-2); font-size: 14px; }
+
+.action-links a { padding: var(--space-1) 0; }
+
+.action-links .danger { color: var(--danger); }
+
+/* Library: book cards */
+
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+  font-family: var(--sans);
+}
+
+.book-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.book-card--failed { background: var(--surface-warn); border-color: var(--rule-warn); }
+
+.book-card__cover {
+  height: 120px;
+  padding: var(--space-4);
+  color: #ffffff;
+  font-family: var(--serif);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.book-card--failed .book-card__cover { color: var(--ink-soft); }
+
+.book-card__body {
+  flex-grow: 1;
+  padding: 14px var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The cover shows the title on desktop and is hidden from screen readers.
+   The heading in the body carries the title for them, and shows on a phone. */
+.book-card__title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.book-card__author { color: var(--ink-muted); font-size: 14px; }
+
+.status { font-size: 14px; font-weight: 600; }
+.status--indexed { color: var(--ok); }
+.status--indexing { color: var(--busy); }
+.status--queued { color: var(--ink-soft); }
+.status--failed { color: var(--danger); }
+
+.cover--slate { background: #3d5a80; }
+.cover--clay { background: #8a5a44; }
+.cover--ink { background: var(--ink); }
+.cover--olive { background: #6b7f5e; }
+.cover--blank { background: #e9e3d8; }
+
+.progress {
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--rule);
+  accent-color: var(--busy);
+  appearance: none;
+}
+.progress::-webkit-progress-bar { border-radius: 3px; background: var(--rule); }
+.progress::-webkit-progress-value { border-radius: 3px; background: var(--busy); }
+.progress::-moz-progress-bar { border-radius: 3px; background: var(--busy); }
+
+/* Chat: question, answer, sources */
+
+.question { margin: 0; font-size: 26px; line-height: 1.35; font-style: italic; color: var(--ink-soft); }
+
+.answer { font-size: 18px; line-height: 1.7; display: flex; flex-direction: column; gap: var(--space-4); }
+
+.answer p { margin: 0; }
+
+.cite {
+  padding: 0 3px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.answer-part { padding-left: var(--space-4); border-left: 3px double var(--rule-strong); color: var(--ink-soft); }
+
+.answer-part__label {
+  display: block;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.answer-part__label--synthesis { color: var(--synthesis); }
+
+.sources { display: flex; flex-direction: column; gap: var(--space-3); font-family: var(--sans); }
+
+.section-label {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.source {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 0 var(--space-4);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.source summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+
+.source__excerpt { display: block; padding-bottom: 14px; font-family: var(--serif); color: var(--ink-soft); }
+
+.diagnostics { font-size: 14px; color: var(--ink-soft); }
+
+.diagnostics summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+
+/* Chat: question form */
+
+.ask { display: flex; flex-direction: column; gap: var(--space-2); font-family: var(--sans); }
+
+.ask__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 6px 6px 18px;
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: 26px;
+}
+
+.ask__input {
+  flex-grow: 1;
+  min-width: 0;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+}
+
+.ask__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.ask__options select {
+  min-height: 32px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+/* Phone layout */
+
+@media (max-width: 640px) {
+  .site-header__inner { padding: var(--space-3) var(--space-4); }
+  .wordmark { font-size: 20px; }
+  .main-nav { gap: var(--space-1); }
+  .main-nav a { padding: var(--space-3) 10px; }
+
+  .page { padding: var(--space-5) var(--space-4); gap: 20px; }
+  .page-title { font-size: 30px; }
+  .lede { font-size: 16px; }
+  .page-head .button-primary { width: 100%; min-height: 48px; border-radius: 24px; font-size: 16px; }
+
+  .book-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+  .book-card { flex-direction: row; }
+  .book-card__cover { flex: 0 0 64px; height: auto; padding: 0; font-size: 0; }
+  .book-card__title {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 400;
+  }
+  .action-links { font-size: 15px; gap: 20px; }
+  .action-links a { padding: var(--space-2) 0; }
+
+  .question { font-size: 21px; }
+  .answer { font-size: 17px; line-height: 1.65; }
+  .ask {
+    position: sticky;
+    bottom: 0;
+    margin: 0 calc(-1 * var(--space-4));
+    padding: 10px var(--space-3) 14px;
+    background: var(--paper);
+    border-top: 1px solid var(--rule);
+  }
+}

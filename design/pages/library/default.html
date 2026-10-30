@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Library · LibRag</title>
+  <link rel="stylesheet" href="../../gallery.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header__inner">
+      <div class="wordmark">LibRag</div>
+      <nav class="main-nav" aria-label="Main">
+        <a href="default.html" aria-current="page">Library</a>
+        <a href="../chat/answer.html">Chat</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Your library</h1>
+        <p class="lede">Five books. Ask about any of them in Chat once they are indexed.</p>
+      </div>
+      <button type="button" class="button-primary">Add a book</button>
+    </div>
+    <div class="book-grid">
+      <article class="book-card">
+        <div class="book-card__cover cover--slate" aria-hidden="true">Thinking, Fast and Slow</div>
+        <div class="book-card__body">
+          <h2 class="book-card__title">Thinking, Fast and Slow</h2>
+          <div class="book-card__author">Daniel Kahneman</div>
+          <div class="status status--indexed">Indexed · 612 passages</div>
+          <div class="action-links"><a href="#" class="danger">Delete</a></div>
+        </div>
+      </article>
+      <article class="book-card">
+        <div class="book-card__cover cover--clay" aria-hidden="true">Noise</div>
+        <div class="book-card__body">
+          <h2 class="book-card__title">Noise</h2>
+          <div class="book-card__author">Kahneman, Sibony, Sunstein</div>
+          <div class="status status--indexed">Indexed · 488 passages</div>
+          <div class="action-links"><a href="#" class="danger">Delete</a></div>
+        </div>
+      </article>
+      <article class="book-card">
+        <div class="book-card__cover cover--ink" aria-hidden="true">The Black Swan</div>
+        <div class="book-card__body">
+          <h2 class="book-card__title">The Black Swan</h2>
+          <div class="book-card__author">Nassim Nicholas Taleb</div>
+          <div class="status status--indexing">Indexing · 63%</div>
+          <progress class="progress" value="63" max="100" aria-label="Indexing progress">63%</progress>
+          <div class="action-links"><a href="#" class="danger">Delete</a></div>
+        </div>
+      </article>
+      <article class="book-card">
+        <div class="book-card__cover cover--olive" aria-hidden="true">Meditations</div>
+        <div class="book-card__body">
+          <h2 class="book-card__title">Meditations</h2>
+          <div class="book-card__author">Marcus Aurelius</div>
+          <div class="status status--queued">Waiting in the queue</div>
+          <div class="action-links"><a href="#" class="danger">Delete</a></div>
+        </div>
+      </article>
+      <article class="book-card book-card--failed">
+        <div class="book-card__cover cover--blank" aria-hidden="true">scanned-atlas.epub</div>
+        <div class="book-card__body">
+          <h2 class="book-card__title">scanned-atlas.epub</h2>
+          <div class="book-card__author">Unknown author</div>
+          <div class="status status--failed">Failed: no text found. The EPUB holds only images.</div>
+          <div class="action-links"><a href="#">Retry</a><a href="#" class="danger">Delete</a></div>
+        </div>
+      </article>
+    </div>
+  </main>
+</body>
+</html>

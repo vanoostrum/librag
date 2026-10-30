@@ -4,9 +4,9 @@ The gallery is the visual spec of LibRag. It shows how each screen looks before 
 
 The gallery is not a sign-off document. It is a living file in the repo, next to the code. When the look changes, the gallery changes in the same PR as the code.
 
-Current stage: 0
+Current stage: 1
 
-Platforms: not set
+Platforms: desktop, mobile
 
 ## Platforms
 
