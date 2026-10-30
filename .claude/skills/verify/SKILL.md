@@ -54,19 +54,20 @@ $V get <feature id> <path>
 - The app has only GET routes. For other methods, use `curl` against the URL that `launch` printed, and save the output under the same evidence folder.
 
 ```bash
-$V screenshot <feature id> <path>
+$V screenshot <feature id> <path> [platform]
 ```
 
 - Opens `<path>` in headless Chrome or Chromium and saves `<name>.png` in the same evidence folder.
 - Use it for routes that return HTML. A JSON route needs no screenshot; its response output is the proof.
-- The helper looks for `LIBRAG_VERIFY_BROWSER`, then `/opt/pw-browsers/chromium` (the cloud container), then Google Chrome or Chromium on macOS, then `chromium` or `google-chrome` on `PATH`. `LIBRAG_VERIFY_WINDOW` sets the size; the default is `1280,800`.
+- The helper looks for `LIBRAG_VERIFY_BROWSER`, then `/opt/pw-browsers/chromium` (the cloud container), then Google Chrome or Chromium on macOS, then `chromium` or `google-chrome` on `PATH`. - `platform` is one of the platforms in `design/README.md`: `desktop` (1280×800), `mobile` (390×844), `ios` (393×852), or `android` (412×915). It sets the window size and adds `_<platform>` to the file name. Without it, `LIBRAG_VERIFY_WINDOW` sets the size; the default is `1280,800`.
 ```bash
-$V gallery <feature id> <page>
+$V gallery <feature id> <page> [platform]
 ```
 
 - Opens a gallery page from `design/`, such as `design/pages/search/empty.html`, from a file. It needs no server.
 - Saves `gallery_<page>.png` in the feature's evidence folder, next to the app screenshots.
-- For a ticket with the `ui` label, take the app screenshot and the gallery screenshot of the same screen state, so the two can be compared.
+- For a ticket with the `ui` label, take the app screenshot and the gallery screenshot of the same screen state, so the two can be compared. Take both once for each platform in `design/README.md`.
+- This helper drives LibRag as a web app. A native app needs its own app driver skill for app screenshots; the gallery screenshots still come from here.
 
 - Screen recordings are for multi-step UI flows, such as filling in and sending a form. LibRag has no such flow yet. When one arrives, add a `record` command with Playwright video, and add a feature file for the flow.
 
