@@ -33,7 +33,7 @@ Optional steering arguments follow it, as Steering in `CLAUDE.md` describes.
    - If the human gave spec feedback, grill only the decisions that the feedback opens again.
    - Read the ticket's `🤖 replan` comments. They name the decisions of other tickets that changed this one.
    - If `factory-build` sent the ticket back with a stale spec, grill only the decisions that the merged code changed.
-   - In the last round, ask the human to confirm the test seam: "Test through `<route>` with `TestClient`?" Name any unit test you propose and why.
+   - Do not ask the human about the test seam or how to test. Decide it yourself with the test seam rule in `CLAUDE.md`, and write it under **Testing decisions** in step 5.
 4. **Design.** If the ticket has the `ui` label, run the `factory-design` skill in ticket mode. It returns the gallery pages for this ticket. If the grill shows that a ticket without the label changes a screen, add the label and run it too.
 5. **Write the spec** into the ticket description, below the original text, under `## Spec`. Use the `clear-technical-prose` skill for its text. Base it on the decisions and the code from the grill. Read more code if a plan task needs it.
    - **Goal:** one or two sentences.
