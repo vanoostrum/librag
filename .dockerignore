@@ -1,0 +1,14 @@
+.git
+.venv
+.verify
+.claude
+.github
+design
+docs
+tests
+**/__pycache__
+.pytest_cache
+.ruff_cache
+.coverage*
+.env
+.env.*
