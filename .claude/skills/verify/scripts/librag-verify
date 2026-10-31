@@ -12,7 +12,8 @@ EVIDENCE="$BASE/evidence"
 
 die() { echo "librag-verify: $*" >&2; exit 1; }
 
-# Qdrant for process mode: keep the version equal to the qdrant image in compose.yaml.
+# Qdrant for process mode: keep the version equal to the qdrant image in compose.yaml,
+# and to the allow rule in .claude/settings.json.
 QDRANT_VERSION="v1.15.5"
 qdrant_target() {
   case "$(uname -s)-$(uname -m)" in

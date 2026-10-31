@@ -1,4 +1,9 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(.verify/bin/qdrant-v1.15.5-*/qdrant:*)"
+    ]
+  },
   "extraKnownMarketplaces": {
     "pstack-claude": {
       "source": {
