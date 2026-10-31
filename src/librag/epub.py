@@ -16,6 +16,10 @@ NO_TITLE = "The EPUB has no title"
 # gigabytes. No file inside an EPUB may unpack to more than this.
 MAX_MEMBER_BYTES = 32 * 1024 * 1024
 TOO_LARGE_INSIDE = "The EPUB holds a file larger than 32 MB once unpacked"
+# The spine can list many large files, or one file many times, so the sum of
+# what the spine unpacks to has a limit too.
+MAX_SPINE_BYTES = 256 * 1024 * 1024
+SPINE_TOO_LARGE = "The EPUB's text is larger than 256 MB once unpacked"
 
 BLOCK_TAGS = frozenset(
     {
@@ -265,13 +269,23 @@ def read_chapters(data: bytes) -> list[Chapter]:
         if _local(item) == "item"
     }
     titles = _nav_titles(package, manifest)
-    chapters: list[Chapter] = []
-    spine = package.children("spine")
-    for spine_index, itemref in enumerate(e for e in spine if _local(e) == "itemref"):
+    paths: list[str] = []
+    itemrefs = [e for e in package.children("spine") if _local(e) == "itemref"]
+    for itemref in itemrefs:
         item = manifest.get(itemref.get("idref", ""))
         if item is None:
             raise EpubError(NOT_READABLE)
-        path = package.href_path(item.get("href", ""))
+        paths.append(package.href_path(item.get("href", "")))
+    # Check the sizes in the zip headers before reading anything. `read` stops
+    # at those sizes, so a header that lies cannot make the reads larger.
+    try:
+        total = sum(package.archive.getinfo(path).file_size for path in paths)
+    except KeyError as error:
+        raise EpubError(NOT_READABLE) from error
+    if total > MAX_SPINE_BYTES:
+        raise EpubError(SPINE_TOO_LARGE)
+    chapters: list[Chapter] = []
+    for spine_index, path in enumerate(paths):
         chapter = _chapter(spine_index, package.read(path), titles.get(path))
         if chapter is not None:
             chapters.append(chapter)

@@ -10,6 +10,7 @@ A client uploads an EPUB with `POST /api/books` and gets the new book back in `q
 - `books-duplicate` returns 409 with `error` and the existing `book_id`, for the same file or another file with the same book ID.
 - `books-unreadable` returns 422 with `{"error":"The file is not a readable EPUB"}`, or `{"error":"The EPUB has no title"}`.
 - `books-too-large` returns 413 for a file over `LIBRAG_MAX_UPLOAD_MB` (50 by default).
+- `books-unpacks-too-large` refuses a zip bomb: an upload whose package file unpacks to over 32 MB is 422, and a book whose chapters unpack to over 32 MB each, or over 256 MB together, ends in `failed`. The route tests cover these; the recipe does not drive them.
 - `books-no-text` ends in `failed` with `"error":"No text found in the EPUB"`.
 
 ## How to get to it (user POV)
