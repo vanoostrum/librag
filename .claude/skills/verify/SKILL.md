@@ -28,6 +28,7 @@ $V launch
   1. Qdrant from the pinned release binary. The first run downloads it to `.verify/bin/` and checks its SHA-256. Its version is the same as the `qdrant` image in `compose.yaml`.
   2. `alembic upgrade head`, the same step as the `migrate` service.
   3. The api (`uvicorn`, without reload) and the worker (`python -m librag.worker`).
+  `.claude/settings.json` allows Claude Code to run that pinned binary (`Bash(.verify/bin/qdrant-v1.15.5-*/qdrant:*)`). Update the rule when you change the version.
   Every process reads `compose.test.env`, the env file of `compose.test.yaml`, so both modes use the same test settings. The database and the Qdrant data live under `.verify/<run id>/run/`.
 - Set `LIBRAG_VERIFY_MODE=compose` or `LIBRAG_VERIFY_MODE=process` to force a mode.
 - Ready means `GET /health` returned 200. The command prints `ready: http://127.0.0.1:<port> mode=<compose|process> run=<id>` and exits 0. It exits non-zero with the logs if a part dies or `/health` is not 200 in 60 seconds.
