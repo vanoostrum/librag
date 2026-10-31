@@ -33,13 +33,17 @@ Optional steering arguments follow it, as Steering in `CLAUDE.md` describes.
    - If the human gave spec feedback, grill only the decisions that the feedback opens again.
    - Read the ticket's `🤖 replan` comments. They name the decisions of other tickets that changed this one.
    - If `factory-build` sent the ticket back with a stale spec, grill only the decisions that the merged code changed.
-   - Do not ask the human about the test seam or how to test. Decide it yourself with the test seam rule in `CLAUDE.md`, and write it under **Testing decisions** in step 5.
+   - **What to ask.** Ask the human only about:
+     - what the feature does for its users: behavior, rules, and scope;
+     - UX: screens, flows, states, and copy;
+     - an architecture choice that goes against `docs/adr/`, the existing code, or the plan or spec.
+   - **What to decide yourself.** Do not ask about a technical choice where your recommended answer follows the code, the ADRs, or common practice. Do not ask how to handle an error case when the right handling is clear. Do not ask about the test seam or how to test: use the test seam rule in `CLAUDE.md`, and write it under **Testing decisions** in step 5. Write each decision you take yourself under **Decisions** in step 5, marked `(agent)`, so the human sees it at the gate.
 4. **Design.** If the ticket has the `ui` label, run the `factory-design` skill in ticket mode. It returns the gallery pages for this ticket. If the grill shows that a ticket without the label changes a screen, add the label and run it too.
 5. **Write the spec** into the ticket description, below the original text, under `## Spec`. Use the `clear-technical-prose` skill for its text. Base it on the decisions and the code from the grill. Read more code if a plan task needs it.
    - **Goal:** one or two sentences.
    - **Scope:** what changes.
    - **Out of scope:** what does not.
-   - **Decisions:** the decisions from the grill, one line each.
+   - **Decisions:** the decisions from the grill, one line each. Mark the ones you took without asking with `(agent)`.
    - **Acceptance criteria:** a numbered list. Each one is testable and observable, e.g. "GET /version returns 200 with `{"version": "<pyproject version>"}`". For a `ui` ticket, each screen state cites its gallery page, e.g. "GET /search with no results matches `design/pages/search/empty.html`".
    - **Gallery pages:** for a `ui` ticket only. Each page from `factory-design`, with one line on what it shows.
    - **Testing decisions:**
