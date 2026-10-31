@@ -10,7 +10,7 @@ Read the factory config and rules in `CLAUDE.md` first. Then load the `bstack` s
 
 ## Input
 
-A ticket with an open PR and a green required check.
+A ticket with an open PR and green required checks.
 
 ## Steps
 

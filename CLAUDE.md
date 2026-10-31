@@ -32,7 +32,7 @@ This repo is worked on by a software factory: Claude Code agents take a Linear t
 | Linear team | `LIBRAG` |
 | GitHub repo | `vanoostrum/librag` |
 | Base branch | `main` |
-| Required CI check | `checks` |
+| Required CI checks | `checks`, `e2e` |
 | Verify skill | `project-verify` |
 | App driver skill | `verify` |
 | Models | `.claude/models.md` |
