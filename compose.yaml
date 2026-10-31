@@ -9,6 +9,9 @@ x-app: &app
     LIBRAG_QDRANT_URL: http://qdrant:6333
     LIBRAG_DATABASE_URL: sqlite:////data/librag.db
     LIBRAG_FILE_STORE_DIR: /data/files
+    # Passed through from the shell when set. The worker embeds with them in live mode.
+    LIBRAG_EMBEDDING_MODEL:
+    OPENAI_API_KEY:
   volumes:
     - librag-data:/data
 

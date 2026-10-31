@@ -9,6 +9,7 @@ from alembic.config import Config
 from sqlalchemy import (
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -32,7 +33,9 @@ worker_heartbeats = Table(
 )
 
 # One row per book in the library. `id` comes from the EPUB metadata (ADR 0006).
-# The passage settings are the book's index configuration.
+# The passage settings, the embedding model, its vector size and the BM25 method
+# are the book's index configuration. The embedding tokens and cost add up over
+# the batches of its indexing; the cost is null when LiteLLM does not know it.
 books = Table(
     "books",
     metadata,
@@ -48,6 +51,11 @@ books = Table(
     Column("passage_overlap_tokens", Integer(), nullable=False),
     Column("tokenizer", String(64), nullable=False),
     Column("uploaded_at", DateTime(), nullable=False),
+    Column("embedding_model", String(255)),
+    Column("embedding_vector_size", Integer()),
+    Column("bm25_method", String(64)),
+    Column("embedding_tokens", Integer(), nullable=False, server_default="0"),
+    Column("embedding_cost_usd", Float(), server_default="0"),
 )
 
 # The work queue that the worker polls. `status` is queued, running, done or failed.

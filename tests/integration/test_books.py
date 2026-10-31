@@ -3,22 +3,29 @@
 
 import hashlib
 import io
+import ipaddress
+import socket
+import uuid
 import zipfile
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
-from typing import Any
+from typing import Any, override
 
 import pytest
 from fastapi.testclient import TestClient
 from httpx2 import Response
-from sqlalchemy import Engine, create_engine, func, select, update
+from qdrant_client import QdrantClient, models
+from sqlalchemy import Engine, create_engine, func, insert, select, update
 
 from librag.db import books, ingestion_jobs, passages
+from librag.embeddings import Embeddings, FakeEmbedder
+from librag.index import qdrant_client
 from librag.main import create_app
+from librag.passages import passage_id
 from librag.settings import Settings
-from librag.worker import requeue_interrupted_jobs, run_one_job
+from librag.worker import Indexing, requeue_interrupted_jobs, run_one_job
 from tests.epubs import (
     FixtureBook,
     FixtureChapter,
@@ -39,9 +46,38 @@ TWO_CHAPTERS = FixtureBook(
 
 
 @pytest.fixture
-def settings(database_url: str, tmp_path: Path) -> Settings:
-    """Return settings with a migrated database and an empty file store."""
-    return Settings(database_url=database_url, file_store_dir=str(tmp_path / "files"))
+def qdrant(qdrant_url: str) -> Iterator[QdrantClient]:
+    """Return a client for the test Qdrant."""
+    client = qdrant_client(qdrant_url)
+    yield client
+    client.close()
+
+
+@pytest.fixture
+def settings(
+    database_url: str, tmp_path: Path, qdrant_url: str, qdrant: QdrantClient
+) -> Iterator[Settings]:
+    """Return test settings: a migrated database, an empty file store and the fakes.
+
+    Each test gets its own collection prefix in the test Qdrant, removed after it.
+    """
+    prefix = f"test_{uuid.uuid4().hex[:12]}"
+    yield Settings(
+        database_url=database_url,
+        file_store_dir=str(tmp_path / "files"),
+        qdrant_url=qdrant_url,
+        ai_providers="fake",
+        qdrant_collection_prefix=prefix,
+    )
+    for collection in qdrant.get_collections().collections:
+        if collection.name.startswith(f"{prefix}_"):
+            qdrant.delete_collection(collection.name)
+
+
+@pytest.fixture
+def collection(settings: Settings) -> str:
+    """Return the name of the fake embedder's collection for this test."""
+    return f"{settings.qdrant_collection_prefix}_fake"
 
 
 @pytest.fixture
@@ -87,6 +123,8 @@ def book_json(response_book: dict[str, Any], **expected: object) -> dict[str, An
         "passages_indexed": 0,
         "passages_total": None,
         "error": None,
+        "embedding_tokens": 0,
+        "embedding_cost_usd": 0.0,
         "uploaded_at": response_book["uploaded_at"],
         **expected,
     }
@@ -106,16 +144,24 @@ def test_upload_queues_the_book(client: TestClient, settings: Settings) -> None:
     assert stored.read_bytes() == data
 
 
-def test_worker_parses_the_book(
+def test_worker_indexes_the_book(
     client: TestClient, engine: Engine, work: Callable[[], bool]
 ) -> None:
-    """After the worker runs the job, the book is indexing with 0 of N passages."""
+    """After the worker runs the job, the book is indexed with all its passages."""
     upload(client, make_epub(TWO_CHAPTERS))
     assert work()
     response = client.get("/api/books")
     assert response.status_code == HTTPStatus.OK
     [book] = response.json()["books"]
-    assert book == book_json(book, status="indexing", passages_total=2)
+    assert book["embedding_tokens"] > 0
+    assert book == book_json(
+        book,
+        status="indexed",
+        passages_indexed=2,
+        passages_total=2,
+        embedding_tokens=book["embedding_tokens"],
+        embedding_cost_usd=0.0,
+    )
     assert count(engine, passages) == 2  # noqa: PLR2004
     assert not work(), "the queue is empty"
 
@@ -293,7 +339,7 @@ def test_book_with_a_missing_chapter_fails(
     assert work()
     listed = client.get("/api/books").json()["books"]
     assert [(b["status"], b["error"]) for b in listed] == [
-        ("indexing", None),
+        ("indexed", None),
         ("failed", NOT_READABLE),
     ]
     assert count(engine, passages) == 1
@@ -374,7 +420,23 @@ def test_interrupted_job_runs_again(
     assert book == book_json(book, status="queued")
     assert work()
     [book] = client.get("/api/books").json()["books"]
-    assert book == book_json(book, status="indexing", passages_total=2)
+    assert book["status"] == "indexed"
+
+
+def test_job_interrupted_while_indexing_runs_again(
+    client: TestClient, engine: Engine, work: Callable[[], bool]
+) -> None:
+    """A job left running while its book was indexing is queued again."""
+    upload(client, make_epub(TWO_CHAPTERS))
+    with engine.begin() as connection:
+        connection.execute(update(ingestion_jobs).values(status="running"))
+        connection.execute(update(books).values(status="indexing"))
+    assert requeue_interrupted_jobs(engine) == 1
+    [book] = client.get("/api/books").json()["books"]
+    assert book["status"] == "queued"
+    assert work()
+    [book] = client.get("/api/books").json()["books"]
+    assert book["status"] == "indexed"
 
 
 def test_book_stores_its_index_configuration(
@@ -398,3 +460,217 @@ def test_book_stores_its_index_configuration(
             )
         ).one()
     assert tuple(row) == (120, 10, "cl100k_base")
+
+
+def test_book_records_its_embedding_configuration(
+    client: TestClient, engine: Engine, work: Callable[[], bool]
+) -> None:
+    """The book's index configuration adds the embedding model, size and BM25."""
+    upload(client, make_epub())
+    assert work()
+    with engine.connect() as connection:
+        row = connection.execute(
+            select(
+                books.c.embedding_model,
+                books.c.embedding_vector_size,
+                books.c.bm25_method,
+            )
+        ).one()
+    assert tuple(row) == ("fake", 256, "qdrant/bm25")
+
+
+def test_collection_has_a_dense_and_a_bm25_vector(
+    client: TestClient,
+    work: Callable[[], bool],
+    qdrant: QdrantClient,
+    collection: str,
+) -> None:
+    """The model's collection has `dense` (cosine, 256) and `bm25` (IDF) vectors."""
+    upload(client, make_epub())
+    assert work()
+    params = qdrant.get_collection(collection).config.params
+    assert params.vectors == {
+        "dense": models.VectorParams(size=256, distance=models.Distance.COSINE)
+    }
+    assert params.sparse_vectors == {
+        "bm25": models.SparseVectorParams(modifier=models.Modifier.IDF)
+    }
+    schema = qdrant.get_collection(collection).payload_schema
+    assert {field: info.data_type for field, info in schema.items()} == {
+        "book_id": models.PayloadSchemaType.KEYWORD,
+        "author": models.PayloadSchemaType.KEYWORD,
+    }
+
+
+def _points(qdrant: QdrantClient, collection: str) -> list[models.Record]:
+    points, _ = qdrant.scroll(collection, limit=1000, with_vectors=True)
+    return sorted(points, key=lambda point: int((point.payload or {})["position"]))
+
+
+def test_collection_holds_one_point_per_passage(
+    client: TestClient,
+    work: Callable[[], bool],
+    qdrant: QdrantClient,
+    collection: str,
+) -> None:
+    """Each passage is a point under its passage ID, with its text and location."""
+    upload(client, make_epub(TWO_CHAPTERS))
+    assert work()
+    points = _points(qdrant, collection)
+    assert [str(point.id) for point in points] == [
+        passage_id(BOOK_ID, 0),
+        passage_id(BOOK_ID, 1),
+    ]
+    assert points[1].payload == {
+        "book_id": BOOK_ID,
+        "title": "A Tiny Book",
+        "author": "Ada Writer",
+        "text": "Second chapter text.",
+        "position": 1,
+        "chapter_title": "Two",
+        "section_title": None,
+        "spine_index": 1,
+        "first_paragraph": 0,
+        "last_paragraph": 0,
+    }
+    vectors = points[1].vector
+    assert isinstance(vectors, dict)
+    dense = vectors["dense"]
+    assert isinstance(dense, list)
+    assert len(dense) == 256  # noqa: PLR2004
+    assert isinstance(vectors["bm25"], models.SparseVector)
+    assert vectors["bm25"].indices
+
+
+def test_bm25_matches_the_book_title_chapter_and_text(
+    client: TestClient,
+    work: Callable[[], bool],
+    qdrant: QdrantClient,
+    collection: str,
+) -> None:
+    """The BM25 vector indexes the title, chapter heading and passage text."""
+    upload(client, make_epub(TWO_CHAPTERS))
+    assert work()
+    for query, positions in [("second", [1]), ("tiny", [0, 1]), ("two", [1])]:
+        found = qdrant.query_points(
+            collection,
+            query=models.Document(text=query, model="qdrant/bm25"),
+            using="bm25",
+        ).points
+        assert sorted((p.payload or {})["position"] for p in found) == positions
+
+
+def test_running_the_job_again_keeps_the_point_count(
+    client: TestClient,
+    engine: Engine,
+    work: Callable[[], bool],
+    qdrant: QdrantClient,
+    collection: str,
+) -> None:
+    """A second run of the book's job overwrites its points and adds none."""
+    upload(client, make_epub(TWO_CHAPTERS))
+    assert work()
+    before = qdrant.count(collection).count
+    with engine.begin() as connection:
+        connection.execute(
+            insert(ingestion_jobs).values(
+                book_id=BOOK_ID, status="queued", created_at=datetime.now(UTC)
+            )
+        )
+    assert work()
+    assert qdrant.count(collection).count == before == 2  # noqa: PLR2004
+    [book] = client.get("/api/books").json()["books"]
+    assert book["status"] == "indexed"
+
+
+class FlakyEmbedder(FakeEmbedder):
+    """The fake embedder, but the calls listed in `fail_on` raise."""
+
+    def __init__(self, fail_on: set[int], cost_usd: float | None = 0.0) -> None:
+        """Fail on the call numbers in `fail_on`, counted from 1."""
+        self.fail_on = fail_on
+        self.cost_usd = cost_usd
+        self.batches: list[int] = []
+
+    @override
+    def embed(self, texts: list[str]) -> Embeddings:
+        """Record the batch size, then fail or embed."""
+        self.batches.append(len(texts))
+        if len(self.batches) in self.fail_on:
+            msg = "the embedding API is down"
+            raise ConnectionError(msg)
+        embeddings = super().embed(texts)
+        return Embeddings(embeddings.vectors, embeddings.tokens, self.cost_usd)
+
+
+def chapters(n: int) -> FixtureBook:
+    """Return a book with `n` one-paragraph chapters, so `n` passages."""
+    return FixtureBook(
+        chapters=tuple(
+            FixtureChapter(paragraphs(f"Chapter {i} text."), nav_title=f"C{i}")
+            for i in range(n)
+        )
+    )
+
+
+def test_embedder_that_keeps_failing_fails_the_book(
+    client: TestClient, engine: Engine, settings: Settings
+) -> None:
+    """After 3 retries, after 1, 2 and 4 seconds, the book ends in failed."""
+    upload(client, make_epub(chapters(70)))
+    embedder = FlakyEmbedder(fail_on={2, 3, 4, 5})
+    waits: list[float] = []
+    assert run_one_job(engine, settings, Indexing(embedder, sleep=waits.append))
+    assert embedder.batches == [64, 6, 6, 6, 6]
+    assert waits == [1.0, 2.0, 4.0]
+    [book] = client.get("/api/books").json()["books"]
+    assert book["status"] == "failed"
+    assert book["error"] == "Indexing failed: the embedding API is down"
+    assert (book["passages_indexed"], book["passages_total"]) == (64, 70)
+    with engine.connect() as connection:
+        job_status = connection.scalar(select(ingestion_jobs.c.status))
+    assert job_status == "failed"
+
+
+def test_embedder_that_recovers_indexes_the_book(
+    client: TestClient, engine: Engine, settings: Settings
+) -> None:
+    """A batch that fails once is retried, and the book ends in indexed."""
+    upload(client, make_epub(chapters(70)))
+    embedder = FlakyEmbedder(fail_on={1}, cost_usd=None)
+    waits: list[float] = []
+    assert run_one_job(engine, settings, Indexing(embedder, sleep=waits.append))
+    assert embedder.batches == [64, 64, 6]
+    assert waits == [1.0]
+    [book] = client.get("/api/books").json()["books"]
+    assert (book["status"], book["passages_indexed"]) == ("indexed", 70)
+    assert book["embedding_cost_usd"] is None, "LiteLLM did not know the price"
+
+
+@pytest.fixture
+def no_internet(monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    """Refuse every socket connection that leaves this machine, and record it."""
+    refused: list[object] = []
+    connect = socket.socket.connect
+
+    def local_only(sock: socket.socket, address: object) -> None:
+        host = address[0] if isinstance(address, tuple) else None
+        if isinstance(host, str) and not ipaddress.ip_address(host).is_loopback:
+            refused.append(address)
+            msg = f"no external calls: {address}"
+            raise ConnectionRefusedError(msg)
+        connect(sock, address)  # ty: ignore[invalid-argument-type]
+
+    monkeypatch.setattr(socket.socket, "connect", local_only)
+    return refused
+
+
+def test_fake_providers_call_no_external_api(
+    client: TestClient, work: Callable[[], bool], no_internet: list[object]
+) -> None:
+    """With LIBRAG_AI_PROVIDERS=fake, indexing connects only to this machine."""
+    upload(client, make_epub(TWO_CHAPTERS))
+    assert work()
+    [book] = client.get("/api/books").json()["books"]
+    assert book["status"] == "indexed"
+    assert no_internet == []

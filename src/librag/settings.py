@@ -22,6 +22,9 @@ class Settings:
     database_url: str = "sqlite:///data/librag.db"
     file_store_dir: str = "data/files"
     ai_providers: AiProviders = "live"
+    embedding_model: str = "openai/text-embedding-3-small"
+    # Each embedding model gets the collection `<prefix>_<model slug>`.
+    qdrant_collection_prefix: str = "passages"
     passage_target_tokens: int = 350
     passage_overlap_tokens: int = 50
     max_upload_mb: int = 50
@@ -40,6 +43,10 @@ class Settings:
             database_url=env.get("LIBRAG_DATABASE_URL", defaults.database_url),
             file_store_dir=env.get("LIBRAG_FILE_STORE_DIR", defaults.file_store_dir),
             ai_providers=ai_providers,
+            embedding_model=env.get("LIBRAG_EMBEDDING_MODEL", defaults.embedding_model),
+            qdrant_collection_prefix=env.get(
+                "LIBRAG_QDRANT_COLLECTION_PREFIX", defaults.qdrant_collection_prefix
+            ),
             passage_target_tokens=_positive_int(
                 env, "LIBRAG_PASSAGE_TARGET_TOKENS", defaults.passage_target_tokens
             ),
