@@ -2,6 +2,8 @@
 """HTTP tests for uploading books with POST /api/books and listing them with GET."""
 
 import hashlib
+import io
+import zipfile
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
@@ -142,6 +144,7 @@ CONTAINER = "META-INF/container.xml"
 OPF = "OEBPS/content.opf"
 NOT_READABLE = "The file is not a readable EPUB"
 TOO_LARGE_INSIDE = "The EPUB holds a file larger than 32 MB once unpacked"
+SPINE_TOO_LARGE = "The EPUB's text is larger than 256 MB once unpacked"
 
 
 @pytest.mark.parametrize(
@@ -322,6 +325,24 @@ def test_chapter_that_unpacks_too_large_fails(
     assert work()
     [book] = client.get("/api/books").json()["books"]
     assert book == book_json(book, status="failed", error=TOO_LARGE_INSIDE)
+
+
+def test_spine_that_unpacks_too_large_fails(
+    client: TestClient, engine: Engine, work: Callable[[], bool]
+) -> None:
+    """A spine that lists one large chapter many times ends the book in failed."""
+    chapter = b"<html><body><p>" + b"a" * (1024 * 1024) + b"</p></body></html>"
+    epub = replace_member(make_epub(), "OEBPS/text/ch1.xhtml", chapter, deflate=True)
+    with zipfile.ZipFile(io.BytesIO(epub)) as archive:
+        opf = archive.read(OPF)
+    repeated = opf.replace(b'<itemref idref="ch1"/>', b'<itemref idref="ch1"/>' * 257)
+    data = replace_member(epub, OPF, repeated)
+    assert len(data) < 64 * 1024
+    upload(client, data)
+    assert work()
+    [book] = client.get("/api/books").json()["books"]
+    assert book == book_json(book, status="failed", error=SPINE_TOO_LARGE)
+    assert count(engine, passages) == 0
 
 
 def test_book_whose_stored_file_is_gone_fails(
