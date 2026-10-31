@@ -5,17 +5,22 @@ description = "LibRag web application"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.20.1",
     "fastapi",
+    "httpx2>=2.16.0",
+    "sqlalchemy>=2.1.6",
+    "uvicorn>=0.54.0",
 ]
 
 [dependency-groups]
 dev = [
     "fastapi-cli",
-    "httpx2",
     "pytest",
     "pytest-cov",
+    "pyyaml>=6.0.3",
     "ruff",
     "ty",
+    "types-pyyaml>=6.0.12.20261030",
 ]
 
 [build-system]
@@ -51,6 +56,8 @@ ignore = [
 "tests/**/*.py" = ["S101"]
 # Claude Code runs hook scripts as standalone files, not as a package.
 ".claude/hooks/*.py" = ["INP001"]
+# Alembic loads migration scripts by path, not as a package.
+"src/librag/migrations/**/*.py" = ["INP001"]
 
 [tool.ty.environment]
 python-version = "3.12"
@@ -60,10 +67,13 @@ python-version = "3.12"
 all = "error"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+# tests/e2e runs against a running stack, so `uv run pytest` does not collect it.
+testpaths = ["tests/unit", "tests/integration", "tests/repo"]
 # Report line and branch coverage on every run. There is no minimum.
 addopts = "--cov --cov-report=term-missing"
 
 [tool.coverage.run]
 source = ["librag"]
 branch = true
+# Measure the worker process that tests/unit/test_worker.py starts.
+patch = ["subprocess"]
