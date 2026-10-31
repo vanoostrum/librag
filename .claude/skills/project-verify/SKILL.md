@@ -19,7 +19,18 @@ The route tests for `/health` use a real Qdrant. They read its URL from `LIBRAG_
 - **Without Docker, or when Docker cannot pull images** (the cloud sandbox): start the verify skill's process mode with `$V launch`. Then run `export LIBRAG_QDRANT_URL=http://127.0.0.1:$(cat .verify/$LIBRAG_VERIFY_RUN/run/qdrant-port)`. Run `$V cleanup` when you are done.
 - **In CI:** the `checks` job runs Qdrant as a service container on `localhost:6333`.
 
-Each test gets its own SQLite database in a temporary folder, migrated with Alembic. No test writes to Qdrant yet.
+Each test gets its own SQLite database and file store in a temporary folder, migrated with Alembic. No test writes to Qdrant yet. Fixture EPUBs are written by `tests/epubs.py`; the repo holds no binary EPUBs.
+
+## The tokenizer file
+
+Passages are counted with tiktoken `cl100k_base`. tiktoken downloads its file from `openaipublic.blob.core.windows.net` on first use, and caches it in `TIKTOKEN_CACHE_DIR` (default: the system temp folder). CI downloads it; the Docker image bakes it in at build time.
+
+The cloud sandbox blocks that host. There, put a copy of the file in a cache folder and export `TIKTOKEN_CACHE_DIR` before running pytest or `$V launch`. The file name is the SHA-1 of the download URL. tiktoken checks the file's SHA-256 (`223921b7…65b2a7`) and refuses a wrong file.
+
+```bash
+export TIKTOKEN_CACHE_DIR=/tmp/tiktoken-cache && mkdir -p $TIKTOKEN_CACHE_DIR
+cp <copy of cl100k_base.tiktoken> $TIKTOKEN_CACHE_DIR/9b5ad71b2ce5302211f9c61530b329a4922fc6a4
+```
 
 ## Verify (same as the `checks` CI job)
 

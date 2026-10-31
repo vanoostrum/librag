@@ -1,11 +1,11 @@
 ---
 name: verify
-description: Drive the running LibRag FastAPI app over HTTP and capture evidence that a route behaves as specified. Use to prove a change in the real app (homepage, /health, /version, disabled API docs), not just in tests. For lint, type check, and tests, use project-verify.
+description: Drive the running LibRag FastAPI app over HTTP and capture evidence that a route behaves as specified. Use to prove a change in the real app (homepage, /health, /version, the books API, disabled API docs), not just in tests. For lint, type check, and tests, use project-verify.
 ---
 
 # Verify LibRag in the running app
 
-LibRag is an HTTP service. The user surface is its routes: `/` (HTML homepage), `/health`, and `/version`. The API docs (`/docs`, `/redoc`, `/openapi.json`) are off on purpose. The app runs as a stack: `api`, `worker`, Qdrant and a SQLite metadata database. There is no UI framework, auth, or seed data. The driver is `curl`, wrapped by one helper script.
+LibRag is an HTTP service. The user surface is its routes: `/` (HTML homepage), `/health`, `/version`, and the books API (`POST /api/books`, `GET /api/books`). The API docs (`/docs`, `/redoc`, `/openapi.json`) are off on purpose. The app runs as a stack: `api`, `worker`, Qdrant and a SQLite metadata database. There is no UI framework, auth, or seed data. The driver is `curl`, wrapped by one helper script.
 
 `project-verify` runs ruff, ty, and pytest, the same as CI. This skill is the other half: it starts a real server and checks what a client sees.
 
@@ -60,7 +60,7 @@ $V get <feature id> <path>
 
 - Sends `GET <path>` to the instance and prints the request, the status, and the body.
 - Saves `<name>.status`, `<name>.headers`, `<name>.body`, and a `<name>.txt` transcript under `.verify/<run id>/evidence/<feature id>/`. The name is the path with `/` and dots replaced, or `root` for `/`.
-- The app has only GET routes. For other methods, use `curl` against the URL that `launch` printed, and save the output under the same evidence folder.
+- `$V get` sends only GET. For other methods, such as `POST /api/books`, use `curl` against the URL that `launch` printed, and save the output under the same evidence folder. The feature file gives the command.
 
 ```bash
 $V screenshot <feature id> <path> [platform]
