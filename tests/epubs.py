@@ -143,8 +143,13 @@ def make_epub(book: FixtureBook | None = None) -> bytes:
     return buffer.getvalue()
 
 
-def replace_member(epub: bytes, name: str, content: bytes | None) -> bytes:
-    """Return `epub` with the member `name` replaced by `content`, or removed."""
+def replace_member(
+    epub: bytes, name: str, content: bytes | None, *, deflate: bool = False
+) -> bytes:
+    """Return `epub` with the member `name` replaced by `content`, or removed.
+
+    With `deflate`, the new content is compressed.
+    """
     buffer = io.BytesIO()
     with (
         zipfile.ZipFile(io.BytesIO(epub)) as source,
@@ -154,5 +159,6 @@ def replace_member(epub: bytes, name: str, content: bytes | None) -> bytes:
             if item.filename != name:
                 target.writestr(item, source.read(item))
             elif content is not None:
-                target.writestr(item, content)
+                compress_type = zipfile.ZIP_DEFLATED if deflate else item.compress_type
+                target.writestr(item, content, compress_type=compress_type)
     return buffer.getvalue()
