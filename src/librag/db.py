@@ -6,7 +6,17 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import Column, DateTime, MetaData, String, Table
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+)
 
 MIGRATIONS = Path(__file__).resolve().parent / "migrations"
 
@@ -19,6 +29,55 @@ worker_heartbeats = Table(
     metadata,
     Column("worker_id", String(255), primary_key=True),
     Column("beat_at", DateTime(), nullable=False),
+)
+
+# One row per book in the library. `id` comes from the EPUB metadata (ADR 0006).
+# The passage settings are the book's index configuration.
+books = Table(
+    "books",
+    metadata,
+    Column("id", String(16), primary_key=True),
+    Column("title", Text(), nullable=False),
+    Column("author", Text()),
+    Column("content_sha256", String(64), nullable=False, unique=True),
+    Column("status", String(16), nullable=False),
+    Column("error", Text()),
+    Column("passages_indexed", Integer(), nullable=False),
+    Column("passages_total", Integer()),
+    Column("passage_target_tokens", Integer(), nullable=False),
+    Column("passage_overlap_tokens", Integer(), nullable=False),
+    Column("tokenizer", String(64), nullable=False),
+    Column("uploaded_at", DateTime(), nullable=False),
+)
+
+# The work queue that the worker polls. `status` is queued, running, done or failed.
+ingestion_jobs = Table(
+    "ingestion_jobs",
+    metadata,
+    Column("id", Integer(), primary_key=True, autoincrement=True),
+    Column("book_id", String(16), ForeignKey("books.id"), nullable=False),
+    Column("status", String(16), nullable=False),
+    Column("created_at", DateTime(), nullable=False),
+    Column("started_at", DateTime()),
+    Column("finished_at", DateTime()),
+    Index("ix_ingestion_jobs_status_id", "status", "id"),
+)
+
+# A book's passages, with their source locations. `id` derives from the book ID
+# and `position` (ADR 0006).
+passages = Table(
+    "passages",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("book_id", String(16), ForeignKey("books.id"), nullable=False),
+    Column("position", Integer(), nullable=False),
+    Column("text", Text(), nullable=False),
+    Column("chapter_title", Text(), nullable=False),
+    Column("section_title", Text()),
+    Column("spine_index", Integer(), nullable=False),
+    Column("first_paragraph", Integer(), nullable=False),
+    Column("last_paragraph", Integer(), nullable=False),
+    Index("ix_passages_book_id_position", "book_id", "position", unique=True),
 )
 
 
