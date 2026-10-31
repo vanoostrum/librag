@@ -14,7 +14,8 @@ This directory is the maintained source for verifying what an HTTP client sees f
 - Take a screenshot with `$V screenshot <feature id> <path>` for every HTML page.
 - For a screen with a gallery page in `design/pages/`, also run `$V gallery <feature id> <page>` for each state that you drive.
 - Use the paths exactly as written. `/health/` and `/health` are different routes.
-- Each run has its own database and Qdrant data, and `cleanup` deletes them. No recipe needs a reset.
+- The app keeps state: uploaded books, their EPUB files and their passages stay in the run's database and file store under `.verify/<run id>/run/`. Each run has its own, and `cleanup` deletes them.
+- To reset the library, start a new run: `$V cleanup`, set a new `LIBRAG_VERIFY_RUN`, then `$V launch`. A recipe that needs an empty library says so in its preconditions.
 
 ## Proof and skip reporting
 
@@ -33,3 +34,4 @@ Each feature file starts with an H1 title and one paragraph on the behavior a cl
 - [Health](./health.md) covers the `/health` readiness check of Qdrant, the database and the worker.
 - [Version](./version.md) covers `/version` and its match with `pyproject.toml`.
 - [API docs disabled](./api-docs-disabled.md) covers the 404s for `/docs`, `/redoc`, and `/openapi.json`.
+- [Books](./books.md) covers uploading an EPUB with `POST /api/books`, its parsing in the background, and the list at `GET /api/books`.

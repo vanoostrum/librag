@@ -21,6 +21,10 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable
 
+# Bake in the tokenizer file, so the worker never downloads it at run time.
+ENV TIKTOKEN_CACHE_DIR=/app/tiktoken-cache
+RUN python -c "import tiktoken; tiktoken.get_encoding('cl100k_base')"
+
 RUN useradd --system --uid 1000 librag && mkdir -p /data && chown librag /data
 USER librag
 EXPOSE 8000
