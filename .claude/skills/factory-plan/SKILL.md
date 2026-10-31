@@ -66,7 +66,4 @@ After 3 failed attempts (review or CI), follow Retries in `CLAUDE.md`.
 1. Wait for the required check on the PR to be green, as `factory-build` step 8 describes. The plan gate approval is also the merge approval for this PR. Merge it with steps 2 to 4 of `factory-merge`. No commits may have been pushed after the `🤖 Gate: plan` comment; if there were, ask for approval again.
 2. Create the milestones in the Linear project. Create each ticket from the table in **Todo**. Each ticket gets its goal, the decisions it depends on, links to its gallery pages, its priority and milestone, the `ui` label where set, a copy of the plan ticket's `## Steering`, and blocking relations for its dependencies. Create the `ui` label in the team if it does not exist.
 3. Move the plan ticket to **Done**. Comment `🤖 plan: success — <n> tickets in <project link>`. Tell the human in chat in one line.
-
-## Next
-
-Run `factory-next`. It picks the tickets in priority and build order, and runs the spec lane and the build lane in parallel. Each ticket's grill reads the plan's decisions first and asks only what the plan left open.
+4. Run `factory-next`. Do not stop after step 3. `factory-next` picks the tickets in priority and build order, and runs the spec lane and the build lane in parallel. Each ticket's grill reads the plan's decisions first and asks only what the plan left open.
