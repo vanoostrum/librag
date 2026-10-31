@@ -17,6 +17,16 @@ jobs:
     name: checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      # Keep the version equal to the qdrant image in compose.yaml.
+      qdrant:
+        image: qdrant/qdrant:v1.15.5
+        ports:
+          - 6333:6333
+        env:
+          QDRANT__TELEMETRY_DISABLED: "true"
+    env:
+      LIBRAG_QDRANT_URL: http://localhost:6333
     steps:
       - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v10.3.0
@@ -30,5 +40,56 @@ jobs:
         run: uv run ruff format --check .
       - name: Ty
         run: uv run ty check
+      - name: Wait for Qdrant
+        run: |
+          for _ in $(seq 1 30); do
+            curl -fsS "$LIBRAG_QDRANT_URL/readyz" && exit 0
+            sleep 2
+          done
+          echo "Qdrant is not ready at $LIBRAG_QDRANT_URL" >&2
+          exit 1
       - name: Pytest
         run: uv run pytest
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      COMPOSE: docker compose -p librag-e2e -f compose.yaml -f compose.test.yaml
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          python-version: "3.12"
+      - name: Install test dependencies
+        run: uv sync --frozen
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the app image, with layers cached in GitHub Actions
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: librag:local
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Start the stack with the test overlay
+        # The image is already built, so no --build here.
+        run: $COMPOSE up -d --wait --wait-timeout 120
+      - name: Run tests/e2e
+        run: uv run pytest tests/e2e --no-cov
+      - name: Collect the stack logs
+        if: always()
+        run: |
+          mkdir -p e2e-logs
+          $COMPOSE ps -a > e2e-logs/ps.txt 2>&1 || true
+          $COMPOSE logs --no-color --timestamps > e2e-logs/compose.log 2>&1 || true
+      - name: Upload the stack logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: e2e-logs/
+      - name: Tear down
+        if: always()
+        run: $COMPOSE down -v

@@ -43,12 +43,12 @@ A ticket in **Ready to build** whose spec gate is approved.
    - an **App evidence** section with the transcripts in fenced blocks, and links to the screenshots on the Linear ticket.
    - for a `ui` ticket, a **Gallery** table: screen state and platform → gallery page → app screenshot and gallery screenshot.
    - the domain docs that the PR adds or changes, if any.
-8. **Wait for CI** in a subagent on the `CI polling and log reading` model from `.claude/models.md`. It polls `gh api repos/<repo>/commits/<head sha>/check-runs` about every 30 seconds until the required check has completed. If the check failed, the subagent reads the job log with `gh api repos/<repo>/actions/jobs/<job id>/logs` and returns the error. Fix and push. That counts as a failed attempt.
+8. **Wait for CI** in a subagent on the `CI polling and log reading` model from `.claude/models.md`. It polls `gh api repos/<repo>/commits/<head sha>/check-runs` about every 30 seconds until each required check has completed. If a check failed, the subagent reads the job log with `gh api repos/<repo>/actions/jobs/<job id>/logs` and returns the error. Fix and push. That counts as a failed attempt.
 9. Comment `🤖 build: success — PR <url>` on the ticket. Tell the human in chat in one line, with the PR link.
 
 ## Done when
 
-The PR is open, the required check is green on its latest commit, every acceptance criterion has evidence, and the PR body has the app evidence.
+The PR is open, each required check is green on its latest commit, every acceptance criterion has evidence, and the PR body has the app evidence.
 
 ## Escalation
 
