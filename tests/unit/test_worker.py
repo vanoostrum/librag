@@ -5,6 +5,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -45,13 +46,19 @@ def test_worker_keeps_running_without_database(tmp_path: Path) -> None:
     worker = subprocess.Popen(
         [sys.executable, "-m", "librag.worker"], env=env, stderr=subprocess.PIPE
     )
+    stderr = worker.stderr
+    assert stderr is not None
+    failed = threading.Event()
+
+    def watch_log() -> None:
+        # A thread reads the log, so a silent worker cannot block the test.
+        for line in stderr:
+            if b"heartbeat failed" in line:
+                failed.set()
+
+    threading.Thread(target=watch_log, daemon=True).start()
     try:
-        stderr = worker.stderr
-        assert stderr is not None
-        deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
-        while time.monotonic() < deadline:
-            if b"heartbeat failed" in stderr.readline():
-                break
+        assert failed.wait(STARTUP_TIMEOUT_SECONDS), "the worker logged no failure"
         assert worker.poll() is None, "the worker stopped after a failed heartbeat"
         worker.send_signal(signal.SIGTERM)
         assert worker.wait(timeout=STOP_TIMEOUT_SECONDS) == 0
