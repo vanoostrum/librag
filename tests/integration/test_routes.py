@@ -152,6 +152,17 @@ def test_builtin_docs_are_disabled(client: TestClient, path: str) -> None:
 
 
 def test_only_expected_routes_are_registered() -> None:
-    """The application serves no routes besides /, /health and /version."""
-    paths = sorted(route.path for route in app.routes if isinstance(route, APIRoute))
-    assert paths == ["/", "/health", "/version"]
+    """The application serves no routes besides these paths and methods."""
+    routes = sorted(
+        (route.path, method)
+        for route in app.routes
+        if isinstance(route, APIRoute)
+        for method in route.methods or ()
+    )
+    assert routes == [
+        ("/", "GET"),
+        ("/api/books", "GET"),
+        ("/api/books", "POST"),
+        ("/health", "GET"),
+        ("/version", "GET"),
+    ]

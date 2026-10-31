@@ -22,6 +22,9 @@ class Settings:
     database_url: str = "sqlite:///data/librag.db"
     file_store_dir: str = "data/files"
     ai_providers: AiProviders = "live"
+    passage_target_tokens: int = 350
+    passage_overlap_tokens: int = 50
+    max_upload_mb: int = 50
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "Settings":
@@ -37,4 +40,33 @@ class Settings:
             database_url=env.get("LIBRAG_DATABASE_URL", defaults.database_url),
             file_store_dir=env.get("LIBRAG_FILE_STORE_DIR", defaults.file_store_dir),
             ai_providers=ai_providers,
+            passage_target_tokens=_positive_int(
+                env, "LIBRAG_PASSAGE_TARGET_TOKENS", defaults.passage_target_tokens
+            ),
+            passage_overlap_tokens=_positive_int(
+                env,
+                "LIBRAG_PASSAGE_OVERLAP_TOKENS",
+                defaults.passage_overlap_tokens,
+                minimum=0,
+            ),
+            max_upload_mb=_positive_int(
+                env, "LIBRAG_MAX_UPLOAD_MB", defaults.max_upload_mb
+            ),
         )
+
+
+def _positive_int(
+    env: Mapping[str, str], name: str, default: int, minimum: int = 1
+) -> int:
+    """Return the whole number in `env[name]`, at least `minimum`."""
+    raw = env.get(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        value = minimum - 1
+    if value < minimum:
+        msg = f"{name} must be a whole number of at least {minimum}, not {raw!r}"
+        raise SettingsError(msg)
+    return value

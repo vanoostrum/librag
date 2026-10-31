@@ -1,5 +1,5 @@
 # Copyright (C) 2026 Theo van Oostrum
-"""The worker process stops cleanly on SIGTERM. No request can reach that case."""
+"""The worker process: SIGTERM, outages and restarts. No request can reach these."""
 
 import os
 import signal
@@ -9,9 +9,12 @@ import threading
 import time
 from pathlib import Path
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, update
 
-from librag.db import worker_heartbeats
+from librag.books import add_book
+from librag.db import books, ingestion_jobs, worker_heartbeats
+from librag.settings import Settings
+from tests.epubs import make_epub
 
 STARTUP_TIMEOUT_SECONDS = 10
 STOP_TIMEOUT_SECONDS = 5
@@ -64,3 +67,40 @@ def test_worker_keeps_running_without_database(tmp_path: Path) -> None:
         assert worker.wait(timeout=STOP_TIMEOUT_SECONDS) == 0
     finally:
         worker.kill()
+
+
+def test_worker_runs_an_interrupted_job_on_start(
+    database_url: str, tmp_path: Path
+) -> None:
+    """A job left running by a stopped worker is parsed when a worker starts."""
+    file_store_dir = str(tmp_path / "files")
+    engine = create_engine(database_url)
+    add_book(
+        engine,
+        Settings(database_url=database_url, file_store_dir=file_store_dir),
+        make_epub(),
+    )
+    with engine.begin() as connection:
+        connection.execute(update(ingestion_jobs).values(status="running"))
+        connection.execute(update(books).values(status="parsing"))
+    env = {
+        **os.environ,
+        "LIBRAG_DATABASE_URL": database_url,
+        "LIBRAG_FILE_STORE_DIR": file_store_dir,
+    }
+    worker = subprocess.Popen(
+        [sys.executable, "-m", "librag.worker"], env=env, stderr=subprocess.PIPE
+    )
+    try:
+        deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
+        status = "parsing"
+        while status != "indexing" and time.monotonic() < deadline:
+            with engine.connect() as connection:
+                status = connection.scalar(select(books.c.status))
+            time.sleep(0.1)
+        assert status == "indexing", "the worker did not run the interrupted job"
+        worker.send_signal(signal.SIGTERM)
+        assert worker.wait(timeout=STOP_TIMEOUT_SECONDS) == 0
+    finally:
+        worker.kill()
+        engine.dispose()
