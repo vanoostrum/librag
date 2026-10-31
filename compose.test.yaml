@@ -1,0 +1,10 @@
+# Test overlay: docker compose -f compose.yaml -f compose.test.yaml up -d --build --wait
+# It selects the fake AI providers, so tests need no API keys.
+x-test: &test
+  env_file:
+    - compose.test.env
+
+services:
+  migrate: *test
+  api: *test
+  worker: *test
