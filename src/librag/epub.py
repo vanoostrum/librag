@@ -12,6 +12,10 @@ from lxml import etree
 
 NOT_READABLE = "The file is not a readable EPUB"
 NO_TITLE = "The EPUB has no title"
+# The upload limit counts compressed bytes, so a small zip can unpack to
+# gigabytes. No file inside an EPUB may unpack to more than this.
+MAX_MEMBER_BYTES = 32 * 1024 * 1024
+TOO_LARGE_INSIDE = "The EPUB holds a file larger than 32 MB once unpacked"
 
 BLOCK_TAGS = frozenset(
     {
@@ -119,7 +123,14 @@ class _Package:
     opf: etree._Element
 
     def read(self, path: str) -> bytes:
+        """Return the member `path`, refusing one that unpacks to too much.
+
+        `zipfile` stops at the size in the member's header, so checking that
+        size bounds the memory that the read takes.
+        """
         try:
+            if self.archive.getinfo(path).file_size > MAX_MEMBER_BYTES:
+                raise EpubError(TOO_LARGE_INSIDE)
             return self.archive.read(path)
         except (KeyError, zipfile.BadZipFile) as error:
             raise EpubError(NOT_READABLE) from error

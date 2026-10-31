@@ -141,6 +141,7 @@ def test_list_is_newest_first(client: TestClient) -> None:
 CONTAINER = "META-INF/container.xml"
 OPF = "OEBPS/content.opf"
 NOT_READABLE = "The file is not a readable EPUB"
+TOO_LARGE_INSIDE = "The EPUB holds a file larger than 32 MB once unpacked"
 
 
 @pytest.mark.parametrize(
@@ -293,6 +294,34 @@ def test_book_with_a_missing_chapter_fails(
         ("failed", NOT_READABLE),
     ]
     assert count(engine, passages) == 1
+
+
+def _zip_bomb(member: str) -> bytes:
+    """Return the fixture EPUB with `member` unpacking to just over 32 MB."""
+    big = b"<html><body><p>" + b"a" * (32 * 1024 * 1024) + b"</p></body></html>"
+    return replace_member(make_epub(), member, big, deflate=True)
+
+
+def test_upload_that_unpacks_too_large_is_refused(
+    client: TestClient, engine: Engine
+) -> None:
+    """A small EPUB whose package file unpacks to over 32 MB is 422."""
+    data = _zip_bomb(OPF)
+    assert len(data) < 1024 * 1024
+    response = upload(client, data)
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.json() == {"error": TOO_LARGE_INSIDE}
+    assert count(engine, books) == 0
+
+
+def test_chapter_that_unpacks_too_large_fails(
+    client: TestClient, work: Callable[[], bool]
+) -> None:
+    """A chapter that unpacks to over 32 MB ends the book in failed."""
+    upload(client, _zip_bomb("OEBPS/text/ch1.xhtml"))
+    assert work()
+    [book] = client.get("/api/books").json()["books"]
+    assert book == book_json(book, status="failed", error=TOO_LARGE_INSIDE)
 
 
 def test_book_whose_stored_file_is_gone_fails(

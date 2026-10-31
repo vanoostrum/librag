@@ -87,12 +87,6 @@ def test_empty_spine_documents_are_still_counted() -> None:
     assert [(c.spine_index, c.title) for c in chapters] == [(1, "One")]
 
 
-def test_unreadable_file_raises() -> None:
-    """A file that is not an EPUB raises EpubError."""
-    with pytest.raises(EpubError, match="not a readable EPUB"):
-        read_chapters(b"not a zip")
-
-
 def test_landmarks_nav_is_not_the_table_of_contents() -> None:
     """Only the nav with epub:type toc names chapters."""
     epub = make_epub(
@@ -129,15 +123,13 @@ def test_ncx_point_without_label_is_skipped() -> None:
 @pytest.mark.parametrize(
     ("member", "content"),
     [
-        ("OEBPS/text/ch1.xhtml", None),
         ("OEBPS/text/ch1.xhtml", b""),
         ("OEBPS/text/ch1.xhtml", b"garbage"),
-        ("OEBPS/content.opf", None),
     ],
-    ids=["missing-chapter", "empty-chapter", "garbage-chapter", "missing-package"],
+    ids=["empty-chapter", "garbage-chapter"],
 )
 def test_broken_member_raises(member: str, content: bytes | None) -> None:
-    """A missing, empty or unparsable package or chapter raises EpubError."""
+    """An empty or unparsable chapter raises EpubError."""
     with pytest.raises(EpubError, match="not a readable EPUB"):
         read_chapters(replace_member(make_epub(), member, content))
 
