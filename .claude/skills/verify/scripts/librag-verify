@@ -12,44 +12,172 @@ EVIDENCE="$BASE/evidence"
 
 die() { echo "librag-verify: $*" >&2; exit 1; }
 
+# Qdrant for process mode: keep the version equal to the qdrant image in compose.yaml.
+QDRANT_VERSION="v1.15.5"
+qdrant_target() {
+  case "$(uname -s)-$(uname -m)" in
+    Linux-x86_64) echo "x86_64-unknown-linux-musl a6d36c60efda2872494f44b727796c811c3e9f307a2dd9c0054ee43d995d14ad" ;;
+    Linux-aarch64 | Linux-arm64) echo "aarch64-unknown-linux-musl 9a68ff1b158fd3a73b63e5e07a80c3bef95c869436a946151246b10b4a85bcd4" ;;
+    Darwin-arm64) echo "aarch64-apple-darwin e712f362e1e9aff18bb062f15c05fa384282ededc7d49f1935792cdc64e25222" ;;
+    Darwin-x86_64) echo "x86_64-apple-darwin b25f5512f2b696bae84752ff50752a77eec2ce6955e00847816e05c6344d6af9" ;;
+    *) die "no pinned Qdrant binary for $(uname -s)-$(uname -m)" ;;
+  esac
+}
+
+COMPOSE_FILES=(-f "$REPO/compose.yaml" -f "$REPO/compose.test.yaml")
+# A Compose project per run id, so two runs do not share containers or volumes.
+PROJECT="librag-verify-$(echo "$RUN_ID" | tr 'A-Z' 'a-z' | tr -c 'a-z0-9\n' '-')"
+compose() { docker compose -p "$PROJECT" "${COMPOSE_FILES[@]}" "$@"; }
+
 free_port() {
   "$REPO/.venv/bin/python" -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'
 }
 
 url() { echo "http://127.0.0.1:$(cat "$RUN/port")"; }
+mode() { cat "$RUN/mode"; }
+
+sha256() {
+  if command -v sha256sum > /dev/null; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi
+}
+
+# Print why Compose mode cannot run here, or nothing when it can.
+compose_blocker() {
+  command -v docker > /dev/null || { echo "no docker command"; return; }
+  docker info > /dev/null 2>&1 || { echo "the Docker daemon is not running"; return; }
+  docker compose version > /dev/null 2>&1 || { echo "no Docker Compose plugin"; return; }
+  local image
+  for image in $(compose config --images 2> /dev/null | grep -v '^librag:') \
+    $(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$REPO/Dockerfile"); do
+    docker pull --quiet "$image" > /dev/null 2>&1 || { echo "cannot pull $image"; return; }
+  done
+}
+
+wait_healthy() {
+  local tries="$1"
+  for _ in $(seq 1 "$tries"); do
+    [[ "$(curl -s -o /dev/null -w '%{http_code}' "$(url)/health" || true)" == "200" ]] && return 0
+    if [[ "$(mode)" == process ]]; then
+      local name
+      for name in qdrant api worker; do
+        kill -0 "$(cat "$RUN/$name.pid")" 2> /dev/null || { cat "$RUN/$name.log" >&2; die "$name exited during startup"; }
+      done
+    fi
+    sleep 0.5
+  done
+  return 1
+}
+
+launch_compose() {
+  echo compose > "$RUN/mode"
+  echo "${LIBRAG_VERIFY_PORT:-$(free_port)}" > "$RUN/port"
+  LIBRAG_PORT="$(cat "$RUN/port")" LIBRAG_QDRANT_PORT="$(free_port)" \
+    compose up -d --build --wait --wait-timeout 180 > "$RUN/compose-up.log" 2>&1 \
+    || { cat "$RUN/compose-up.log" >&2; compose logs --no-color >&2 || true; die "docker compose up failed"; }
+}
+
+# Download the pinned Qdrant release once, check its checksum, and print its path.
+qdrant_binary() {
+  local target sum dir archive
+  read -r target sum < <(qdrant_target)
+  dir="$REPO/.verify/bin/qdrant-$QDRANT_VERSION-$target"
+  if [[ ! -x "$dir/qdrant" ]]; then
+    mkdir -p "$dir"
+    archive="$dir/qdrant.tar.gz"
+    curl -fsSL -o "$archive" \
+      "https://github.com/qdrant/qdrant/releases/download/$QDRANT_VERSION/qdrant-$target.tar.gz" \
+      || die "cannot download Qdrant $QDRANT_VERSION"
+    [[ "$(sha256 "$archive")" == "$sum" ]] || { rm -rf "$dir"; die "Qdrant download has the wrong checksum"; }
+    tar -xzf "$archive" -C "$dir" qdrant
+    rm "$archive"
+  fi
+  echo "$dir/qdrant"
+}
+
+# Start a process in the background with the test settings, and keep its pid and log.
+start() {
+  local name="$1"; shift
+  (
+    cd "$REPO"
+    set -a
+    # shellcheck source=/dev/null
+    source "$REPO/compose.test.env"
+    set +a
+    export LIBRAG_QDRANT_URL="http://127.0.0.1:$(cat "$RUN/qdrant-port")"
+    export LIBRAG_DATABASE_URL="sqlite:///$RUN/data/librag.db"
+    export LIBRAG_FILE_STORE_DIR="$RUN/data/files"
+    exec "$@" > "$RUN/$name.log" 2>&1
+  ) &
+  echo $! > "$RUN/$name.pid"
+}
+
+launch_process() {
+  echo process > "$RUN/mode"
+  local qdrant port
+  qdrant="$(qdrant_binary)"
+  mkdir -p "$RUN/data/files" "$RUN/qdrant"
+  free_port > "$RUN/qdrant-port"
+  start qdrant env QDRANT__SERVICE__HOST=127.0.0.1 \
+    QDRANT__SERVICE__HTTP_PORT="$(cat "$RUN/qdrant-port")" QDRANT__SERVICE__GRPC_PORT="$(free_port)" \
+    QDRANT__STORAGE__STORAGE_PATH="$RUN/qdrant/storage" QDRANT__STORAGE__SNAPSHOTS_PATH="$RUN/qdrant/snapshots" \
+    QDRANT__TELEMETRY_DISABLED=true QDRANT_INIT_FILE_PATH="$RUN/qdrant/.qdrant-initialized" "$qdrant"
+  for _ in $(seq 1 60); do
+    curl -fsS "http://127.0.0.1:$(cat "$RUN/qdrant-port")/readyz" > /dev/null 2>&1 && break
+    kill -0 "$(cat "$RUN/qdrant.pid")" 2> /dev/null || { cat "$RUN/qdrant.log" >&2; die "qdrant exited during startup"; }
+    sleep 0.5
+  done
+  start migrate .venv/bin/alembic upgrade head
+  wait "$(cat "$RUN/migrate.pid")" || { cat "$RUN/migrate.log" >&2; die "migrate failed"; }
+  port="${LIBRAG_VERIFY_PORT:-$(free_port)}"
+  echo "$port" > "$RUN/port"
+  start api .venv/bin/python -m uvicorn librag.main:app --host 127.0.0.1 --port "$port"
+  start worker .venv/bin/python -m librag.worker
+  cp "$RUN/api.pid" "$RUN/pid"
+}
 
 launch() {
-  [[ -f "$RUN/pid" ]] && die "run $RUN_ID already has an instance (pid $(cat "$RUN/pid")). Run cleanup first."
+  [[ -f "$RUN/mode" ]] && die "run $RUN_ID already has an instance ($(cat "$RUN/mode") mode). Run cleanup first."
   mkdir -p "$RUN" "$EVIDENCE"
   (cd "$REPO" && uv sync --frozen --quiet)
-  local port="${LIBRAG_VERIFY_PORT:-$(free_port)}"
-  echo "$port" > "$RUN/port"
-  (cd "$REPO" && exec .venv/bin/python -m uvicorn librag.main:app --host 127.0.0.1 --port "$port" > "$RUN/server.log" 2>&1) &
-  echo $! > "$RUN/pid"
-  for _ in $(seq 1 50); do
-    if curl -fsS "http://127.0.0.1:$port/health" > /dev/null 2>&1; then
-      echo "ready: http://127.0.0.1:$port pid=$(cat "$RUN/pid") run=$RUN_ID"
-      return 0
-    fi
-    kill -0 "$(cat "$RUN/pid")" 2> /dev/null || { cat "$RUN/server.log" >&2; die "server exited during startup"; }
-    sleep 0.2
-  done
-  cat "$RUN/server.log" >&2
-  die "not ready after 10s"
+  local wanted="${LIBRAG_VERIFY_MODE:-auto}" blocker=""
+  case "$wanted" in
+    auto) blocker="$(compose_blocker)" ;;
+    compose | process) ;;
+    *) die "LIBRAG_VERIFY_MODE must be auto, compose or process, not '$wanted'" ;;
+  esac
+  if [[ "$wanted" == compose || ( "$wanted" == auto && -z "$blocker" ) ]]; then
+    launch_compose
+  else
+    [[ -n "$blocker" ]] && echo "compose mode unavailable: $blocker. Falling back to process mode."
+    launch_process
+  fi
+  wait_healthy 120 || { [[ "$(mode)" == process ]] && tail -n 20 "$RUN"/*.log >&2; die "/health is not 200 after 60s"; }
+  echo "ready: $(url) mode=$(mode) run=$RUN_ID"
 }
 
 doctor() {
-  [[ -f "$RUN/pid" ]] || die "no instance for run $RUN_ID. Run launch."
-  local pid port expected actual owner
-  pid="$(cat "$RUN/pid")"; port="$(cat "$RUN/port")"
-  kill -0 "$pid" 2> /dev/null || die "pid $pid is not running"
-  owner="$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2> /dev/null | head -1 || true)"
-  [[ "$owner" == "$pid" ]] || die "port $port is owned by pid '${owner:-none}', not by our pid $pid"
-  [[ "$(curl -fsS "$(url)/health")" == '{"status":"ok"}' ]] || die "/health is not {\"status\":\"ok\"}"
+  [[ -f "$RUN/mode" ]] || die "no instance for run $RUN_ID. Run launch."
+  local expected actual
+  if [[ "$(mode)" == compose ]]; then
+    local service
+    for service in qdrant api worker; do
+      [[ "$(compose ps --status running -q "$service")" ]] || die "compose service $service is not running"
+    done
+  else
+    local name pid owner
+    for name in qdrant api worker; do
+      pid="$(cat "$RUN/$name.pid")"
+      kill -0 "$pid" 2> /dev/null || die "$name pid $pid is not running"
+    done
+    owner="$(lsof -nP -iTCP:"$(cat "$RUN/port")" -sTCP:LISTEN -t 2> /dev/null | head -1 || true)"
+    [[ "$owner" == "$(cat "$RUN/api.pid")" ]] || die "port $(cat "$RUN/port") is owned by pid '${owner:-none}', not by our api"
+  fi
+  actual="$(curl -sS "$(url)/health")"
+  [[ "$actual" == '{"status":"ok","checks":{"qdrant":"ok","database":"ok","worker":"ok"}}' ]] \
+    || die "/health is $actual, not ok for qdrant, database and worker"
   expected="$(sed -n 's/^version = "\(.*\)"$/\1/p' "$REPO/pyproject.toml" | head -1)"
   actual="$(curl -fsS "$(url)/version")"
-  [[ "$actual" == "{\"version\":\"$expected\"}" ]] || die "/version is $actual, pyproject.toml says $expected. Run uv sync and relaunch."
-  echo "ok: $(url) pid=$pid version=$expected run=$RUN_ID"
+  [[ "$actual" == "{\"version\":\"$expected\"}" ]] || die "/version is $actual, pyproject.toml says $expected. Run cleanup and launch again."
+  echo "ok: $(url) mode=$(mode) version=$expected run=$RUN_ID"
 }
 
 get() {
@@ -115,18 +243,34 @@ gallery() {
   shoot "$feature" "file://$REPO/design/$page" "$name" "${3:-}"
 }
 
+stop_pid() {
+  local pid="$1"
+  kill -0 "$pid" 2> /dev/null || return 0
+  kill "$pid"
+  for _ in $(seq 1 25); do kill -0 "$pid" 2> /dev/null || return 0; sleep 0.2; done
+  kill -9 "$pid"
+}
+
 cleanup() {
-  if [[ -f "$RUN/pid" ]]; then
-    local pid; pid="$(cat "$RUN/pid")"
-    if kill -0 "$pid" 2> /dev/null; then
-      kill "$pid"
-      for _ in $(seq 1 25); do kill -0 "$pid" 2> /dev/null || break; sleep 0.2; done
-      kill -0 "$pid" 2> /dev/null && kill -9 "$pid"
-    fi
-    [[ -f "$RUN/server.log" ]] && mkdir -p "$EVIDENCE" && cp "$RUN/server.log" "$EVIDENCE/server.log"
-  fi
+  mkdir -p "$EVIDENCE"
+  case "$(cat "$RUN/mode" 2> /dev/null || true)" in
+    compose)
+      compose logs --no-color --timestamps > "$EVIDENCE/compose.log" 2>&1 || true
+      compose down -v > /dev/null 2>&1 || true
+      ;;
+    process)
+      local name
+      # Stop only the pids that this run started, never by process name.
+      for name in api worker qdrant; do
+        [[ -f "$RUN/$name.pid" ]] && stop_pid "$(cat "$RUN/$name.pid")"
+      done
+      for name in qdrant migrate api worker; do
+        [[ -f "$RUN/$name.log" ]] && cp "$RUN/$name.log" "$EVIDENCE/$name.log"
+      done
+      ;;
+  esac
   rm -rf "$RUN"
-  echo "cleaned: run $RUN_ID. Evidence kept in $EVIDENCE"
+  echo "cleaned: run $RUN_ID. Evidence and logs kept in $EVIDENCE"
 }
 
 case "${1:-}" in

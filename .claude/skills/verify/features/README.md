@@ -14,7 +14,7 @@ This directory is the maintained source for verifying what an HTTP client sees f
 - Take a screenshot with `$V screenshot <feature id> <path>` for every HTML page.
 - For a screen with a gallery page in `design/pages/`, also run `$V gallery <feature id> <page>` for each state that you drive.
 - Use the paths exactly as written. `/health/` and `/health` are different routes.
-- The app keeps no state, so no recipe needs a reset.
+- Each run has its own database and Qdrant data, and `cleanup` deletes them. No recipe needs a reset.
 
 ## Proof and skip reporting
 
@@ -30,6 +30,6 @@ Each feature file starts with an H1 title and one paragraph on the behavior a cl
 ## Features
 
 - [Homepage](./homepage.md) covers the HTML page at `/`.
-- [Health](./health.md) covers the `/health` status check.
+- [Health](./health.md) covers the `/health` readiness check of Qdrant, the database and the worker.
 - [Version](./version.md) covers `/version` and its match with `pyproject.toml`.
 - [API docs disabled](./api-docs-disabled.md) covers the 404s for `/docs`, `/redoc`, and `/openapi.json`.
