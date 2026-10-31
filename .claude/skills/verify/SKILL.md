@@ -5,7 +5,7 @@ description: Drive the running LibRag FastAPI app over HTTP and capture evidence
 
 # Verify LibRag in the running app
 
-LibRag is an HTTP service. The user surface is its routes: `/` (HTML homepage), `/health`, and `/version`. The API docs (`/docs`, `/redoc`, `/openapi.json`) are off on purpose. There is no UI framework, auth, database, or seed data. The driver is `curl`, wrapped by one helper script.
+LibRag is an HTTP service. The user surface is its routes: `/` (HTML homepage), `/health`, and `/version`. The API docs (`/docs`, `/redoc`, `/openapi.json`) are off on purpose. The app runs as a stack: `api`, `worker`, Qdrant and a SQLite metadata database. There is no UI framework, auth, or seed data. The driver is `curl`, wrapped by one helper script.
 
 `project-verify` runs ruff, ty, and pytest, the same as CI. This skill is the other half: it starts a real server and checks what a client sees.
 
@@ -22,10 +22,18 @@ V=.claude/skills/verify/scripts/librag-verify
 $V launch
 ```
 
-- Runs `uv sync --frozen`, picks a free port on `127.0.0.1` (or `LIBRAG_VERIFY_PORT`), and starts `.venv/bin/python -m uvicorn librag.main:app` in the background, without reload.
-- Ready means `GET /health` returned 200. The command prints `ready: http://127.0.0.1:<port> pid=<pid> run=<id>` and exits 0. It exits non-zero with the server log if the server dies or is not ready in 10 seconds.
-- State goes to `.verify/<run id>/run/` (`pid`, `port`, `server.log`). `.verify/` is in `.gitignore`.
-- Isolation: each run id has its own port and state, so two runs can go side by side. One run id holds one instance; `launch` refuses a second.
+- Runs `uv sync --frozen`, then starts the stack in one of two modes. It prints the mode it chose.
+- **Compose mode** (the default when Docker works): `docker compose -f compose.yaml -f compose.test.yaml up -d --build --wait`, as Compose project `librag-verify-<run id>`. The api gets a free port on `127.0.0.1` (or `LIBRAG_VERIFY_PORT`), and Qdrant gets another one.
+- **Process mode** (the fallback): when Docker is missing, its daemon is not running, or it cannot pull an image, `launch` prints `compose mode unavailable: <reason>` and starts each part as a local process:
+  1. Qdrant from the pinned release binary. The first run downloads it to `.verify/bin/` and checks its SHA-256. Its version is the same as the `qdrant` image in `compose.yaml`.
+  2. `alembic upgrade head`, the same step as the `migrate` service.
+  3. The api (`uvicorn`, without reload) and the worker (`python -m librag.worker`).
+  Every process reads `compose.test.env`, the env file of `compose.test.yaml`, so both modes use the same test settings. The database and the Qdrant data live under `.verify/<run id>/run/`.
+- Set `LIBRAG_VERIFY_MODE=compose` or `LIBRAG_VERIFY_MODE=process` to force a mode.
+- Ready means `GET /health` returned 200. The command prints `ready: http://127.0.0.1:<port> mode=<compose|process> run=<id>` and exits 0. It exits non-zero with the logs if a part dies or `/health` is not 200 in 60 seconds.
+- State goes to `.verify/<run id>/run/` (`mode`, `port`, and in process mode a `.pid` and `.log` per process). `.verify/` is in `.gitignore`.
+- Isolation: each run id has its own ports, state and Compose project, so two runs can go side by side. One run id holds one instance; `launch` refuses a second.
+- The cloud sandbox has no running Docker daemon and cannot pull images, so it uses process mode. CI's `e2e` job is the proof of the Compose files.
 - Do not use `uv run fastapi dev`. Its reloader starts a child process, so the pid you hold is not the server.
 
 ## Doctor
@@ -34,11 +42,11 @@ $V launch
 $V doctor
 ```
 
-Read-only. It passes only when all of these hold, and prints `ok: <url> pid=<pid> version=<v> run=<id>`:
+Read-only. It passes only when all of these hold, and prints `ok: <url> mode=<mode> version=<v> run=<id>`:
 
-- the pid from launch is alive;
-- that pid owns the listening port (checked with `lsof`);
-- `/health` returns exactly `{"status":"ok"}`;
+- compose mode: the `qdrant`, `api` and `worker` services of this run's project are running;
+- process mode: the Qdrant, api and worker pids from launch are alive, and the api pid owns the listening port (checked with `lsof`);
+- `/health` returns exactly `{"status":"ok","checks":{"qdrant":"ok","database":"ok","worker":"ok"}}`;
 - `/version` matches `version` in `pyproject.toml`. A mismatch means a stale install: run `$V cleanup`, then `$V launch`.
 
 Run doctor before the first drive and again after any drive that surprised you.
@@ -86,7 +94,7 @@ Proof standards:
 - Drive the real server over HTTP. `TestClient` is the test suite's job, not proof here.
 - Check the status, the content type, and the exact body. A 200 alone is not proof.
 - Check the version against `pyproject.toml`, not against a value copied from an earlier run.
-- No mocks. The app has no external systems.
+- No mocks. The stack uses a real Qdrant and a real database. `compose.test.env` selects the in-process fake AI providers, so verify needs no API keys.
 
 In the factory, `factory-build` pastes the transcripts into the PR body and attaches the screenshots to the Linear ticket. `.verify/` is not committed, and a cloud container is deleted after the session.
 
@@ -96,11 +104,12 @@ In the factory, `factory-build` pastes the transcripts into the PR body and atta
 $V cleanup
 ```
 
-- Stops only the pid that this run started (TERM, then KILL after 5 seconds). It never kills by process name.
-- Copies `server.log` to the evidence folder, then removes `.verify/<run id>/run/`.
+- Compose mode: saves `docker compose logs` as `compose.log` in the evidence folder, then runs `docker compose down -v` for this run's project only.
+- Process mode: stops only the pids that this run started (TERM, then KILL after 5 seconds). It never kills by process name. It copies `qdrant.log`, `migrate.log`, `api.log` and `worker.log` to the evidence folder.
+- Then it removes `.verify/<run id>/run/`, with the run's database and Qdrant data.
 - Keeps `.verify/<run id>/evidence/`. Delete old runs by hand with `rm -rf .verify/<run id>` when you no longer need them.
 - Run cleanup after every run, also after a failed one.
 
 ## Helpers
 
-- `scripts/librag-verify launch|doctor|get <feature> <path>|screenshot <feature> <path>|gallery <feature> <page>|cleanup`: the only helper. It needs `bash`, `curl`, `lsof`, and `uv`, which are on macOS and on the cloud container. `screenshot` and `gallery` also need Chrome or Chromium.
+- `scripts/librag-verify launch|doctor|get <feature> <path>|screenshot <feature> <path>|gallery <feature> <page>|cleanup`: the only helper. It needs `bash`, `curl`, `lsof`, `tar`, and `uv`, which are on macOS and on the cloud container. Compose mode also needs Docker with the Compose plugin. `screenshot` and `gallery` also need Chrome or Chromium.
