@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from librag.main import create_app
-from librag.settings import Settings, SettingsError
+from librag.settings import ChatModel, Settings, SettingsError
 
 
 def test_invalid_ai_providers_stops_startup(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -116,3 +116,55 @@ def test_rerank_settings_are_read_from_the_environment() -> None:
     ) == ("cross-encoder/ms-marco-MiniLM-L-6-v2", 30, 4000)
     largest = Settings.from_env({"LIBRAG_CONTEXT_TOKEN_BUDGET": "32000"})
     assert largest.context_token_budget == 32000  # noqa: PLR2004
+
+
+@pytest.mark.parametrize(
+    ("env", "name", "value"),
+    [
+        (
+            {"LIBRAG_CHAT_DEFAULT_MODEL": "openai/gpt-4"},
+            "LIBRAG_CHAT_DEFAULT_MODEL",
+            "openai/gpt-4",
+        ),
+        (
+            {"LIBRAG_CHAT_MODELS": "a/one=One,,b/two"},
+            "LIBRAG_CHAT_MODELS",
+            "a/one=One,,b/two",
+        ),
+        ({"LIBRAG_QUERY_REWRITE": "sometimes"}, "LIBRAG_QUERY_REWRITE", "sometimes"),
+    ],
+)
+def test_invalid_chat_setting_stops_startup(
+    monkeypatch: pytest.MonkeyPatch, env: dict[str, str], name: str, value: str
+) -> None:
+    """The app does not start with a chat setting that it cannot use."""
+    for key, raw in env.items():
+        monkeypatch.setenv(key, raw)
+    with pytest.raises(SettingsError, match=name) as error, TestClient(create_app()):
+        pass
+    assert repr(value) in str(error.value)
+
+
+def test_chat_settings_are_read_from_the_environment() -> None:
+    """The chat models, the default and the rewrite switch come from LIBRAG_*."""
+    settings = Settings.from_env(
+        {
+            "LIBRAG_CHAT_MODELS": "openai/gpt-6.1-terra=GPT 6.1 Terra, gemini/flash",
+            "LIBRAG_CHAT_DEFAULT_MODEL": "gemini/flash",
+            "LIBRAG_QUERY_REWRITE": "Off",
+        }
+    )
+    assert settings.chat_models == (
+        ChatModel("openai/gpt-6.1-terra", "GPT 6.1 Terra"),
+        ChatModel("gemini/flash", "gemini/flash"),
+    )
+    assert settings.chat_default_model == "gemini/flash"
+    assert settings.query_rewrite is False
+
+
+def test_default_chat_model_is_the_first_configured() -> None:
+    """Without LIBRAG_CHAT_DEFAULT_MODEL, the first model is the default."""
+    settings = Settings.from_env({"LIBRAG_CHAT_MODELS": "b/two=Two,a/one=One"})
+    assert settings.chat_default_model == "b/two"
+    assert Settings.from_env({}).chat_default_model == "anthropic/claude-sonnet-5-5"
+    assert Settings.from_env({"LIBRAG_QUERY_REWRITE": "1"}).query_rewrite is True

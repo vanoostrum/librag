@@ -15,7 +15,7 @@ from librag.db import books
 from librag.main import create_app
 from librag.passages import count_tokens, passage_id
 from librag.settings import Settings
-from tests.epubs import FixtureBook, FixtureChapter, make_epub, paragraphs
+from tests.epubs import FixtureBook, FixtureChapter, paragraphs
 
 SEARCH = "/api/rag/search"
 STAGES = ("dense", "bm25", "fusion", "rerank")
@@ -56,20 +56,6 @@ SEA_ID = _id("urn:sea")
 HARBOUR_ID = _id("urn:harbour")
 KEEPER = passage_id(SEA_ID, 0)
 BEAM = passage_id(HARBOUR_ID, 1)
-
-
-@pytest.fixture
-def index(client: TestClient, work: Callable[[], bool]) -> Callable[..., None]:
-    """Return a function that uploads fixture books and indexes them."""
-
-    def index(*fixtures: FixtureBook) -> None:
-        for fixture in fixtures:
-            files = {"file": ("book.epub", make_epub(fixture), "application/epub+zip")}
-            response = client.post("/api/books", files=files)
-            assert response.status_code == HTTPStatus.ACCEPTED, response.text
-            assert work()
-
-    return index
 
 
 def search(client: TestClient, query: str, **fields: object) -> dict[str, Any]:
