@@ -18,7 +18,9 @@ from typing import Any
 import httpx2
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import Engine, update
 
+from librag.db import books
 from librag.epub import read_metadata
 from librag.evaluation.cli import Io, main
 from tests.epubs import FixtureBook, FixtureChapter, make_epub, paragraphs
@@ -416,3 +418,20 @@ def test_failed_download_stops_with_the_status(
         "eval: could not download Harbour Tales from Project Gutenberg: 404"
     )
     assert not (eval_dir / "eval" / "books" / "pg2.epub").exists()
+
+
+def test_book_indexed_with_another_model_stops_the_run(
+    engine: Engine, run: Callable[..., tuple[int, str, str]]
+) -> None:
+    """A book indexed with another embedding model than search uses is refused."""
+    assert run("fetch")[0] == 0
+    with engine.begin() as connection:
+        connection.execute(
+            update(books).where(books.c.id == SEA_ID).values(embedding_model="old")
+        )
+    code, _, err = run("run")
+    assert code == 1
+    assert (
+        "eval: Sea Stories is indexed with old, but search embeds with fake. "
+        "Reindex it, then run again." in err
+    )
