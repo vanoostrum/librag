@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat · LibRag</title>
+  <link rel="stylesheet" href="../../gallery.css">
+</head>
+<body class="chat-body">
+  <header class="site-header">
+    <div class="site-header__inner">
+      <div class="wordmark">LibRag</div>
+      <nav class="main-nav" aria-label="Main">
+        <a href="../library/default.html">Library</a>
+        <a href="answer.html" aria-current="page">Chat</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page page--reading">
+    <h1 class="visually-hidden">Chat</h1>
+    <section class="chat-intro">
+      <p class="chat-intro__title">Ask your library</p>
+      <p class="chat-intro__hint">Answers quote the passages they come from. Pick a model and the books to search below.</p>
+    </section>
+    <form class="ask">
+      <div class="ask__bar">
+        <label class="visually-hidden" for="question">Question</label>
+        <input class="ask__input" id="question" type="text" placeholder="Ask your library a question">
+        <button type="submit" class="button-primary">Ask</button>
+      </div>
+      <div class="ask__options">
+        <label>Model <select><option>Claude Sonnet 5.5</option><option>GPT 6.1 Terra</option></select></label>
+        <div class="picker">
+          <button type="button" class="picker__toggle" aria-expanded="true">Books: 3 books ▾</button>
+          <div class="picker__panel" role="dialog" aria-label="Books to search">
+            <fieldset>
+              <legend class="visually-hidden">Books to search</legend>
+              <label class="picker__author"><input type="checkbox"> All indexed books</label>
+              <div class="picker__group">
+                <label class="picker__author"><input type="checkbox" checked> Daniel Kahneman</label>
+                <label class="picker__book"><input type="checkbox" checked> Thinking, Fast and Slow</label>
+                <label class="picker__book"><input type="checkbox" checked> Noise</label>
+              </div>
+              <div class="picker__group">
+                <label class="picker__author"><input type="checkbox"> Nassim Nicholas Taleb</label>
+                <label class="picker__book"><input type="checkbox" checked> The Black Swan</label>
+                <label class="picker__book"><input type="checkbox"> Antifragile</label>
+              </div>
+              <div class="picker__group">
+                <label class="picker__author"><input type="checkbox"> Philip E. Tetlock</label>
+                <label class="picker__book"><input type="checkbox"> Superforecasting</label>
+              </div>
+            </fieldset>
+          </div>
+        </div>
+      </div>
+    </form>
+  </main>
+</body>
+</html>

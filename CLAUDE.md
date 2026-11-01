@@ -76,7 +76,10 @@ When asked to "work on" a ticket or a feature, run the steps in order from where
   The step writes the arguments under `## Steering` in the ticket description, with the default for each one not given. A ticket that `factory-plan` creates gets a copy of the plan ticket's `## Steering`. Arguments given to `factory-spec` replace those values on that ticket. Every step reads `## Steering` on its ticket before it starts, and follows the notes that concern it. It reads a file or link in a note when the note concerns its work.
 - **Gates.** At a gate, post `🤖 Gate: plan`, `🤖 Gate: spec`, or `🤖 Gate: merge` with a short summary and the question, then stop and ask the human in chat too. The gate is approved when either:
   - the human says "approve" in this chat. Then post `🤖 Approved: <gate> (in chat)` on the ticket, or
+  - the human reacts with 👍 to the gate message in this chat. Then post `🤖 Approved: <gate> (👍 in chat)` on the ticket. Only a 👍 on the gate message counts, and only if the chat delivers reactions to the agent. A 👍 that the human removes again does not count, or
   - a human comment on the ticket after the latest gate comment says "approve".
+
+  A reaction on a Linear comment does not count: the factory cannot read reactions in Linear.
 
   Any other human reply is feedback: go back to the step before the gate and use it.
 - **UI feedback at the merge gate.** For a ticket with the `ui` label, the merge gate is one polish pass against the gallery. A polish fix goes back to `factory-build`, which changes the code and the gallery page in the same PR. Feedback that changes the design goes back to `factory-design` in ticket mode, then through the spec gate again.

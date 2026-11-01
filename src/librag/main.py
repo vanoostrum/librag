@@ -1,27 +1,34 @@
 # Copyright (C) 2026 Theo van Oostrum
 """LibRag HTTP application."""
 
-from collections.abc import AsyncGenerator
+import json
+from collections.abc import AsyncGenerator, Generator, Iterator
 from contextlib import asynccontextmanager
 from http import HTTPStatus
 from importlib.metadata import version as package_version
-from typing import Annotated, Any
+from typing import Annotated, Any, override
 
-from fastapi import FastAPI, Request
+import anyio
+from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field, StrictBool, StringConstraints
 from sqlalchemy import create_engine
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 from starlette.staticfiles import StaticFiles
+from starlette.types import Receive, Scope, Send
 
 from librag.books import BookConflictError, add_book, list_books
+from librag.chat import ChatError, ChatRequest, Event, chat, chat_stream
+from librag.chat_page import chat_context
 from librag.embeddings import make_embedder
 from librag.epub import EpubError
 from librag.health import check_database, check_qdrant, check_worker
 from librag.index import qdrant_client
 from librag.library import STATIC_DIR, TEMPLATES, library_context
+from librag.llm import make_llm
+from librag.prompts import Turn
 from librag.rerank import make_reranker
 from librag.search import Searcher, SearchRequest, search
 from librag.settings import MAX_SEARCH_K, MAX_TOKEN_BUDGET, MIN_TOKEN_BUDGET, Settings
@@ -44,6 +51,26 @@ class SearchBody(BaseModel):
     fusion_k: SearchK = None
     token_budget: TokenBudget = None
     rerank: StrictBool = True
+    book_ids: list[str] = []
+    authors: list[str] = []
+
+
+NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+class TurnBody(BaseModel):
+    """An earlier question in the conversation, and the answer it got."""
+
+    question: str
+    answer: str
+
+
+class ChatBody(BaseModel):
+    """The body of `POST /api/chat`. Only `question` is required."""
+
+    question: NonBlank
+    turns: list[TurnBody] = []
+    model: str | None = None
     book_ids: list[str] = []
     authors: list[str] = []
 
@@ -95,6 +122,104 @@ async def refuse_invalid_request(_request: Request, error: Exception) -> JSONRes
     )
 
 
+def _chat_request(body: ChatBody, request: Request) -> ChatRequest | JSONResponse:
+    """Return the chat request of `body`, or a 422 response for an unknown model."""
+    settings = request.app.state.settings
+    model = body.model or settings.chat_default_model
+    if model not in {chat_model.id for chat_model in settings.chat_models}:
+        return JSONResponse(
+            {"error": f"model: {model!r} is not one of the chat models"},
+            status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
+        )
+    return ChatRequest(
+        question=body.question,
+        model=model,
+        turns=[Turn(turn.question, turn.answer) for turn in body.turns],
+        book_ids=body.book_ids,
+        authors=body.authors,
+    )
+
+
+def answer_question(body: ChatBody, request: Request) -> JSONResponse:
+    """Answer the question from the library, with citations to its passages."""
+    chat_request = _chat_request(body, request)
+    if isinstance(chat_request, JSONResponse):
+        return chat_request
+    try:
+        return JSONResponse(
+            chat(_searcher(request), request.app.state.llm, chat_request)
+        )
+    except ChatError as error:
+        return JSONResponse({"error": str(error)}, status_code=HTTPStatus.BAD_GATEWAY)
+
+
+def _server_sent(events: Iterator[Event]) -> Iterator[str]:
+    for name, data in events:
+        yield f"event: {name}\ndata: {json.dumps(data)}\n\n"
+
+
+class EventStream(StreamingResponse):
+    """Server-sent events that are closed when the response ends.
+
+    Starlette does not close a sync iterator when the client disconnects, so
+    the events would wait for the garbage collector to log their usage.
+    """
+
+    def __init__(self, events: Generator[Event]) -> None:
+        """Stream `events`, one server-sent event each."""
+        self.events = events
+        super().__init__(
+            _server_sent(events),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @override
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Send the events; close them however the response ends."""
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            with anyio.CancelScope(shield=True):
+                await run_in_threadpool(self.events.close)
+
+
+def stream_answer(body: ChatBody, request: Request) -> Response:
+    """Stream the answer as server-sent events, one checked part at a time."""
+    chat_request = _chat_request(body, request)
+    if isinstance(chat_request, JSONResponse):
+        return chat_request
+    return EventStream(
+        chat_stream(_searcher(request), request.app.state.llm, chat_request)
+    )
+
+
+def list_chat_models(request: Request) -> dict[str, list[dict[str, object]]]:
+    """List the models that chat can answer with, and which one is the default."""
+    settings = request.app.state.settings
+    return {
+        "models": [
+            {
+                "id": model.id,
+                "name": model.name,
+                "default": model.id == settings.chat_default_model,
+            }
+            for model in settings.chat_models
+        ]
+    }
+
+
+def _searcher(request: Request) -> Searcher:
+    state = request.app.state
+    return Searcher(
+        engine=state.engine,
+        settings=state.settings,
+        embedder=state.embedder,
+        reranker=state.reranker,
+        client=state.qdrant,
+    )
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Return the LibRag app. Without `settings`, it reads them at startup."""
 
@@ -104,6 +229,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.engine = create_engine(app.state.settings.database_url)
         app.state.embedder = make_embedder(app.state.settings)
         app.state.reranker = make_reranker(app.state.settings)
+        app.state.llm = make_llm(app.state.settings)
         app.state.qdrant = qdrant_client(app.state.settings.qdrant_url)
         yield
         app.state.qdrant.close()
@@ -126,6 +252,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "nav": "library",
                 "max_upload_mb": state.settings.max_upload_mb,
             },
+        )
+
+    @app.get("/chat", response_class=HTMLResponse)
+    def chat_page(request: Request) -> HTMLResponse:
+        """Return the Chat page: the ask bar, the models and the book picker."""
+        state = request.app.state
+        return TEMPLATES.TemplateResponse(
+            request,
+            "chat.html",
+            chat_context(list_books(state.engine), state.settings),
         )
 
     @app.get("/library/books", response_class=HTMLResponse)
@@ -161,15 +297,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/rag/search")
     def search_passages(body: SearchBody, request: Request) -> dict[str, Any]:
         """Return the context that retrieval and reranking select, without the LLM."""
-        state = request.app.state
-        searcher = Searcher(
-            engine=state.engine,
-            settings=state.settings,
-            embedder=state.embedder,
-            reranker=state.reranker,
-            client=state.qdrant,
-        )
-        return search(searcher, SearchRequest(**body.model_dump()))
+        return search(_searcher(request), SearchRequest(**body.model_dump()))
+
+    app.post("/api/chat")(answer_question)
+    app.post("/api/chat/stream", response_model=None)(stream_answer)
+    app.get("/api/config/models")(list_chat_models)
 
     @app.get("/version")
     def version() -> dict[str, str]:

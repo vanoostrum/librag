@@ -384,6 +384,12 @@ a:hover { color: var(--accent-hover); }
 
 .page-head__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 
+/* Chat: the conversation, streaming, errors and the book picker */
+
+.chat-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); font-family: var(--sans); }
+
+.chat-head__title { margin: 0; font-size: 14px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--ink-muted); }
+
 .button-quiet {
   min-height: 40px;
   padding: 0 var(--space-4);
@@ -419,6 +425,81 @@ a:hover { color: var(--accent-hover); }
 
 .status-note { color: var(--ink-muted); font-family: var(--sans); font-size: 13px; }
 
+.turn { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.turn + .turn { padding-top: var(--space-6); border-top: 1px solid var(--rule); }
+
+.stream-status { display: flex; flex-direction: column; gap: var(--space-1); margin: 0; padding: 0; list-style: none; font-family: var(--sans); font-size: 14px; color: var(--ink-muted); }
+
+.stream-status__step--done::before { content: "✓ "; color: var(--ok); font-weight: 700; }
+
+.stream-status__step--active { color: var(--busy); font-weight: 600; }
+
+.turn-error { font-family: var(--sans); }
+
+.chat-intro { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-6) 0 var(--space-5); text-align: center; }
+
+.chat-intro__title { margin: 0; font-size: 30px; font-weight: 400; }
+
+.chat-intro__hint { margin: 0; color: var(--ink-muted); font-family: var(--sans); font-size: 15px; }
+
+.chat-intro .button-primary { display: inline-flex; align-items: center; justify-content: center; align-self: center; margin-top: var(--space-3); text-decoration: none; }
+
+/* The Chat page fills the window, so the ask bar sits at the bottom and the book picker opens upward. */
+.chat-body { display: flex; flex-direction: column; min-height: 100vh; }
+
+.chat-body .page { flex-grow: 1; width: 100%; }
+
+.ask { position: sticky; bottom: 0; margin-top: auto; padding: var(--space-3) 0 var(--space-4); background: var(--paper); }
+
+.ask--disabled .ask__bar { background: var(--paper); border-style: dashed; }
+
+.ask--disabled .ask__input { cursor: not-allowed; }
+
+.button-primary:disabled { background: var(--rule-strong); color: var(--surface); cursor: not-allowed; }
+
+/* The picker panel is placed against the ask form, above the ask bar. */
+.picker { position: static; }
+
+.picker__toggle {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.picker__panel {
+  position: absolute;
+  bottom: calc(100% - var(--space-2));
+  left: 0;
+  width: 360px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(43, 38, 34, 0.14);
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.picker__panel fieldset { margin: 0; padding: 0; border: 0; }
+
+.picker__group { padding: var(--space-2) 0; border-top: 1px solid var(--rule); }
+
+.picker__panel label { display: flex; align-items: center; gap: var(--space-2); min-height: 40px; }
+
+.picker__author { font-weight: 600; }
+
+.picker__book { padding-left: var(--space-5); color: var(--ink-soft); }
+
+.picker__panel input { width: 18px; height: 18px; accent-color: var(--accent); }
+
 /* Phone layout */
 
 @media (max-width: 640px) {
@@ -453,10 +534,10 @@ a:hover { color: var(--accent-hover); }
 
   .question { font-size: 21px; }
   .answer { font-size: 17px; line-height: 1.65; }
+  .chat-intro__title { font-size: 26px; }
+  .picker__panel { left: var(--space-3); right: var(--space-3); width: auto; bottom: calc(100% + var(--space-1)); }
   .ask {
-    position: sticky;
-    bottom: 0;
-    margin: 0 calc(-1 * var(--space-4));
+    margin: auto calc(-1 * var(--space-4)) 0;
     padding: 10px var(--space-3) 14px;
     background: var(--paper);
     border-top: 1px solid var(--rule);

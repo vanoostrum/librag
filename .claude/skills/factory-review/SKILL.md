@@ -21,7 +21,7 @@ A ticket with an open PR and green required checks.
 
 3. **Post the review** as a PR comment. Do not repeat it in chat.
 4. **If FAIL:** go back to `factory-build` with the review as input. That counts as a failed attempt for review.
-5. **If PASS:** post `🤖 Gate: merge` on the ticket with the PR link and the criteria table. In chat, ask for approval with the PR link and the review link. Stop.
+5. **If PASS:** post `🤖 Gate: merge` on the ticket with the PR link and the criteria table. In chat, ask for approval, by 👍 on the message or a reply "approve", with the PR link and the review link. Stop.
 
 ## Done when
 

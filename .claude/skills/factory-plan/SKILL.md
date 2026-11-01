@@ -55,7 +55,7 @@ A project spec or a feature description from the human, as text, a file, or a li
    > List real problems only, each with the ticket or file it concerns. Write the review with the `clear-technical-prose` skill. End with PASS or FAIL.
 
    Post the review as a PR comment. If it ends in FAIL, fix the plan, the tickets, or the gallery, go back to the step that the problem belongs to, and review again. That counts as a failed attempt.
-9. **Gate.** Post `🤖 Gate: plan` with the ticket table, the gallery screenshots, the PR link, and the review link, and "Reply approve, or give feedback." In chat, ask for approval with the ticket link, the number of tickets, and the review link. Stop.
+9. **Gate.** Post `🤖 Gate: plan` with the ticket table, the gallery screenshots, the PR link, and the review link, and "Reply approve, or give feedback." In chat, ask for approval, by 👍 on the message or a reply "approve", with the ticket link, the number of tickets, and the review link. Stop.
 
 ## Escalation
 
