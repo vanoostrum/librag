@@ -39,6 +39,10 @@ uv run pytest tests/e2e --no-cov
 docker compose -f compose.yaml -f compose.test.yaml down -v
 ```
 
+### Live run
+
+`scripts/e2e-live` runs the same suite against the real AI providers, with your own `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`. It stops at a cost cap of $2, which `LIBRAG_LIVE_BUDGET_USD` changes. See [docs/live-run.md](docs/live-run.md).
+
 ## Settings
 
 The api, the worker and `migrate` read these environment variables:

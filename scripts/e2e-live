@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Live run: the e2e suite against the real AI providers, with a cost cap.
+# Usage: scripts/e2e-live [pytest arguments]
+#
+# It needs OPENAI_API_KEY and ANTHROPIC_API_KEY in the shell. It starts the stack
+# as its own Compose project, librag-live, so it never touches the data of the
+# local librag stack, and tears it down with its volumes however the run ends.
+# LIBRAG_LIVE_BUDGET_USD sets the cap (default 2), LIBRAG_LIVE_PORT the port
+# (default 8100). See docs/live-run.md.
+set -euo pipefail
+
+missing=()
+for key in OPENAI_API_KEY ANTHROPIC_API_KEY; do
+  if [[ -z "${!key:-}" ]]; then
+    missing+=("$key")
+  fi
+done
+if [[ ${#missing[@]} -gt 0 ]]; then
+  echo "e2e-live: set ${missing[*]} in your shell first. A live run calls OpenAI and Anthropic with your own keys." >&2
+  exit 2
+fi
+
+budget="${LIBRAG_LIVE_BUDGET_USD-2}"
+if [[ ! "$budget" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+  echo "e2e-live: LIBRAG_LIVE_BUDGET_USD must be an amount in dollars, such as 2 or 0.5, not '$budget'." >&2
+  exit 2
+fi
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+export LIBRAG_PORT="${LIBRAG_LIVE_PORT:-8100}"
+export LIBRAG_QDRANT_PORT="${LIBRAG_LIVE_QDRANT_PORT:-6433}"
+compose=(docker compose -p librag-live -f compose.yaml)
+
+tear_down() {
+  echo "e2e-live: tearing down the librag-live stack and its volumes"
+  "${compose[@]}" down -v --remove-orphans
+}
+trap tear_down EXIT
+
+echo "e2e-live: starting the librag-live stack on port $LIBRAG_PORT, with a cost cap of \$$budget"
+# The first build downloads the reranker model into the image, so allow it time.
+"${compose[@]}" up -d --build --wait --wait-timeout 600
+LIBRAG_E2E_LIVE=1 LIBRAG_E2E_URL="http://localhost:$LIBRAG_PORT" \
+  uv run pytest tests/e2e --no-cov "$@"

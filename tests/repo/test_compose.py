@@ -37,3 +37,18 @@ def test_test_overlay_selects_fake_ai_providers(service: str) -> None:
     for compose_file in ("compose.yaml", "compose.test.yaml"):
         environment = services(compose_file)[service].get("environment", {})
         assert "LIBRAG_AI_PROVIDERS" not in environment, compose_file
+
+
+@pytest.mark.parametrize("service", APP_SERVICES)
+@pytest.mark.parametrize("key", ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"])
+def test_compose_passes_the_provider_keys_through(service: str, key: str) -> None:
+    """compose.yaml passes each provider key from the shell, unset in the file."""
+    environment = services("compose.yaml")[service]["environment"]
+    assert key in environment
+    assert environment[key] is None
+
+
+def test_live_reports_are_not_committed() -> None:
+    """The live run's reports in e2e-reports/ are ignored by git."""
+    ignored = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "e2e-reports/" in ignored
