@@ -26,6 +26,12 @@ def test_invalid_ai_providers_stops_startup(monkeypatch: pytest.MonkeyPatch) -> 
         ("LIBRAG_PASSAGE_TARGET_TOKENS", "many"),
         ("LIBRAG_PASSAGE_OVERLAP_TOKENS", "-1"),
         ("LIBRAG_MAX_UPLOAD_MB", "1.5"),
+        ("LIBRAG_SEARCH_TOP_K", "0"),
+        ("LIBRAG_DENSE_TOP_K", "101"),
+        ("LIBRAG_BM25_TOP_K", "lots"),
+        ("LIBRAG_FUSION_TOP_K", "101"),
+        ("LIBRAG_CONTEXT_TOKEN_BUDGET", "99"),
+        ("LIBRAG_CONTEXT_TOKEN_BUDGET", "32001"),
     ],
 )
 def test_invalid_number_stops_startup(
@@ -71,3 +77,42 @@ def test_embedding_settings_are_read_from_the_environment() -> None:
         "openai/text-embedding-3-small",
         "passages",
     )
+
+
+def test_search_settings_are_read_from_the_environment() -> None:
+    """Search's top-k values come from LIBRAG_* variables, 1 to 100."""
+    settings = Settings.from_env(
+        {
+            "LIBRAG_SEARCH_TOP_K": "1",
+            "LIBRAG_DENSE_TOP_K": "100",
+            "LIBRAG_BM25_TOP_K": "50",
+        }
+    )
+    assert (settings.search_top_k, settings.dense_top_k, settings.bm25_top_k) == (
+        1,
+        100,
+        50,
+    )
+
+
+def test_rerank_settings_are_read_from_the_environment() -> None:
+    """The reranker model, fusion_k and the context budget come from LIBRAG_*."""
+    settings = Settings.from_env(
+        {
+            "LIBRAG_RERANKER_MODEL": "cross-encoder/ms-marco-MiniLM-L-12-v2",
+            "LIBRAG_FUSION_TOP_K": "100",
+            "LIBRAG_CONTEXT_TOKEN_BUDGET": "100",
+        }
+    )
+    assert (
+        settings.reranker_model,
+        settings.fusion_top_k,
+        settings.context_token_budget,
+    ) == ("cross-encoder/ms-marco-MiniLM-L-12-v2", 100, 100)
+    assert (
+        Settings().reranker_model,
+        Settings().fusion_top_k,
+        Settings().context_token_budget,
+    ) == ("cross-encoder/ms-marco-MiniLM-L-6-v2", 30, 4000)
+    largest = Settings.from_env({"LIBRAG_CONTEXT_TOKEN_BUDGET": "32000"})
+    assert largest.context_token_budget == 32000  # noqa: PLR2004

@@ -8,6 +8,11 @@ from typing import Literal
 
 AiProviders = Literal["live", "fake"]
 AI_PROVIDERS_VALUES: tuple[AiProviders, ...] = ("live", "fake")
+# Search returns, and each retrieval stage keeps, at most this many passages.
+MAX_SEARCH_K = 100
+# The context that search selects holds this many tokens, at least and at most.
+MIN_TOKEN_BUDGET = 100
+MAX_TOKEN_BUDGET = 32000
 
 
 class SettingsError(ValueError):
@@ -28,6 +33,14 @@ class Settings:
     passage_target_tokens: int = 350
     passage_overlap_tokens: int = 50
     max_upload_mb: int = 50
+    # How many passages search returns, and how many each retrieval stage keeps.
+    search_top_k: int = 10
+    dense_top_k: int = 30
+    bm25_top_k: int = 30
+    # How many fused candidates the reranker scores, and the context's token budget.
+    fusion_top_k: int = 30
+    context_token_budget: int = 4000
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "Settings":
@@ -59,13 +72,37 @@ class Settings:
             max_upload_mb=_positive_int(
                 env, "LIBRAG_MAX_UPLOAD_MB", defaults.max_upload_mb
             ),
+            search_top_k=_positive_int(
+                env, "LIBRAG_SEARCH_TOP_K", defaults.search_top_k, maximum=MAX_SEARCH_K
+            ),
+            dense_top_k=_positive_int(
+                env, "LIBRAG_DENSE_TOP_K", defaults.dense_top_k, maximum=MAX_SEARCH_K
+            ),
+            bm25_top_k=_positive_int(
+                env, "LIBRAG_BM25_TOP_K", defaults.bm25_top_k, maximum=MAX_SEARCH_K
+            ),
+            fusion_top_k=_positive_int(
+                env, "LIBRAG_FUSION_TOP_K", defaults.fusion_top_k, maximum=MAX_SEARCH_K
+            ),
+            context_token_budget=_positive_int(
+                env,
+                "LIBRAG_CONTEXT_TOKEN_BUDGET",
+                defaults.context_token_budget,
+                minimum=MIN_TOKEN_BUDGET,
+                maximum=MAX_TOKEN_BUDGET,
+            ),
+            reranker_model=env.get("LIBRAG_RERANKER_MODEL", defaults.reranker_model),
         )
 
 
 def _positive_int(
-    env: Mapping[str, str], name: str, default: int, minimum: int = 1
+    env: Mapping[str, str],
+    name: str,
+    default: int,
+    minimum: int = 1,
+    maximum: int | None = None,
 ) -> int:
-    """Return the whole number in `env[name]`, at least `minimum`."""
+    """Return the whole number in `env[name]`, from `minimum` to `maximum`."""
     raw = env.get(name)
     if raw is None:
         return default
@@ -75,5 +112,8 @@ def _positive_int(
         value = minimum - 1
     if value < minimum:
         msg = f"{name} must be a whole number of at least {minimum}, not {raw!r}"
+        raise SettingsError(msg)
+    if maximum is not None and value > maximum:
+        msg = f"{name} must be a whole number from {minimum} to {maximum}, not {raw!r}"
         raise SettingsError(msg)
     return value

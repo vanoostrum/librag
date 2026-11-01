@@ -1,0 +1,72 @@
+# Copyright (C) 2026 Theo van Oostrum
+"""Fixtures for the route tests that upload and index books."""
+
+import uuid
+from collections.abc import Callable, Iterator
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+from qdrant_client import QdrantClient
+from sqlalchemy import Engine, create_engine
+
+from librag.index import qdrant_client
+from librag.main import create_app
+from librag.settings import Settings
+from librag.worker import run_one_job
+
+
+@pytest.fixture
+def qdrant(qdrant_url: str) -> Iterator[QdrantClient]:
+    """Return a client for the test Qdrant."""
+    client = qdrant_client(qdrant_url)
+    yield client
+    client.close()
+
+
+@pytest.fixture
+def settings(
+    database_url: str, tmp_path: Path, qdrant_url: str, qdrant: QdrantClient
+) -> Iterator[Settings]:
+    """Return test settings: a migrated database, an empty file store and the fakes.
+
+    Each test gets its own collection prefix in the test Qdrant, removed after it.
+    """
+    prefix = f"test_{uuid.uuid4().hex[:12]}"
+    yield Settings(
+        database_url=database_url,
+        file_store_dir=str(tmp_path / "files"),
+        qdrant_url=qdrant_url,
+        ai_providers="fake",
+        qdrant_collection_prefix=prefix,
+    )
+    for collection in qdrant.get_collections().collections:
+        if collection.name.startswith(f"{prefix}_"):
+            qdrant.delete_collection(collection.name)
+
+
+@pytest.fixture
+def collection(settings: Settings) -> str:
+    """Return the name of the fake embedder's collection for this test."""
+    return f"{settings.qdrant_collection_prefix}_fake"
+
+
+@pytest.fixture
+def engine(settings: Settings) -> Iterator[Engine]:
+    """Return an engine on the test database, as the worker has."""
+    engine = create_engine(settings.database_url)
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture
+def work(engine: Engine, settings: Settings) -> Callable[[], bool]:
+    """Return a function that runs one worker tick: the oldest queued job."""
+    return lambda: run_one_job(engine, settings)
+
+
+@pytest.fixture
+def client(settings: Settings) -> Iterator[TestClient]:
+    """Return a test client for the app with `settings`."""
+    with TestClient(create_app(settings)) as client:
+        yield client
