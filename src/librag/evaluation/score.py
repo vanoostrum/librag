@@ -10,6 +10,7 @@ that is rare.
 """
 
 import importlib
+import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, cast
@@ -94,6 +95,13 @@ def score_question(
 
 def _evaluate(scored: Sequence[Scored]) -> dict[str, dict[str, float]]:
     """Return each metric of each stage over `scored`, computed by ranx."""
+    with warnings.catch_warnings():
+        # ranx and numba warn about their own code on import and first use.
+        warnings.simplefilter("ignore")
+        return _evaluate_quietly(scored)
+
+
+def _evaluate_quietly(scored: Sequence[Scored]) -> dict[str, dict[str, float]]:
     # Imported here: ranx is in the `eval` group, which the app image leaves out.
     ranx = importlib.import_module("ranx")
     qrels = ranx.Qrels(
