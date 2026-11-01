@@ -1,15 +1,16 @@
 # Chat page
 
-The Chat page at `/chat` lets the user ask questions about their library and read each answer as it streams from `POST /api/chat/stream`: progress lines first, then each checked part with its cited passages. Turns stack in the page with the ask bar at the bottom; "New conversation" or a reload clears them. A book picker above the ask bar limits the search to the ticked books, grouped by author. The browser remembers the last model picked. With no indexed book, the page says so and the ask bar is disabled. A failed answer shows the provider's message and "Try again". The page matches the gallery pages in `design/pages/chat/`.
+The Chat page at `/chat` lets the user ask questions about their library and read each answer as it streams from `POST /api/chat/stream`: progress lines first, then each checked part with its cited passages. Turns stack in the page with the ask bar at the bottom; "New conversation" or a reload clears them. A book picker above the ask bar limits the search to the ticked books, grouped by author. The browser remembers the last model picked. With no indexed book, the page says so and the ask bar is disabled. A failed answer shows the provider's message and "Try again". "How this answer was found" under an answer opens its diagnostics, built from the `done` event. The page matches the gallery pages in `design/pages/chat/`.
 
 ## Sub-features
 
 - `chat-page-no-books`: with no indexed book, "No books are indexed yet", "Go to the Library" (to `/`), and a disabled ask bar with "Books: none".
 - `chat-page-start`: with indexed books, "Ask your library", the model select with the configured models and the default selected, and "Books: All indexed books".
 - `chat-page-picker`: the picker lists the indexed books by author. Ticking or unticking an author ticks or unticks their books. The toggle says "All indexed books", "N books" or "none". The next question sends the ticked books as `book_ids`, or no `book_ids` when all are ticked.
-- `chat-page-stream`: asking shows "Searched your books · N passages found" and "Writing the answer…" with the parts that have arrived; the ask bar is disabled until `done`. Then the progress lines go and "How this answer was found" (closed, empty) appears.
+- `chat-page-stream`: asking shows "Searched your books · N passages found" and "Writing the answer…" with the parts that have arrived; the ask bar is disabled until `done`. Then the progress lines go and "How this answer was found" appears, closed.
 - `chat-page-turns`: a follow-up sends the earlier turns as `turns`; turns stack. "New conversation" clears them.
 - `chat-page-error`: an `error` event shows "The model didn't answer: <message>" and "Try again", which asks again in place of the failed turn, with the turns before it. With no book ticked, "Try again" is disabled, like Ask.
+- `chat-page-diagnostics`: opening "How this answer was found" sends no request and shows a summary (question; search query with "rewritten" only when it differs from the question; model, tokens in and out, cost or "cost unknown", time; each stage's count and time, "rerank off" without rerank, and the passages sent with their tokens), then one card per fused candidate in final order: rank, book, chapter and section, the first words (click for the full text), and Dense, BM25, Fusion and Rerank tags, "–" for a stage without the passage. Passages sent to the model have a green edge and "Sent to model". The first 20 cards show, then "Show all N candidates". A failed turn has no diagnostics.
 - `chat-page-model`: the picked model is still selected after a reload.
 
 ## How to get to it (user POV)
@@ -42,9 +43,19 @@ B=.claude/skills/verify/scripts/chat-browser.js
   - "Try again" sends `turns: []` (no answered turn comes before the failed one), and the retried turn stays first, above the later turn;
   - after picking GPT 6.1 Terra and reloading, the model is `openai/gpt-6.1-terra` and the next request sends it;
   - `external requests: []`.
+- **Diagnostics.** Also upload a 30-chapter book, so there are more than 20 candidates (the Chat recipe's `book` helper):
+  `open(f'{d}/logbook.epub', 'wb').write(make_epub(book('urn:logbook', "The Keeper's Logbook", 'Ada Writer', *[f'Day {n}: the keeper logged the weather, the ships and the state of the lamp before the long night watch began.' for n in range(1, 31)])))`
+  For each platform, run `node $B $URL $E diagnostics <platform>`. The transcript `browser_diagnostics_<platform>.txt` shows, in order:
+  - the panel closed after the answer; `requests while opening the panel: []`;
+  - the summary rows Question, Search query (no "rewritten"), Model, Retrieval; 20 cards, the first ones "Sent to model"; "Show all 30 candidates";
+  - the first words open to the full text; after "Show all", 30 cards and no button;
+  - the follow-up's search query ends in "rewritten";
+  - rerank off and an unknown cost (the wrapper empties the `done` event's rerank stage, sets `settings.rerank` false and `usage.cost_usd` null, since the stack always reranks and the fake LLM always has a price): "rerank off" and "cost unknown" in the summary, `rerank tags ["Rerank –"]`, `fusion order true`;
+  - `failed turn: {"diagnostics":false}`; `external requests: []`.
+  Compare `app_diagnostics_<platform>.png` with `$V gallery chat-page pages/chat/diagnostics.html <platform>`, and `app_diagnostics_cards_<platform>.png` with `gallery_diagnostics_cards_<platform>.png`, which the script takes from the gallery page scrolled to the panel.
 - **Gallery.** For each platform, compare `app_<state>_<platform>.png` with `$V gallery chat-page pages/chat/<page>.html <platform>`, for start, book-picker, streaming, answer, conversation and error.
 
-Expected differences from the gallery: the books, questions, answer text and passage counts (the stack uses fixture books and the fake LLM), the chapter titles of the sources ("Part 1"; fixture chapters have no section), the gallery's first source shown open, and the length of the conversation behind the ask bar. Anything else in layout, copy or look is a fail.
+Expected differences from the gallery: the books, questions, answer text, passage counts, diagnostics numbers, scores and first words (the stack uses fixture books and the fake LLM), the chapter titles of the sources ("Part 1"; fixture chapters have no section), the gallery's first source shown open, and the length of the conversation behind the ask bar. Anything else in layout, copy or look is a fail.
 
 ## Gotchas
 

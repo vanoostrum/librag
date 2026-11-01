@@ -18,8 +18,9 @@ from sqlalchemy import Engine, insert
 
 from librag.db import chat_usage, to_db_time
 from librag.llm import Completion, Llm, LlmError
+from librag.passages import count_tokens
 from librag.prompts import NO_PASSAGE, AnswerPrompt, Prompt, RewritePrompt, Turn
-from librag.search import Searcher, SearchRequest, search
+from librag.search import Retrieval, Searcher, SearchRequest, retrieve
 
 KINDS = ("book", "synthesis", "general")
 # The rewrite and the answer see this many of the latest turns.
@@ -394,8 +395,8 @@ def _search_query(
     return usage.call(llm, request.model, prompt).text.strip() or request.question
 
 
-def _retrieve(searcher: Searcher, request: ChatRequest, query: str) -> dict[str, Any]:
-    return search(
+def _retrieve(searcher: Searcher, request: ChatRequest, query: str) -> Retrieval:
+    return retrieve(
         searcher,
         SearchRequest(query=query, book_ids=request.book_ids, authors=request.authors),
     )
@@ -406,9 +407,10 @@ def _details(
     search_query: str,
     citations: list[dict[str, Any]],
     usage: _Usage,
-    retrieval: Mapping[str, Any],
+    retrieval: Retrieval,
 ) -> dict[str, Any]:
     """Return the response fields besides the parts."""
+    context = retrieval.body["results"]
     return {
         "question": request.question,
         "search_query": search_query,
@@ -416,8 +418,13 @@ def _details(
         "citations": citations,
         "usage": usage.body(),
         "retrieval": {
-            "stages": retrieval["stages"],
-            "settings": retrieval["settings"],
+            "stages": retrieval.body["stages"],
+            "settings": retrieval.body["settings"],
+            "candidates": retrieval.candidates(),
+            "context": {
+                "passage_ids": [passage["passage_id"] for passage in context],
+                "tokens": sum(count_tokens(passage["text"]) for passage in context),
+            },
         },
     }
 
@@ -441,7 +448,7 @@ def chat(searcher: Searcher, llm: Llm, request: ChatRequest) -> dict[str, Any]:
             llm, request, usage, rewrite=settings.query_rewrite
         )
         retrieval = _retrieve(searcher, request, search_query)
-        context = retrieval["results"]
+        context = retrieval.body["results"]
         turns = tuple(request.turns[-MAX_TURNS:])
         prompt = AnswerPrompt(request.question, context, turns)
         parts = _answer(llm, request.model, prompt, usage)
@@ -550,7 +557,7 @@ def chat_stream(searcher: Searcher, llm: Llm, request: ChatRequest) -> Generator
             llm, request, usage, rewrite=searcher.settings.query_rewrite
         )
         retrieval = _retrieve(searcher, request, search_query)
-        context = retrieval["results"]
+        context = retrieval.body["results"]
         yield "status", {"step": "writing", "passages": len(context)}
         turns = tuple(request.turns[-MAX_TURNS:])
         prompt = AnswerPrompt(request.question, context, turns)

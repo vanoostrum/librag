@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat · LibRag</title><link rel="stylesheet" href="../../gallery.css"></head>
+<body class="chat-body">
+  <header class="site-header"><div class="site-header__inner"><div class="wordmark">LibRag</div>
+  <nav class="main-nav" aria-label="Main"><a href="../library/default.html">Library</a><a href="answer.html" aria-current="page">Chat</a></nav></div></header>
+  <main class="page page--reading">
+    <h1 class="visually-hidden">Chat</h1>
+    <div class="chat-head">
+      <h2 class="chat-head__title">Conversation</h2>
+      <button type="button" class="button-quiet">New conversation</button>
+    </div>
+    <section class="turn">
+      <p class="question">Which of the two gives practical advice for decision makers?</p>
+      <article class="answer"><p>Kahneman gives the more concrete advice. He recommends the premortem: before a decision is final, the team imagines it failed a year later and writes down why.<sup><a class="cite" href="#">1</a></sup> Taleb advises building exposure to positive surprises and limiting exposure to negative ones, instead of trying to predict them.<sup><a class="cite" href="#">2</a></sup></p></article>
+      <section class="sources" aria-label="Cited passages">
+        <h3 class="section-label">Cited passages</h3>
+        <details class="source"><summary><span><strong>1 · Thinking, Fast and Slow</strong>, ch. 24, The Engine of Capitalism</span></summary></details>
+        <details class="source"><summary><span><strong>2 · The Black Swan</strong>, ch. 13, Appelles the Painter</span></summary></details>
+        <details class="diagnostics" open>
+          <summary>How this answer was found</summary>
+          <div class="diag">
+          <dl class="diag-summary">
+            <div><dt>Question</dt><dd>Which of the two gives practical advice for decision makers?</dd></div>
+            <div><dt>Search query</dt><dd>practical advice for decision makers from Kahneman and Taleb <span class="diag-tag">rewritten</span></dd></div>
+            <div><dt>Model</dt><dd>Claude Sonnet 5.5 · 3,412 tokens in, 486 out · $0.018 · 4.2 s</dd></div>
+            <div><dt>Retrieval</dt><dd>dense 40 in 112 ms · BM25 40 in 9 ms · fusion 40 in 6 ms · rerank 20 in 640 ms · 6 passages sent, 2,180 tokens</dd></div>
+          </dl>
+          <ol class="diag-cards">
+            <li class="diag-card diag-card--ctx">
+              <div class="diag-card__head"><span class="diag-rank">1</span><span><strong>Thinking, Fast and Slow</strong>, ch. 24, The Engine of Capitalism</span><span class="diag-tag diag-tag--ctx">Sent to model</span></div>
+              <details><summary class="diag-words">“The procedure is simple: when the organization has almost come to an i…”</summary><p class="diag-text">“The procedure is simple: when the organization has almost come to an important decision…”</p></details>
+              <div class="diag-chips"><span>Dense #2</span><span>BM25 #1</span><span>Fusion 0.0325</span><span>Rerank 0.91</span></div>
+            </li>
+            <li class="diag-card diag-card--ctx">
+              <div class="diag-card__head"><span class="diag-rank">2</span><span><strong>The Black Swan</strong>, ch. 13, Appelles the Painter</span><span class="diag-tag diag-tag--ctx">Sent to model</span></div>
+              <details><summary class="diag-words">“…maximize the serendipity around you…”</summary><p class="diag-text">“…maximize the serendipity around you.”</p></details>
+              <div class="diag-chips"><span>Dense #5</span><span>BM25 #3</span><span>Fusion 0.0310</span><span>Rerank 0.84</span></div>
+            </li>
+            <li class="diag-card diag-card--ctx">
+              <div class="diag-card__head"><span class="diag-rank">3</span><span><strong>Thinking, Fast and Slow</strong>, ch. 23, The Outside View</span><span class="diag-tag diag-tag--ctx">Sent to model</span></div>
+              <details><summary class="diag-words">“…the outside view is the cure for the planning fallacy…”</summary><p class="diag-text">“…the outside view is the cure for the planning fallacy…”</p></details>
+              <div class="diag-chips"><span>Dense #1</span><span>BM25 #9</span><span>Fusion 0.0315</span><span>Rerank 0.79</span></div>
+            </li>
+            <li class="diag-card diag-card--ctx">
+              <div class="diag-card__head"><span class="diag-rank">4</span><span><strong>Noise</strong>, ch. 19, Debiasing and Decision Hygiene</span><span class="diag-tag diag-tag--ctx">Sent to model</span></div>
+              <details><summary class="diag-words">“Decision hygiene is to noise what handwashing is to germs…”</summary><p class="diag-text">“Decision hygiene is to noise what handwashing is to germs…”</p></details>
+              <div class="diag-chips"><span>Dense #4</span><span>BM25 #2</span><span>Fusion 0.0320</span><span>Rerank 0.71</span></div>
+            </li>
+            <li class="diag-card diag-card--ctx">
+              <div class="diag-card__head"><span class="diag-rank">5</span><span><strong>The Black Swan</strong>, ch. 11, How to Look for Bird Poop</span><span class="diag-tag diag-tag--ctx">Sent to model</span></div>
+              <details><summary class="diag-words">“…invest in preparedness, not in prediction…”</summary><p class="diag-text">“…invest in preparedness, not in prediction.”</p></details>
+              <div class="diag-chips"><span>Dense #8</span><span>BM25 #5</span><span>Fusion 0.0283</span><span>Rerank 0.66</span></div>
+            </li>
+            <li class="diag-card diag-card--ctx">
+              <div class="diag-card__head"><span class="diag-rank">6</span><span><strong>Antifragile</strong>, ch. 12, Thales' Sweet Grapes</span><span class="diag-tag diag-tag--ctx">Sent to model</span></div>
+              <details><summary class="diag-words">“Optionality is what makes you antifragile…”</summary><p class="diag-text">“Optionality is what makes you antifragile…”</p></details>
+              <div class="diag-chips"><span>Dense #3</span><span>BM25 #14</span><span>Fusion 0.0283</span><span>Rerank 0.52</span></div>
+            </li>
+            <li class="diag-card">
+              <div class="diag-card__head"><span class="diag-rank">7</span><span><strong>Noise</strong>, ch. 21, Selection and Aggregation</span></div>
+              <details><summary class="diag-words">“…averaging independent judgments reduces noise…”</summary><p class="diag-text">“…averaging independent judgments reduces noise…”</p></details>
+              <div class="diag-chips"><span>Dense #11</span><span>BM25 #4</span><span>Fusion 0.0265</span><span>Rerank 0.38</span></div>
+            </li>
+            <li class="diag-card">
+              <div class="diag-card__head"><span class="diag-rank">8</span><span><strong>Thinking, Fast and Slow</strong>, ch. 22, Expert Intuition</span></div>
+              <details><summary class="diag-words">“…an environment that is sufficiently regular to be predictable…”</summary><p class="diag-text">“…an environment that is sufficiently regular to be predictable…”</p></details>
+              <div class="diag-chips"><span>Dense #6</span><span>BM25 #22</span><span>Fusion 0.0247</span><span>Rerank 0.21</span></div>
+            </li>
+          </ol>
+          <button type="button" class="button-quiet">Show all 40 candidates</button>
+          </div>
+        </details>
+      </section>
+    </section>
+    <form class="ask">
+      <div class="ask__bar">
+        <label class="visually-hidden" for="question">Question</label>
+        <input class="ask__input" id="question" type="text" placeholder="Ask your library a question">
+        <button type="submit" class="button-primary">Ask</button>
+      </div>
+      <div class="ask__options">
+        <label>Model <select><option>Claude Sonnet 5.5</option><option>GPT 6.1 Terra</option></select></label>
+        <div class="picker">
+          <button type="button" class="picker__toggle" aria-expanded="false">Books: All indexed books ▾</button>
+        </div>
+      </div>
+    </form>
+  </main>
+</body></html>

@@ -14,6 +14,7 @@
   --rule-warn: #e8b9b3;
   --accent: #2f5d50;
   --accent-hover: #1f4036;
+  --accent-wash: #e3eee9;
   --ok: #1b6b3a;
   --busy: #1a3f91;
   --danger: #9b2c22;
@@ -500,6 +501,48 @@ a:hover { color: var(--accent-hover); }
 
 .picker__panel input { width: 18px; height: 18px; accent-color: var(--accent); }
 
+/* Chat: diagnostics, "How this answer was found" when open */
+
+.diagnostics[open] > summary { font-weight: 600; color: var(--ink); }
+
+.diag { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-2) 0 var(--space-4); font-family: var(--sans); color: var(--ink); }
+
+.diag-summary { display: grid; gap: var(--space-2); margin: 0; padding: var(--space-3) var(--space-4); background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; font-size: 14px; }
+
+.diag-summary div { display: grid; grid-template-columns: 110px 1fr; gap: var(--space-3); }
+
+.diag-summary dt { color: var(--ink-muted); }
+
+.diag-summary dd { margin: 0; }
+
+.diag-tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 10px; background: var(--rule); color: var(--ink-soft); font-size: 12px; }
+
+.diag-tag--ctx { background: var(--accent-wash); color: var(--accent); margin-left: auto; }
+
+.diag-words { display: block; color: var(--ink-muted); font-family: var(--serif); font-size: 13px; }
+
+.diag-text { margin: 6px 0 0; font-family: var(--serif); color: var(--ink-soft); font-size: 14px; }
+
+.diag-meta { margin: 2px 0 6px; font-size: 12px; color: var(--ink-muted); }
+
+.diag-rank { font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+.diag-cards { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-2); }
+
+.diag-card { padding: 10px 14px; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); font-size: 14px; }
+
+.diag-card--ctx { border-left: 4px solid var(--accent); }
+
+.diag-card__head { display: flex; align-items: baseline; gap: var(--space-2); }
+
+.diag-card summary { cursor: pointer; margin-top: 2px; }
+
+.diag-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+
+.diag-chips span { padding: 2px 8px; border-radius: 10px; background: var(--paper); border: 1px solid var(--rule); font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+.diag summary { display: block; min-height: 0; font-weight: 400; }
+
 /* Phone layout */
 
 @media (max-width: 640px) {
@@ -533,6 +576,10 @@ a:hover { color: var(--accent-hover); }
   .action-links a { padding: var(--space-2) 0; }
 
   .question { font-size: 21px; }
+  .diag-summary div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .diag-card__head { display: block; }
+  .diag-card__head .diag-rank { margin-right: var(--space-1); }
+  .diag-tag--ctx { display: table; margin: var(--space-1) 0 0; }
   .answer { font-size: 17px; line-height: 1.65; }
   .chat-intro__title { font-size: 26px; }
   .picker__panel { left: var(--space-3); right: var(--space-3); width: auto; bottom: calc(100% + var(--space-1)); }

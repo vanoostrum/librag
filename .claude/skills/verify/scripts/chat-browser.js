@@ -7,6 +7,8 @@
 //   no-books  screenshot the page of a library with no indexed book
 //   chat      the whole flow: start, book picker, streaming, answer, follow-up,
 //             new conversation, a failed answer and "Try again", model memory
+//   diagnostics  "How this answer was found": the open panel, "Show all", a
+//             rewritten follow-up, rerank off, and a failed turn without it
 // <platform> is desktop (1280x800) or mobile (390x844).
 //
 // The fake LLM answers at once, so the page's fetch is wrapped: it passes the
@@ -23,7 +25,7 @@ const WINDOWS = { desktop: { width: 1280, height: 800 }, mobile: { width: 390, h
 const PROVIDER_ERROR = "Rate limit reached for gpt-6.1-terra. Try again in a minute.";
 
 function wrapFetch() {
-  window.__chat = { hold: false, release: null, fail: null };
+  window.__chat = { hold: false, release: null, fail: null, noRerank: false };
   const realFetch = window.fetch.bind(window);
   const encoder = new TextEncoder();
   window.fetch = async (input, init) => {
@@ -39,7 +41,20 @@ function wrapFetch() {
     const response = await realFetch(input, init);
     if (!response.ok) return response;
     const text = await response.text();
-    const blocks = text.split("\n\n").filter((b) => b.trim());
+    let blocks = text.split("\n\n").filter((b) => b.trim());
+    if (control.noRerank) {
+      // The stack always reranks, and the fake LLM always has a price; this is
+      // the `done` event of a search without rerank and a model without a price.
+      blocks = blocks.map((block) => {
+        if (!block.startsWith("event: done")) return block;
+        const done = JSON.parse(block.slice(block.indexOf("data: ") + 6));
+        done.retrieval.stages.rerank = { passages: [], time_ms: 0 };
+        done.retrieval.settings.rerank = false;
+        // And a model missing from LiteLLM's price table, which logs no cost.
+        done.usage.cost_usd = null;
+        return `event: done\ndata: ${JSON.stringify(done)}`;
+      });
+    }
     const body = new ReadableStream({
       async start(controller) {
         for (const block of blocks) {
@@ -78,10 +93,32 @@ async function summary(page) {
   });
 }
 
+async function panel(page, turnIndex) {
+  return page.evaluate((index) => {
+    const turn = document.querySelectorAll(".turn")[index];
+    const details = turn.querySelector(".diagnostics");
+    if (!details) return { diagnostics: false };
+    return {
+      diagnostics: true,
+      open: details.open,
+      summary: [...details.querySelectorAll(".diag-summary > div")].map(
+        (row) => `${row.querySelector("dt").textContent}: ${row.querySelector("dd").textContent}`,
+      ),
+      cards: [...details.querySelectorAll(".diag-card")].map((card) => ({
+        head: card.querySelector(".diag-card__head").textContent,
+        sent: card.classList.contains("diag-card--ctx"),
+        words: card.querySelector(".diag-words").textContent,
+        chips: [...card.querySelectorAll(".diag-chips span")].map((c) => c.textContent),
+      })),
+      more: details.querySelector(".diag > button")?.textContent ?? null,
+    };
+  }, turnIndex);
+}
+
 async function main() {
   const [url, out, action, platform] = process.argv.slice(2);
   if (!url || !out || !action || !WINDOWS[platform]) {
-    throw new Error("usage: chat-browser.js <url> <evidence dir> <no-books|chat> <desktop|mobile>");
+    throw new Error("usage: chat-browser.js <url> <evidence dir> <no-books|chat|diagnostics> <desktop|mobile>");
   }
   fs.mkdirSync(out, { recursive: true });
   const log = [];
@@ -92,7 +129,9 @@ async function main() {
   const page = await context.newPage();
   const external = [];
   const sent = [];
+  const requests = [];
   page.on("request", (request) => {
+    requests.push(`${request.method()} ${request.url()}`);
     if (!request.url().startsWith(url)) external.push(request.url());
     if (request.url().endsWith("/api/chat/stream")) sent.push(JSON.parse(request.postData()));
   });
@@ -190,6 +229,58 @@ async function main() {
     await ask("lighthouse");
     await answered(1);
     note(`sent after reload: ${lastSent()}`);
+  } else if (action === "diagnostics") {
+    const brief = (p) => ({ ...p, cards: `${p.cards?.length} cards`, first: p.cards?.slice(0, 3), last: p.cards?.at(-1) });
+    await ask("What did the lighthouse keeper do every evening?");
+    await answered(1);
+    note(`answered, panel closed: ${JSON.stringify(await page.evaluate(() => document.querySelector(".diagnostics").open))}`);
+    const before = requests.length;
+    await page.click(".diagnostics > summary");
+    note(`requests while opening the panel: ${JSON.stringify(requests.slice(before))}`);
+    note(`opened: ${JSON.stringify(brief(await panel(page, 0)))}`);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await shot("diagnostics");
+    // The cards sit below the fold: a second pair of screenshots, app and
+    // gallery, each scrolled so the panel starts at the top.
+    const toPanel = () => document.querySelector(".diagnostics").scrollIntoView({ block: "start" });
+    await page.evaluate(toPanel);
+    await shot("diagnostics_cards");
+    const gallery = await context.newPage();
+    await gallery.goto(`file://${path.resolve("design/pages/chat/diagnostics.html")}`);
+    await gallery.evaluate(toPanel);
+    await gallery.screenshot({ path: path.join(out, `gallery_diagnostics_cards_${platform}.png`) });
+    note(`screenshot: gallery_diagnostics_cards_${platform}.png`);
+    await gallery.close();
+    await page.locator(".diag-card .diag-words").first().click();
+    note(`first words opened: ${JSON.stringify(await page.locator(".diag-card .diag-text").first().textContent())}`);
+    if (await page.locator(".diag > button").count()) {
+      await page.click(".diag > button");
+      note(`after show all: ${JSON.stringify(brief(await panel(page, 0)))}`);
+    }
+
+    // A follow-up is rewritten into its own search query.
+    await ask("And what did the keeper log?");
+    await answered(2);
+    await page.locator(".diagnostics > summary").nth(1).click();
+    note(`follow-up summary: ${JSON.stringify((await panel(page, 1)).summary)}`);
+
+    // Rerank off and an unknown cost: no rerank tag, the cards in fusion order,
+    // and "cost unknown".
+    await page.evaluate(() => { window.__chat.noRerank = true; });
+    await ask("lighthouse keeper brass lamp");
+    await answered(3);
+    await page.evaluate(() => { window.__chat.noRerank = false; });
+    await page.locator(".diagnostics > summary").nth(2).click();
+    const off = await panel(page, 2);
+    const fusion = off.cards.map((card) => Number(card.chips[2].split(" ")[1]));
+    note(`rerank off: ${JSON.stringify(brief(off))}`);
+    note(`rerank off: rerank tags ${JSON.stringify([...new Set(off.cards.map((c) => c.chips[3]))])}, fusion order ${fusion.every((v, i) => i === 0 || v <= fusion[i - 1])}`);
+
+    // A failed turn has no diagnostics.
+    await page.evaluate((message) => { window.__chat.fail = message; }, PROVIDER_ERROR);
+    await ask("Which of the books mentions the harbour?");
+    await answered(4);
+    note(`failed turn: ${JSON.stringify(await panel(page, 3))}`);
   } else {
     throw new Error(`unknown action ${action}`);
   }
