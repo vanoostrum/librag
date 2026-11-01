@@ -9,9 +9,11 @@ x-app: &app
     LIBRAG_QDRANT_URL: http://qdrant:6333
     LIBRAG_DATABASE_URL: sqlite:////data/librag.db
     LIBRAG_FILE_STORE_DIR: /data/files
-    # Passed through from the shell when set. The worker embeds with them in live mode.
+    # Passed through from the shell when set. With the live providers, the worker
+    # embeds with OpenAI and chat answers with OpenAI or Anthropic.
     LIBRAG_EMBEDDING_MODEL:
     OPENAI_API_KEY:
+    ANTHROPIC_API_KEY:
   volumes:
     - librag-data:/data
 

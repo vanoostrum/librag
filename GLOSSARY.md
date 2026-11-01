@@ -87,3 +87,7 @@ _Avoid_: Trace, debug info
 **Evaluation set**:
 Questions with the passages and facts that a good answer needs, used to measure retrieval and answer quality.
 _Avoid_: Test set, benchmark, golden set
+
+**Live run**:
+A run of the e2e suite against the real AI providers, started by hand, with a cost cap.
+_Avoid_: Live test, integration run

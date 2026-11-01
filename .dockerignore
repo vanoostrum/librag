@@ -12,3 +12,5 @@ tests
 .coverage*
 .env
 .env.*
+scripts
+e2e-reports
