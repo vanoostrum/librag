@@ -17,6 +17,14 @@ dependencies = [
     "uvicorn>=0.54.0",
 ]
 
+[project.optional-dependencies]
+# The live reranker. The Docker image installs it; the `checks` job and the
+# cloud sandbox use the fake reranker and leave it out (ADR 0005).
+rerank = [
+    "sentence-transformers>=6.2.0",
+    "torch>=2.15.0",
+]
+
 [dependency-groups]
 dev = [
     "fastapi-cli",
@@ -28,6 +36,15 @@ dev = [
     "ty",
     "types-pyyaml>=6.0.12.20261030",
 ]
+
+[tool.uv.sources]
+# CPU-only PyTorch: the CUDA wheels on PyPI add gigabytes the image never uses.
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [build-system]
 requires = ["uv_build>=0.13.0,<0.14.0"]
