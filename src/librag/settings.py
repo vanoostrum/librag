@@ -15,6 +15,28 @@ MIN_TOKEN_BUDGET = 100
 MAX_TOKEN_BUDGET = 32000
 
 
+@dataclass(frozen=True)
+class ChatModel:
+    """A model that chat can answer with: its LiteLLM ID and the name people see."""
+
+    id: str
+    name: str
+
+
+DEFAULT_CHAT_MODELS = (
+    ChatModel("anthropic/claude-sonnet-5-5", "Claude Sonnet 5.5"),
+    ChatModel("openai/gpt-6.1-terra", "GPT 6.1 Terra"),
+)
+_SWITCH_VALUES = {
+    "on": True,
+    "true": True,
+    "1": True,
+    "off": False,
+    "false": False,
+    "0": False,
+}
+
+
 class SettingsError(ValueError):
     """A `LIBRAG_*` environment variable has a value that LibRag cannot use."""
 
@@ -41,6 +63,11 @@ class Settings:
     fusion_top_k: int = 30
     context_token_budget: int = 4000
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    # The models a chat request can pick, and the one it gets without picking.
+    chat_models: tuple[ChatModel, ...] = DEFAULT_CHAT_MODELS
+    chat_default_model: str = DEFAULT_CHAT_MODELS[0].id
+    # Rewrite a follow-up question into a standalone search query.
+    query_rewrite: bool = True
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "Settings":
@@ -50,6 +77,14 @@ class Settings:
         ai_providers = env.get("LIBRAG_AI_PROVIDERS", defaults.ai_providers)
         if ai_providers not in AI_PROVIDERS_VALUES:
             msg = f"LIBRAG_AI_PROVIDERS must be 'live' or 'fake', not {ai_providers!r}"
+            raise SettingsError(msg)
+        chat_models = _chat_models(env, defaults.chat_models)
+        chat_default_model = env.get("LIBRAG_CHAT_DEFAULT_MODEL", chat_models[0].id)
+        if chat_default_model not in {model.id for model in chat_models}:
+            msg = (
+                "LIBRAG_CHAT_DEFAULT_MODEL must be one of LIBRAG_CHAT_MODELS, "
+                f"not {chat_default_model!r}"
+            )
             raise SettingsError(msg)
         return cls(
             qdrant_url=env.get("LIBRAG_QDRANT_URL", defaults.qdrant_url),
@@ -92,7 +127,41 @@ class Settings:
                 maximum=MAX_TOKEN_BUDGET,
             ),
             reranker_model=env.get("LIBRAG_RERANKER_MODEL", defaults.reranker_model),
+            chat_models=chat_models,
+            chat_default_model=chat_default_model,
+            query_rewrite=_switch(env, "LIBRAG_QUERY_REWRITE", defaults.query_rewrite),
         )
+
+
+def _chat_models(
+    env: Mapping[str, str], default: tuple[ChatModel, ...]
+) -> tuple[ChatModel, ...]:
+    """Return the models in `LIBRAG_CHAT_MODELS`: `<id>=<name>`, comma-separated.
+
+    A model without `=<name>` shows its ID as its name.
+    """
+    raw = env.get("LIBRAG_CHAT_MODELS")
+    if raw is None:
+        return default
+    models: list[ChatModel] = []
+    for entry in raw.split(","):
+        model_id, _, name = (part.strip() for part in entry.partition("="))
+        if not model_id:
+            msg = f"LIBRAG_CHAT_MODELS must list '<id>=<name>' entries, not {raw!r}"
+            raise SettingsError(msg)
+        models.append(ChatModel(model_id, name or model_id))
+    return tuple(models)
+
+
+def _switch(env: Mapping[str, str], name: str, default: bool) -> bool:  # noqa: FBT001
+    """Return the on or off value in `env[name]`."""
+    raw = env.get(name)
+    if raw is None:
+        return default
+    if raw.lower() not in _SWITCH_VALUES:
+        msg = f"{name} must be on or off, not {raw!r}"
+        raise SettingsError(msg)
+    return _SWITCH_VALUES[raw.lower()]
 
 
 def _positive_int(

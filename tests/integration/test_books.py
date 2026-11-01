@@ -3,8 +3,6 @@
 
 import hashlib
 import io
-import ipaddress
-import socket
 import zipfile
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -587,24 +585,6 @@ def test_embedder_that_recovers_indexes_the_book(
     [book] = client.get("/api/books").json()["books"]
     assert (book["status"], book["passages_indexed"]) == ("indexed", 70)
     assert book["embedding_cost_usd"] is None, "LiteLLM did not know the price"
-
-
-@pytest.fixture
-def no_internet(monkeypatch: pytest.MonkeyPatch) -> list[object]:
-    """Refuse every socket connection that leaves this machine, and record it."""
-    refused: list[object] = []
-    connect = socket.socket.connect
-
-    def local_only(sock: socket.socket, address: object) -> None:
-        host = address[0] if isinstance(address, tuple) else None
-        if isinstance(host, str) and not ipaddress.ip_address(host).is_loopback:
-            refused.append(address)
-            msg = f"no external calls: {address}"
-            raise ConnectionRefusedError(msg)
-        connect(sock, address)  # ty: ignore[invalid-argument-type]
-
-    monkeypatch.setattr(socket.socket, "connect", local_only)
-    return refused
 
 
 def test_fake_providers_call_no_external_api(

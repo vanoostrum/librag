@@ -54,6 +54,9 @@ The api, the worker and `migrate` read these environment variables:
 | `LIBRAG_RERANKER_MODEL` | `cross-encoder/ms-marco-MiniLM-L-6-v2` | The sentence-transformers CrossEncoder that reranks search results in `live` mode. The Docker image has this model baked in. |
 | `LIBRAG_SEARCH_TOP_K`, `LIBRAG_DENSE_TOP_K`, `LIBRAG_BM25_TOP_K`, `LIBRAG_FUSION_TOP_K` | `10`, `30`, `30`, `30` | How many passages search returns, and how many the dense, BM25 and fusion stages keep. Each is 1 to 100. |
 | `LIBRAG_CONTEXT_TOKEN_BUDGET` | `4000` | The most tokens that search's results hold together, from 100 to 32000. |
+| `LIBRAG_CHAT_MODELS` | `anthropic/claude-sonnet-5-5=Claude Sonnet 5.5,openai/gpt-6.1-terra=GPT 6.1 Terra` | The LiteLLM models that chat can answer with, as comma-separated `<id>=<name>` entries. In `live` mode each needs its provider's key, such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. |
+| `LIBRAG_CHAT_DEFAULT_MODEL` | the first chat model | The model a chat request gets when it names none. It must be one of `LIBRAG_CHAT_MODELS`. |
+| `LIBRAG_QUERY_REWRITE` | `on` | `on` lets the LLM rewrite a follow-up question into a standalone search query; `off` searches the question as asked. |
 
 ## Development
 

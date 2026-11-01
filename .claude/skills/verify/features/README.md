@@ -36,3 +36,4 @@ Each feature file starts with an H1 title and one paragraph on the behavior a cl
 - [API docs disabled](./api-docs-disabled.md) covers the 404s for `/docs`, `/redoc`, and `/openapi.json`.
 - [Books](./books.md) covers uploading an EPUB with `POST /api/books`, its parsing in the background, and the list at `GET /api/books`.
 - [Search](./search.md) covers searching the indexed passages with `POST /api/rag/search`, with each retrieval stage.
+- [Chat](./chat.md) covers answering questions with citations at `POST /api/chat`, and the model list at `GET /api/config/models`.

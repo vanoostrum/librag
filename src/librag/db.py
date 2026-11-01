@@ -88,6 +88,24 @@ passages = Table(
     Index("ix_passages_book_id_position", "book_id", "position", unique=True),
 )
 
+# One row per chat request: the model, the search query, the tokens and cost of
+# its LLM calls, and their time. `cost_usd` is null when LiteLLM does not know a
+# price; `error` holds the provider's message when the request failed. The
+# question and the answer are not saved.
+chat_usage = Table(
+    "chat_usage",
+    metadata,
+    Column("id", Integer(), primary_key=True, autoincrement=True),
+    Column("created_at", DateTime(), nullable=False),
+    Column("model", String(255), nullable=False),
+    Column("search_query", Text(), nullable=False),
+    Column("input_tokens", Integer(), nullable=False),
+    Column("output_tokens", Integer(), nullable=False),
+    Column("cost_usd", Float()),
+    Column("latency_ms", Float(), nullable=False),
+    Column("error", Text()),
+)
+
 
 def to_db_time(moment: datetime) -> datetime:
     """Return an aware time as the naive UTC time that the database stores."""

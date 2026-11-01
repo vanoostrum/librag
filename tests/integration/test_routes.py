@@ -163,6 +163,8 @@ def test_only_expected_routes_are_registered() -> None:
         ("/", "GET"),
         ("/api/books", "GET"),
         ("/api/books", "POST"),
+        ("/api/chat", "POST"),
+        ("/api/config/models", "GET"),
         ("/api/rag/search", "POST"),
         ("/health", "GET"),
         ("/library/books", "GET"),

@@ -1,8 +1,11 @@
 # Copyright (C) 2026 Theo van Oostrum
 """Fixtures for the route tests that upload and index books."""
 
+import ipaddress
+import socket
 import uuid
 from collections.abc import Callable, Iterator
+from http import HTTPStatus
 from pathlib import Path
 
 import pytest
@@ -14,6 +17,7 @@ from librag.index import qdrant_client
 from librag.main import create_app
 from librag.settings import Settings
 from librag.worker import run_one_job
+from tests.epubs import FixtureBook, make_epub
 
 
 @pytest.fixture
@@ -70,3 +74,35 @@ def client(settings: Settings) -> Iterator[TestClient]:
     """Return a test client for the app with `settings`."""
     with TestClient(create_app(settings)) as client:
         yield client
+
+
+@pytest.fixture
+def index(client: TestClient, work: Callable[[], bool]) -> Callable[..., None]:
+    """Return a function that uploads fixture books and indexes them."""
+
+    def index(*fixtures: FixtureBook) -> None:
+        for fixture in fixtures:
+            files = {"file": ("book.epub", make_epub(fixture), "application/epub+zip")}
+            response = client.post("/api/books", files=files)
+            assert response.status_code == HTTPStatus.ACCEPTED, response.text
+            assert work()
+
+    return index
+
+
+@pytest.fixture
+def no_internet(monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    """Refuse every socket connection that leaves this machine, and record it."""
+    refused: list[object] = []
+    connect = socket.socket.connect
+
+    def local_only(sock: socket.socket, address: object) -> None:
+        host = address[0] if isinstance(address, tuple) else None
+        if isinstance(host, str) and not ipaddress.ip_address(host).is_loopback:
+            refused.append(address)
+            msg = f"no external calls: {address}"
+            raise ConnectionRefusedError(msg)
+        connect(sock, address)  # ty: ignore[invalid-argument-type]
+
+    monkeypatch.setattr(socket.socket, "connect", local_only)
+    return refused
