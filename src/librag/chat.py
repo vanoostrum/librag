@@ -86,6 +86,133 @@ def parse_answer(text: str) -> list[Part]:
     return [_part(item) for item in data["parts"]]
 
 
+FENCE = "```"
+# The longest opening fence line that the reader waits through, "```json" plus space.
+MAX_FENCE_INFO = 8
+# A part object sits in the answer object's `parts` list: three levels deep.
+PART_DEPTH = 3
+
+
+class PartReader:
+    """Find the complete parts in the LLM's JSON answer while it streams.
+
+    `feed` returns each part as soon as its JSON object is complete. It reads
+    early only a reply that starts with the answer object, after an optional
+    `json` code fence; any other reply gives its parts at `finish`, which reads
+    the whole reply with `parse_answer`.
+    """
+
+    def __init__(self) -> None:
+        """Start with an empty reply."""
+        self._text = ""
+        self._pos = 0  # The next character to scan.
+        self._scanning: bool | None = None  # None until the start is known.
+        self._stack: list[str] = []
+        self._in_string = False
+        self._escape = False
+        self._string_start = 0
+        self._last_string = ""
+        self._key = ""
+        self._in_parts = False
+        self._part_start = 0
+        self._done = False
+        self._parts: list[Part] = []
+
+    def feed(self, chunk: str) -> list[Part]:
+        """Add `chunk` to the reply; return the parts that it completes."""
+        self._text += chunk
+        if self._scanning is None:
+            self._find_start()
+        if self._scanning is not True:
+            return []
+        found: list[Part] = []
+        while self._pos < len(self._text) and not self._done:
+            part = self._scan(self._text[self._pos])
+            self._pos += 1
+            if part is not None:
+                found.append(part)
+        self._parts.extend(found)
+        return found
+
+    def finish(self) -> list[Part]:
+        """Return the parts not returned yet, or raise `AnswerFormatError`."""
+        parts = parse_answer(self._text)
+        if parts[: len(self._parts)] != self._parts:
+            msg = "the streamed parts differ from the whole answer"
+            raise AnswerFormatError(msg)
+        return parts[len(self._parts) :]
+
+    def _find_start(self) -> None:
+        text = self._text.lstrip()
+        offset = len(self._text) - len(text)
+        if not text:
+            return
+        if text.startswith("{"):
+            self._scanning, self._pos = True, offset
+            return
+        if not text.startswith(FENCE[: len(text)]):
+            self._scanning = False
+            return
+        info = text[len(FENCE) :]
+        brace = info.find("{")
+        if len(text) < len(FENCE) or (brace < 0 and len(info) <= MAX_FENCE_INFO):
+            return
+        if brace >= 0 and info[:brace].strip() in {"", "json"}:
+            self._scanning = True
+            self._pos = offset + len(FENCE) + brace
+        else:
+            self._scanning = False
+
+    def _scan(self, char: str) -> Part | None:
+        """Read one character of the answer object; return a part it completes."""
+        if self._in_string:
+            self._scan_string(char)
+        elif char == '"':
+            self._in_string, self._string_start = True, self._pos + 1
+        elif char == ":" and len(self._stack) == 1:
+            self._key = self._last_string
+        elif char in "{[":
+            self._open(char)
+        elif char in "}]":
+            return self._close(char)
+        return None
+
+    def _scan_string(self, char: str) -> None:
+        if self._escape:
+            self._escape = False
+        elif char == "\\":
+            self._escape = True
+        elif char == '"':
+            self._in_string = False
+            self._last_string = self._text[self._string_start : self._pos]
+
+    def _open(self, char: str) -> None:
+        depth = len(self._stack)
+        self._stack.append(char)
+        if char == "[" and depth == 1 and self._key == "parts":
+            self._in_parts = True
+        elif char == "{" and depth == PART_DEPTH - 1 and self._in_parts:
+            self._part_start = self._pos
+
+    def _close(self, char: str) -> Part | None:
+        depth = len(self._stack)
+        self._stack.pop()
+        self._done = not self._stack
+        if char == "]" and depth == PART_DEPTH - 1:
+            self._in_parts = False
+        elif char == "}" and depth == PART_DEPTH and self._in_parts:
+            return self._read_part(self._text[self._part_start : self._pos + 1])
+        return None
+
+    @staticmethod
+    def _read_part(text: str) -> Part:
+        try:
+            return _part(json.loads(text))
+        except json.JSONDecodeError as error:
+            msg = f"a part is not JSON: {error}"
+            raise AnswerFormatError(msg) from error
+
+
 def _merged(kind: str, parts: Sequence[Part]) -> list[Part]:
     """Return `parts` as one part of `kind`, or no part when they have no text."""
     text = " ".join(part.text for part in parts)
