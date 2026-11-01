@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Library · LibRag{% endblock %}
+{% block scripts %}<script src="/static/library.js" defer></script>{% endblock %}
+{% block body_attributes %} data-max-upload-mb="{{ max_upload_mb }}"{% endblock %}
+{% block main %}
+    {% include "library_region.html" %}
+    <input type="file" id="book-picker" class="visually-hidden" accept=".epub,application/epub+zip" multiple tabindex="-1" aria-hidden="true">
+{% endblock %}
+{% block after_main %}
+  <div class="drop-overlay" hidden>
+    <div class="drop-overlay__target">
+      <p class="drop-overlay__title">Drop to add to your library</p>
+      <p class="drop-overlay__hint">EPUB files up to {{ max_upload_mb }} MB each</p>
+    </div>
+  </div>
+{% endblock %}

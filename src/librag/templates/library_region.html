@@ -1,0 +1,40 @@
+<div id="library" class="library"{% if polling %} hx-get="/library/books" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  <div class="page-head">
+    <div>
+      {% if cards %}
+      <h1 class="page-title">Your library</h1>
+      <p class="lede">{{ lede }}</p>
+      {% else %}
+      <h1 class="page-title">Your library is empty</h1>
+      <p class="lede">Add an EPUB to ask questions about it in Chat.</p>
+      {% endif %}
+    </div>
+    {% if cards %}
+    <button type="button" class="button-primary" data-add-book>Add a book</button>
+    {% endif %}
+  </div>
+  <ul id="notices" class="notices" aria-live="polite" hx-preserve></ul>
+  {% if cards %}
+  <div class="book-grid">
+    {% for card in cards %}
+    <article class="book-card{% if card.status == 'failed' %} book-card--failed{% endif %}">
+      <div class="book-card__cover cover--{{ card.cover }}" aria-hidden="true">{{ card.title }}</div>
+      <div class="book-card__body">
+        <h2 class="book-card__title">{{ card.title }}</h2>
+        <div class="book-card__author">{{ card.author }}</div>
+        <div class="status status--{{ card.status }}">{{ card.status_text }}</div>
+        {% if card.progress is not none %}
+        <progress class="progress" value="{{ card.progress }}" max="100" aria-label="Indexing progress">{{ card.progress }}%</progress>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <section class="drop-zone" aria-label="Add books">
+    <p class="drop-zone__title">Drop EPUB files here</p>
+    <p class="drop-zone__hint">or choose them from your device</p>
+    <button type="button" class="button-primary" data-add-book>Add a book</button>
+  </section>
+  {% endif %}
+</div>

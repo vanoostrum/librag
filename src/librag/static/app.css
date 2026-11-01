@@ -1,0 +1,315 @@
+/* LibRag app stylesheet: the "Reading room" identity.
+   It copies the rules of design/gallery.css for the classes that the app's pages
+   use; the gallery stays the spec. The breakpoint at 640px switches to the phone
+   layout. */
+
+:root {
+  --paper: #faf7f0;
+  --surface: #ffffff;
+  --surface-warn: #fffaf8;
+  --ink: #2b2622;
+  --ink-soft: #4a4239;
+  --ink-muted: #5e554b;
+  --rule: #e4ddcf;
+  --rule-strong: #c9bfae;
+  --rule-warn: #e8b9b3;
+  --accent: #2f5d50;
+  --accent-hover: #1f4036;
+  --ok: #1b6b3a;
+  --busy: #1a3f91;
+  --danger: #9b2c22;
+  --synthesis: #6b4ea0;
+  --serif: Charter, "Iowan Old Style", Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --radius: 10px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 40px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+}
+
+a { color: var(--accent); }
+a:hover { color: var(--accent-hover); }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Header and main navigation */
+
+.site-header { border-bottom: 1px solid var(--rule); }
+
+.site-header__inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.wordmark { font-size: 22px; font-weight: 700; letter-spacing: 0.5px; }
+
+.main-nav { display: flex; gap: var(--space-2); font-family: var(--sans); font-size: 15px; }
+
+.main-nav a {
+  padding: 10px 14px;
+  color: var(--ink-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.main-nav a[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+
+/* Page body */
+
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.page-title { margin: 0; font-size: 36px; font-weight: 400; }
+
+.lede { margin: 6px 0 0; color: var(--ink-muted); font-size: 17px; }
+
+/* Buttons and links that act as buttons */
+
+.button-primary {
+  min-height: 44px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--accent);
+  color: #ffffff;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button-primary:hover { background: var(--accent-hover); }
+
+/* Library: book cards */
+
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+  font-family: var(--sans);
+}
+
+.book-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.book-card--failed { background: var(--surface-warn); border-color: var(--rule-warn); }
+
+.book-card__cover {
+  height: 120px;
+  padding: var(--space-4);
+  color: #ffffff;
+  font-family: var(--serif);
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.book-card--failed .book-card__cover { color: var(--ink-soft); }
+
+.book-card__body {
+  flex-grow: 1;
+  padding: 14px var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The cover shows the title on desktop and is hidden from screen readers.
+   The heading in the body carries the title for them, and shows on a phone. */
+.book-card__title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.book-card__author { color: var(--ink-muted); font-size: 14px; }
+
+.status { font-size: 14px; font-weight: 600; }
+.status--indexed { color: var(--ok); }
+.status--indexing { color: var(--busy); }
+.status--queued { color: var(--ink-soft); }
+.status--failed { color: var(--danger); }
+
+.cover--slate { background: #3d5a80; }
+.cover--clay { background: #8a5a44; }
+.cover--ink { background: var(--ink); }
+.cover--olive { background: #6b7f5e; }
+.cover--blank { background: #e9e3d8; }
+
+.progress {
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--rule);
+  accent-color: var(--busy);
+  appearance: none;
+}
+.progress::-webkit-progress-bar { border-radius: 3px; background: var(--rule); }
+.progress::-webkit-progress-value { border-radius: 3px; background: var(--busy); }
+.progress::-moz-progress-bar { border-radius: 3px; background: var(--busy); }
+
+/* Library: upload notices, the empty library, and dropping files */
+
+.notices { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-family: var(--sans); }
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 1px solid var(--rule-warn);
+  border-radius: var(--radius);
+  background: var(--surface-warn);
+  color: var(--danger);
+  font-size: 15px;
+}
+
+.notice__text { flex: 1; }
+
+.notice__dismiss {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 22px;
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: var(--sans);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.notice__dismiss:hover { background: var(--rule); color: var(--ink); }
+
+.status--parsing { color: var(--busy); }
+
+.drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 56px var(--space-5);
+  border: 2px dashed var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+}
+
+.drop-zone__title { margin: 0; font-size: 24px; font-weight: 400; }
+
+.drop-zone__hint { margin: 0 0 var(--space-3); color: var(--ink-muted); font-family: var(--sans); font-size: 15px; }
+
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: rgba(250, 247, 240, 0.92);
+}
+
+.drop-overlay__target {
+  width: 100%;
+  max-width: 640px;
+  padding: 72px var(--space-5);
+  border: 3px dashed var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+}
+
+.drop-overlay__title { margin: 0; color: var(--accent); font-size: 28px; font-weight: 400; }
+
+.drop-overlay__hint { margin: var(--space-2) 0 0; color: var(--ink-muted); font-family: var(--sans); font-size: 15px; }
+
+/* Phone layout */
+
+@media (max-width: 640px) {
+  .site-header__inner { padding: var(--space-3) var(--space-4); }
+  .wordmark { font-size: 20px; }
+  .main-nav { gap: var(--space-1); }
+  .main-nav a { padding: var(--space-3) 10px; }
+
+  .page { padding: var(--space-5) var(--space-4); gap: 20px; }
+  .page-title { font-size: 30px; }
+  .lede { font-size: 16px; }
+  .page-head .button-primary { width: 100%; min-height: 48px; border-radius: 24px; font-size: 16px; }
+
+  .book-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+  .book-card { flex-direction: row; }
+  .book-card__cover { flex: 0 0 64px; height: auto; padding: 0; font-size: 0; }
+  .book-card__title {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 400;
+  }
+}
+
+/* App only: the parts of the page that the gallery draws as static states. */
+
+/* The region that the grid refresh swaps lays its children out in the page. */
+.library { display: contents; }
+
+.notices:empty { display: none; }
+
+.drop-overlay[hidden] { display: none; }
