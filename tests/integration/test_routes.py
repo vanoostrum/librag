@@ -163,6 +163,7 @@ def test_only_expected_routes_are_registered() -> None:
         ("/", "GET"),
         ("/api/books", "GET"),
         ("/api/books", "POST"),
+        ("/api/rag/search", "POST"),
         ("/health", "GET"),
         ("/version", "GET"),
     ]
