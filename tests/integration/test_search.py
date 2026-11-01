@@ -13,12 +13,12 @@ from sqlalchemy import Engine, update
 
 from librag.db import books
 from librag.main import create_app
-from librag.passages import passage_id
+from librag.passages import count_tokens, passage_id
 from librag.settings import Settings
 from tests.epubs import FixtureBook, FixtureChapter, make_epub, paragraphs
 
 SEARCH = "/api/rag/search"
-STAGES = ("dense", "bm25", "fusion")
+STAGES = ("dense", "bm25", "fusion", "rerank")
 
 
 def _book(identifier: str, title: str, author: str, *texts: str) -> FixtureBook:
@@ -118,8 +118,12 @@ def test_best_passage_is_first(client: TestClient, index: Callable[..., None]) -
         "section": None,
         "text": "The lighthouse keeper polished the brass lamp every evening.",
         "score": first["score"],
+        "fusion_score": first["fusion_score"],
+        "rerank_score": first["rerank_score"],
     }
-    assert isinstance(first["score"], float)
+    assert isinstance(first["fusion_score"], float)
+    assert isinstance(first["rerank_score"], float)
+    assert first["score"] == first["rerank_score"]
     assert [result["rank"] for result in body["results"]] == list(
         range(1, len(body["results"]) + 1)
     )
@@ -146,7 +150,10 @@ def test_stages_list_ids_ranks_scores_and_time(
     # BM25 only finds passages that share a word with the query.
     assert stage_ids(body, "bm25") == [KEEPER]
     assert set(stage_ids(body, "dense")) == {KEEPER, passage_id(SEA_ID, 1)}
-    assert result_ids(body) == stage_ids(body, "fusion")
+    # The reranker scores every fused candidate.
+    assert set(stage_ids(body, "rerank")) == set(stage_ids(body, "fusion"))
+    assert len(stage_ids(body, "rerank")) == len(stage_ids(body, "fusion"))
+    assert result_ids(body) == stage_ids(body, "rerank")
 
 
 def test_limits_cap_results_and_stages(
@@ -164,7 +171,16 @@ def test_limits_cap_results_and_stages(
     assert len(body["results"]) == 2  # noqa: PLR2004
     assert len(stage_ids(body, "dense")) == 3  # noqa: PLR2004
     assert len(stage_ids(body, "bm25")) == 4  # noqa: PLR2004
-    assert result_ids(body) == stage_ids(body, "fusion")[:2]
+    assert result_ids(body) == stage_ids(body, "rerank")[:2]
+
+    # fusion_k caps the fused candidates, and the reranker scores each of them.
+    body = search(client, "lighthouse", dense_k=6, bm25_k=6, fusion_k=5)
+    assert len(stage_ids(body, "fusion")) == 5  # noqa: PLR2004
+    assert len(stage_ids(body, "rerank")) == 5  # noqa: PLR2004
+
+    body = search(client, "lighthouse", dense_k=3, bm25_k=4, fusion_k=2)
+    assert len(stage_ids(body, "fusion")) == 2  # noqa: PLR2004
+    assert len(stage_ids(body, "rerank")) == 2  # noqa: PLR2004
 
 
 def test_results_come_from_both_books(
@@ -223,39 +239,69 @@ def test_request_values_override_the_settings(
 ) -> None:
     """Settings give the defaults, request values win, and the response shows both."""
     index(SEA, HARBOUR)
-    tuned = dataclasses.replace(settings, search_top_k=1, dense_top_k=2, bm25_top_k=1)
+    tuned = dataclasses.replace(
+        settings,
+        search_top_k=1,
+        dense_top_k=2,
+        bm25_top_k=1,
+        fusion_top_k=2,
+        context_token_budget=200,
+    )
     with TestClient(create_app(tuned)) as client:
         body = search(client, "lighthouse")
         assert body["settings"] == {
             "top_k": 1,
             "dense_k": 2,
             "bm25_k": 1,
+            "fusion_k": 2,
+            "token_budget": 200,
+            "rerank": True,
             "embedding_model": "fake",
+            "reranker_model": "fake",
         }
         assert len(body["results"]) == 1
         assert len(stage_ids(body, "dense")) == 2  # noqa: PLR2004
         assert len(stage_ids(body, "bm25")) == 1
+        assert len(stage_ids(body, "fusion")) == 2  # noqa: PLR2004
 
-        body = search(client, "lighthouse", top_k=3, dense_k=4, bm25_k=2)
+        body = search(
+            client,
+            "lighthouse",
+            top_k=3,
+            dense_k=4,
+            bm25_k=2,
+            fusion_k=4,
+            token_budget=300,
+            rerank=False,
+        )
         assert body["settings"] == {
             "top_k": 3,
             "dense_k": 4,
             "bm25_k": 2,
+            "fusion_k": 4,
+            "token_budget": 300,
+            "rerank": False,
             "embedding_model": "fake",
+            "reranker_model": "fake",
         }
         assert len(body["results"]) == 3  # noqa: PLR2004
         assert len(stage_ids(body, "dense")) == 4  # noqa: PLR2004
         assert len(stage_ids(body, "bm25")) == 2  # noqa: PLR2004
+        assert len(stage_ids(body, "fusion")) == 4  # noqa: PLR2004
 
 
 def test_default_settings(client: TestClient) -> None:
-    """Without request values, search uses 10, 30 and 30."""
+    """Without request values, search uses the defaults, with reranking on."""
     body = search(client, "lighthouse")
     assert body["settings"] == {
         "top_k": 10,
         "dense_k": 30,
         "bm25_k": 30,
+        "fusion_k": 30,
+        "token_budget": 4000,
+        "rerank": True,
         "embedding_model": "fake",
+        "reranker_model": "fake",
     }
 
 
@@ -272,13 +318,21 @@ def test_default_settings(client: TestClient) -> None:
         ({"query": "x", "dense_k": 101}, "dense_k"),
         ({"query": "x", "bm25_k": 0}, "bm25_k"),
         ({"query": "x", "bm25_k": 101}, "bm25_k"),
+        ({"query": "x", "fusion_k": 0}, "fusion_k"),
+        ({"query": "x", "fusion_k": 101}, "fusion_k"),
+        ({"query": "x", "token_budget": 99}, "token_budget"),
+        ({"query": "x", "token_budget": 32001}, "token_budget"),
+        ({"query": "x", "rerank": "maybe"}, "rerank"),
         ({"query": "x", "book_ids": "not a list"}, "book_ids"),
     ],
 )
 def test_invalid_request_is_refused(
     client: TestClient, request_body: dict[str, object], field: str
 ) -> None:
-    """A missing or blank query, or a limit outside 1 to 100, returns 422."""
+    """A missing or blank query, or a limit out of its range, returns 422.
+
+    The k values are 1 to 100, and token_budget is 100 to 32000.
+    """
     response = client.post(SEARCH, json=request_body)
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY, response.text
     assert list(response.json()) == ["error"]
@@ -295,9 +349,11 @@ def test_body_that_is_not_json_is_refused(client: TestClient) -> None:
 
 
 def test_limits_of_1_and_100_are_accepted(client: TestClient) -> None:
-    """1 and 100 are inside the range."""
-    search(client, "x", top_k=1, dense_k=100, bm25_k=1)
-    search(client, "x", top_k=100, dense_k=1, bm25_k=100)
+    """The ends of each range are accepted: 1 and 100, and 100 and 32000."""
+    search(client, "x", top_k=1, dense_k=100, bm25_k=1, fusion_k=100, token_budget=100)
+    search(
+        client, "x", top_k=100, dense_k=1, bm25_k=100, fusion_k=1, token_budget=32000
+    )
 
 
 def _empty(body: dict[str, Any]) -> bool:
@@ -327,3 +383,136 @@ def test_unknown_book_filter_returns_empty_lists(
     index(SEA)
     assert _empty(search(client, "lighthouse", book_ids=["0000000000000000"]))
     assert _empty(search(client, "lighthouse", authors=["Nobody"]))
+
+
+# Fusion ranks SHORT first: it repeats two of the query's three words. FULL holds
+# all three, once each, among other words. ONE holds one of them.
+SHORT = "Lighthouse beacon, lighthouse beacon: the lighthouse beacon on the cape."
+FULL = (
+    "Far along the windswept coast, past the old harbour wall and the fishing "
+    "boats, the keeper climbed the lighthouse stairs at dusk to light the beacon."
+)
+ONE = "The keeper slept."
+QUERY = "lighthouse beacon keeper"
+RANKED = _book("urn:ranked", "Ranked", "Ada Writer", SHORT, FULL, ONE)
+RANKED_ID = _id("urn:ranked")
+SHORT_ID, FULL_ID, ONE_ID = (passage_id(RANKED_ID, n) for n in range(3))
+
+
+def test_results_follow_the_rerank_order(
+    client: TestClient, index: Callable[..., None]
+) -> None:
+    """Reranking puts the passage with all query words above fusion's first one.
+
+    Each result shows its fusion score and its rerank score.
+    """
+    index(RANKED)
+    body = search(client, QUERY)
+    assert stage_ids(body, "fusion") == [SHORT_ID, FULL_ID, ONE_ID]
+    assert stage_ids(body, "rerank") == [FULL_ID, SHORT_ID, ONE_ID]
+    assert result_ids(body) == [FULL_ID, SHORT_ID, ONE_ID]
+    rerank = {
+        item["passage_id"]: item["score"]
+        for item in body["stages"]["rerank"]["passages"]
+    }
+    fusion = {
+        item["passage_id"]: item["score"]
+        for item in body["stages"]["fusion"]["passages"]
+    }
+    assert rerank[FULL_ID] > rerank[SHORT_ID]
+    for rank, result in enumerate(body["results"], start=1):
+        assert result["rank"] == rank
+        assert result["rerank_score"] == rerank[result["passage_id"]]
+        assert result["fusion_score"] == fusion[result["passage_id"]]
+        assert result["score"] == result["rerank_score"]
+
+
+def test_rerank_off_keeps_the_fusion_order(
+    client: TestClient, index: Callable[..., None]
+) -> None:
+    """With rerank false, results follow fusion, without rerank scores or stage."""
+    index(RANKED)
+    body = search(client, QUERY, rerank=False)
+    assert result_ids(body) == stage_ids(body, "fusion") == [SHORT_ID, FULL_ID, ONE_ID]
+    assert body["stages"]["rerank"] == {"passages": [], "time_ms": 0.0}
+    fusion = {
+        item["passage_id"]: item["score"]
+        for item in body["stages"]["fusion"]["passages"]
+    }
+    for result in body["results"]:
+        assert result["rerank_score"] is None
+        assert result["fusion_score"] == fusion[result["passage_id"]]
+        assert result["score"] == result["fusion_score"]
+
+
+def test_fake_reranker_scores_the_share_of_query_words(
+    client: TestClient, index: Callable[..., None]
+) -> None:
+    """The fake reranker gives a passage the share of query words it contains."""
+    index(RANKED)
+    body = search(client, QUERY)
+    rerank = {
+        item["passage_id"]: item["score"]
+        for item in body["stages"]["rerank"]["passages"]
+    }
+    assert rerank == {FULL_ID: 1.0, SHORT_ID: 2 / 3, ONE_ID: 1 / 3}
+
+
+# About 150 tokens with all query words, so it ranks first and fills a budget of 100.
+LONG = " ".join(["The lighthouse keeper lit the beacon and logged every ship."] * 12)
+BUDGETED = _book("urn:budget", "Budget", "Ada Writer", LONG, SHORT)
+BUDGET_ID = _id("urn:budget")
+
+
+def test_passage_over_the_budget_is_skipped(
+    client: TestClient, index: Callable[..., None]
+) -> None:
+    """A passage that does not fit the remaining budget is skipped.
+
+    A later passage that fits is still added.
+    """
+    long_id, short_id = passage_id(BUDGET_ID, 0), passage_id(BUDGET_ID, 1)
+    assert count_tokens(LONG) > 100  # noqa: PLR2004
+    assert count_tokens(SHORT) <= 100  # noqa: PLR2004
+    index(BUDGETED)
+    body = search(client, QUERY, token_budget=100)
+    assert stage_ids(body, "rerank") == [long_id, short_id]
+    assert result_ids(body) == [short_id]
+    assert body["results"][0]["rank"] == 1
+
+    # With room for it, the long passage comes first.
+    body = search(client, QUERY, token_budget=1000)
+    assert result_ids(body) == [long_id, short_id]
+
+
+def test_results_stay_within_top_k_and_the_budget(
+    client: TestClient, index: Callable[..., None]
+) -> None:
+    """Results never hold more than top_k passages or token_budget tokens."""
+    many = _book(
+        "urn:budget-many",
+        "Many",
+        "Ada Writer",
+        *(
+            f"Lighthouse {n}: " + "the keeper trimmed the wick. " * n
+            for n in range(1, 13)
+        ),
+    )
+    index(many)
+    for top_k, budget in ((3, 32000), (10, 100), (10, 150), (5, 400)):
+        body = search(client, "lighthouse keeper", top_k=top_k, token_budget=budget)
+        texts = [result["text"] for result in body["results"]]
+        assert texts, (top_k, budget)
+        assert len(texts) <= top_k
+        assert sum(count_tokens(text) for text in texts) <= budget
+        assert len(stage_ids(body, "rerank")) == 12  # noqa: PLR2004
+
+
+def test_query_without_words_scores_zero(
+    client: TestClient, index: Callable[..., None]
+) -> None:
+    """A query of only punctuation still returns 200; the fake reranker scores 0."""
+    index(RANKED)
+    body = search(client, "?!")
+    assert all(item["score"] == 0.0 for item in body["stages"]["rerank"]["passages"])
+    assert result_ids(body) == stage_ids(body, "fusion")

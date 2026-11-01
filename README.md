@@ -51,6 +51,9 @@ The api, the worker and `migrate` read these environment variables:
 | `LIBRAG_AI_PROVIDERS` | `live` | `live` uses the real AI APIs. `fake` uses deterministic fakes. Any other value stops the app at startup. |
 | `LIBRAG_EMBEDDING_MODEL` | `openai/text-embedding-3-small` | The LiteLLM model that embeds passages in `live` mode. It also needs that provider's key, such as `OPENAI_API_KEY`. |
 | `LIBRAG_QDRANT_COLLECTION_PREFIX` | `passages` | Each embedding model gets the Qdrant collection `<prefix>_<model>`, such as `passages_openai_text-embedding-3-small` or `passages_fake`. |
+| `LIBRAG_RERANKER_MODEL` | `cross-encoder/ms-marco-MiniLM-L-6-v2` | The sentence-transformers CrossEncoder that reranks search results in `live` mode. The Docker image has this model baked in. |
+| `LIBRAG_SEARCH_TOP_K`, `LIBRAG_DENSE_TOP_K`, `LIBRAG_BM25_TOP_K`, `LIBRAG_FUSION_TOP_K` | `10`, `30`, `30`, `30` | How many passages search returns, and how many the dense, BM25 and fusion stages keep. Each is 1 to 100. |
+| `LIBRAG_CONTEXT_TOKEN_BUDGET` | `4000` | The most tokens that search's results hold together, from 100 to 32000. |
 
 ## Development
 
@@ -59,6 +62,8 @@ Install the app and its dev tools:
 ```bash
 uv sync
 ```
+
+This leaves out the live reranker (sentence-transformers and CPU-only PyTorch), so `live` mode cannot rerank. Add it with `uv sync --extra rerank`; the first search then downloads the reranker model from Hugging Face. `LIBRAG_AI_PROVIDERS=fake` needs neither.
 
 The tests need a running Qdrant. Start the one from the stack:
 

@@ -10,7 +10,7 @@ from typing import Annotated, Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StrictBool, StringConstraints
 from sqlalchemy import create_engine
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
@@ -20,14 +20,16 @@ from librag.embeddings import make_embedder
 from librag.epub import EpubError
 from librag.health import check_database, check_qdrant, check_worker
 from librag.index import qdrant_client
-from librag.search import SearchRequest, search
-from librag.settings import MAX_SEARCH_K, Settings
+from librag.rerank import make_reranker
+from librag.search import Searcher, SearchRequest, search
+from librag.settings import MAX_SEARCH_K, MAX_TOKEN_BUDGET, MIN_TOKEN_BUDGET, Settings
 
 MEGABYTE = 1024 * 1024
 # Room for the multipart boundaries and headers around the file.
 MULTIPART_OVERHEAD_BYTES = 64 * 1024
 
 SearchK = Annotated[int | None, Field(ge=1, le=MAX_SEARCH_K)]
+TokenBudget = Annotated[int | None, Field(ge=MIN_TOKEN_BUDGET, le=MAX_TOKEN_BUDGET)]
 
 
 class SearchBody(BaseModel):
@@ -37,6 +39,9 @@ class SearchBody(BaseModel):
     top_k: SearchK = None
     dense_k: SearchK = None
     bm25_k: SearchK = None
+    fusion_k: SearchK = None
+    token_budget: TokenBudget = None
+    rerank: StrictBool = True
     book_ids: list[str] = []
     authors: list[str] = []
 
@@ -109,6 +114,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.settings = settings or Settings.from_env()
         app.state.engine = create_engine(app.state.settings.database_url)
         app.state.embedder = make_embedder(app.state.settings)
+        app.state.reranker = make_reranker(app.state.settings)
         app.state.qdrant = qdrant_client(app.state.settings.qdrant_url)
         yield
         app.state.qdrant.close()
@@ -146,15 +152,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/rag/search")
     def search_passages(body: SearchBody, request: Request) -> dict[str, Any]:
-        """Return the passages that hybrid retrieval ranks highest, without the LLM."""
+        """Return the context that retrieval and reranking select, without the LLM."""
         state = request.app.state
-        return search(
-            state.engine,
-            state.settings,
-            state.embedder,
-            state.qdrant,
-            SearchRequest(**body.model_dump()),
+        searcher = Searcher(
+            engine=state.engine,
+            settings=state.settings,
+            embedder=state.embedder,
+            reranker=state.reranker,
+            client=state.qdrant,
         )
+        return search(searcher, SearchRequest(**body.model_dump()))
 
     @app.get("/version")
     def version() -> dict[str, str]:
