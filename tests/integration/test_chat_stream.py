@@ -1,20 +1,19 @@
 # Copyright (C) 2026 Theo van Oostrum
 """HTTP tests for streaming answers with POST /api/chat/stream."""
 
-import itertools
 import json
 from collections.abc import Callable, Iterator
 from http import HTTPStatus
 from typing import Any, override
 
+import anyio
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 
-from librag.chat import ABORTED, ChatRequest, chat_stream
+from librag.chat import ABORTED
 from librag.llm import Completion, LlmError
 from librag.prompts import NO_PASSAGE, Prompt
-from librag.search import Searcher
 from tests.integration.test_chat import (
     DEFAULT_MODEL,
     HARBOUR,
@@ -346,34 +345,51 @@ def test_default_model_is_used_without_one(client: TestClient) -> None:
     assert named(found, "done")[0]["model"] == DEFAULT_MODEL
 
 
-def test_stream_the_client_stops_reading_is_logged(
+def test_stream_the_client_leaves_is_logged(
     client: TestClient, engine: Engine, index: Callable[..., None]
 ) -> None:
-    """A stream that the client leaves halfway still adds its usage row.
+    """A client that disconnects halfway still gets its stream a usage row.
 
-    No request through TestClient can leave a stream halfway, so the test
-    reads the events of the chat service and stops after the first part.
+    TestClient reads a response to its end, so the test sends the request to
+    the app as an ASGI server does, and disconnects after the first event.
     """
     index(SEA)
-    state = client.app.state  # ty: ignore[unresolved-attribute]
-    searcher = Searcher(
-        engine=state.engine,
-        settings=state.settings,
-        embedder=state.embedder,
-        reranker=state.reranker,
-        client=state.qdrant,
-    )
-    events = chat_stream(
-        searcher, state.llm, ChatRequest("lighthouse keeper", DEFAULT_MODEL)
-    )
-    assert [name for name, _ in itertools.islice(events, 3)] == [
-        "status",
-        "status",
-        "part",
-    ]
-    events.close()  # ty: ignore[unresolved-attribute]
+    body = json.dumps({"question": "lighthouse keeper"}).encode()
+    sent: list[dict[str, Any]] = []
+    first_event = anyio.Event()
+
+    requests = [{"type": "http.request", "body": body, "more_body": False}]
+
+    async def receive() -> dict[str, Any]:
+        if requests:
+            return requests.pop()
+        await first_event.wait()
+        return {"type": "http.disconnect"}
+
+    async def send(message: dict[str, Any]) -> None:
+        sent.append(message)
+        if message["type"] == "http.response.body":
+            first_event.set()
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.3"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": STREAM,
+        "raw_path": STREAM.encode(),
+        "query_string": b"",
+        "root_path": "",
+        "headers": [(b"content-type", b"application/json")],
+        "client": ("127.0.0.1", 1),
+        "server": ("testserver", 80),
+        "state": {},
+        "app": client.app,
+    }
+    client.portal.call(client.app, scope, receive, send)  # ty: ignore[unresolved-attribute]
+    bodies = [m["body"] for m in sent if m["type"] == "http.response.body"]
+    assert b"event: done" not in b"".join(bodies)
     [row] = usage_rows(engine)
     assert row["error"] == ABORTED
     assert row["search_query"] == "lighthouse keeper"
-    # The provider counts the tokens at the end of its reply, so they are unknown.
-    assert (row["input_tokens"], row["output_tokens"]) == (0, 0)

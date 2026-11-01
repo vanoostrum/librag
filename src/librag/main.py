@@ -2,12 +2,13 @@
 """LibRag HTTP application."""
 
 import json
-from collections.abc import AsyncGenerator, Iterator
+from collections.abc import AsyncGenerator, Generator, Iterator
 from contextlib import asynccontextmanager
 from http import HTTPStatus
 from importlib.metadata import version as package_version
-from typing import Annotated, Any
+from typing import Annotated, Any, override
 
+import anyio
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
@@ -16,6 +17,7 @@ from sqlalchemy import create_engine
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 from starlette.staticfiles import StaticFiles
+from starlette.types import Receive, Scope, Send
 
 from librag.books import BookConflictError, add_book, list_books
 from librag.chat import ChatError, ChatRequest, Event, chat, chat_stream
@@ -156,16 +158,39 @@ def _server_sent(events: Iterator[Event]) -> Iterator[str]:
         yield f"event: {name}\ndata: {json.dumps(data)}\n\n"
 
 
+class EventStream(StreamingResponse):
+    """Server-sent events that are closed when the response ends.
+
+    Starlette does not close a sync iterator when the client disconnects, so
+    the events would wait for the garbage collector to log their usage.
+    """
+
+    def __init__(self, events: Generator[Event]) -> None:
+        """Stream `events`, one server-sent event each."""
+        self.events = events
+        super().__init__(
+            _server_sent(events),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @override
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Send the events; close them however the response ends."""
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            with anyio.CancelScope(shield=True):
+                await run_in_threadpool(self.events.close)
+
+
 def stream_answer(body: ChatBody, request: Request) -> Response:
     """Stream the answer as server-sent events, one checked part at a time."""
     chat_request = _chat_request(body, request)
     if isinstance(chat_request, JSONResponse):
         return chat_request
-    events = chat_stream(_searcher(request), request.app.state.llm, chat_request)
-    return StreamingResponse(
-        _server_sent(events),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    return EventStream(
+        chat_stream(_searcher(request), request.app.state.llm, chat_request)
     )
 
 

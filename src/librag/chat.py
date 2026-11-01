@@ -536,7 +536,7 @@ def _stream_answer(
 ABORTED = "The client closed the stream before the answer was done"
 
 
-def chat_stream(searcher: Searcher, llm: Llm, request: ChatRequest) -> Iterator[Event]:
+def chat_stream(searcher: Searcher, llm: Llm, request: ChatRequest) -> Generator[Event]:
     """Answer `request` as events: status, the checked parts, then done or error.
 
     The parts equal those of `chat` for the same LLM replies. The request is
