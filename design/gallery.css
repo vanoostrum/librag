@@ -590,3 +590,9 @@ a:hover { color: var(--accent-hover); }
     border-top: 1px solid var(--rule);
   }
 }
+
+/* Diagnostics: a question split into sub-questions (LIBRAG-22). */
+.diag-tag--first { margin-left: 0; }
+.diag-subqs { margin: var(--space-2) 0 0; padding: 0; list-style: none; display: grid; gap: var(--space-1); }
+.diag-subqs li { display: flex; gap: var(--space-2); align-items: baseline; }
+.diag-subq { flex: none; padding: 0 6px; border: 1px solid var(--rule); border-radius: 4px; color: var(--ink-muted); font-size: 12px; }
