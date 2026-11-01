@@ -3,6 +3,7 @@
 
 import json
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -11,6 +12,8 @@ from librag.settings import Settings
 
 WORD = re.compile(r"\w+")
 MAX_OUTPUT_TOKENS = 4096
+# The fake LLM streams its reply in chunks of this many characters.
+FAKE_CHUNK = 16
 
 
 @dataclass(frozen=True)
@@ -33,6 +36,13 @@ class Llm(Protocol):
 
     def complete(self, model: str, prompt: Prompt) -> Completion:
         """Return the model's reply to `prompt`, or raise `LlmError`."""
+        ...
+
+    def stream(self, model: str, prompt: Prompt) -> Iterator[str | Completion]:
+        """Yield the reply's text in pieces, then its `Completion`.
+
+        Raise `LlmError` when the provider fails, also halfway.
+        """
         ...
 
 
@@ -80,6 +90,14 @@ class FakeLlm:
         sent = " ".join(message["content"] for message in prompt.messages())
         return Completion(text, _words(sent), _words(text), 0.0)
 
+    def stream(self, model: str, prompt: Prompt) -> Iterator[str | Completion]:
+        """Yield the fake reply in chunks of 16 characters, then its completion."""
+        completion = self.complete(model, prompt)
+        text = completion.text
+        for start in range(0, len(text), FAKE_CHUNK):
+            yield text[start : start + FAKE_CHUNK]
+        yield completion
+
 
 class LiteLlm:
     """Completes through the provider's API with LiteLLM (ADR 0004)."""
@@ -101,6 +119,35 @@ class LiteLlm:
             input_tokens=usage.prompt_tokens,
             output_tokens=usage.completion_tokens,
             cost_usd=_cost(litellm, model, response),
+        )
+
+    def stream(self, model: str, prompt: Prompt) -> Iterator[str | Completion]:
+        """Yield the reply as the provider streams it, then its tokens and cost."""
+        import litellm  # noqa: PLC0415
+
+        messages = prompt.messages()
+        chunks: list[Any] = []
+        try:
+            response: Any = litellm.completion(
+                model=model,
+                messages=messages,
+                max_tokens=MAX_OUTPUT_TOKENS,
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+            for chunk in response:
+                chunks.append(chunk)
+                text = chunk.choices[0].delta.content if chunk.choices else None
+                if isinstance(text, str) and text:
+                    yield text
+            whole: Any = litellm.stream_chunk_builder(chunks, messages=messages)
+        except Exception as error:
+            raise LlmError(str(error)) from error
+        yield Completion(
+            text=whole.choices[0].message.content or "",
+            input_tokens=whole.usage.prompt_tokens,
+            output_tokens=whole.usage.completion_tokens,
+            cost_usd=_cost(litellm, model, whole),
         )
 
 

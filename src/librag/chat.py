@@ -9,7 +9,7 @@ without a passage that is in the context.
 
 import json
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Generator, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -325,6 +325,22 @@ class _Usage:
             completion = llm.complete(model, prompt)
         finally:
             self.latency_ms += (time.perf_counter() - start) * 1000
+        self._add(completion)
+        return completion
+
+    def stream(self, llm: Llm, model: str, prompt: Prompt) -> Iterator[str]:
+        """Yield the reply's text as it streams, and count its usage at the end."""
+        start = time.perf_counter()
+        try:
+            for item in llm.stream(model, prompt):
+                if isinstance(item, Completion):
+                    self._add(item)
+                else:
+                    yield item
+        finally:
+            self.latency_ms += (time.perf_counter() - start) * 1000
+
+    def _add(self, completion: Completion) -> None:
         self.input_tokens += completion.input_tokens
         self.output_tokens += completion.output_tokens
         # One call without a known price makes the total unknown.
@@ -332,7 +348,6 @@ class _Usage:
             self.cost_usd += completion.cost_usd
         else:
             self.cost_usd = None
-        return completion
 
     def body(self) -> dict[str, Any]:
         return {
@@ -368,6 +383,49 @@ def _answer(llm: Llm, model: str, prompt: AnswerPrompt, usage: _Usage) -> list[P
     raise ChatError(msg)
 
 
+def _search_query(
+    llm: Llm, request: ChatRequest, usage: _Usage, *, rewrite: bool
+) -> str:
+    """Return the standalone search query for the request's question."""
+    turns = tuple(request.turns[-MAX_TURNS:])
+    if not (turns and rewrite):
+        return request.question
+    prompt = RewritePrompt(request.question, turns)
+    return usage.call(llm, request.model, prompt).text.strip() or request.question
+
+
+def _retrieve(searcher: Searcher, request: ChatRequest, query: str) -> dict[str, Any]:
+    return search(
+        searcher,
+        SearchRequest(query=query, book_ids=request.book_ids, authors=request.authors),
+    )
+
+
+def _details(
+    request: ChatRequest,
+    search_query: str,
+    citations: list[dict[str, Any]],
+    usage: _Usage,
+    retrieval: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return the response fields besides the parts."""
+    return {
+        "question": request.question,
+        "search_query": search_query,
+        "model": request.model,
+        "citations": citations,
+        "usage": usage.body(),
+        "retrieval": {
+            "stages": retrieval["stages"],
+            "settings": retrieval["settings"],
+        },
+    }
+
+
+def _part_body(part: Part) -> dict[str, Any]:
+    return {"kind": part.kind, "text": part.text, "citations": list(part.citations)}
+
+
 def chat(searcher: Searcher, llm: Llm, request: ChatRequest) -> dict[str, Any]:
     """Answer `request` from the context that search selects, and log its usage.
 
@@ -376,21 +434,15 @@ def chat(searcher: Searcher, llm: Llm, request: ChatRequest) -> dict[str, Any]:
     request is logged either way.
     """
     settings = searcher.settings
-    turns = tuple(request.turns[-MAX_TURNS:])
     usage = _Usage()
     search_query = request.question
     try:
-        if turns and settings.query_rewrite:
-            rewrite = RewritePrompt(request.question, turns)
-            search_query = usage.call(llm, request.model, rewrite).text.strip()
-            search_query = search_query or request.question
-        retrieval = search(
-            searcher,
-            SearchRequest(
-                query=search_query, book_ids=request.book_ids, authors=request.authors
-            ),
+        search_query = _search_query(
+            llm, request, usage, rewrite=settings.query_rewrite
         )
+        retrieval = _retrieve(searcher, request, search_query)
         context = retrieval["results"]
+        turns = tuple(request.turns[-MAX_TURNS:])
         prompt = AnswerPrompt(request.question, context, turns)
         parts = _answer(llm, request.model, prompt, usage)
     except (LlmError, ChatError) as error:
@@ -398,18 +450,111 @@ def chat(searcher: Searcher, llm: Llm, request: ChatRequest) -> dict[str, Any]:
         raise ChatError(str(error)) from error
     _log(searcher.engine, request.model, search_query, usage, None)
     parts, citations = number_citations(check_citations(parts, len(context)), context)
+    details = _details(request, search_query, citations, usage, retrieval)
     return {
-        "question": request.question,
-        "search_query": search_query,
-        "model": request.model,
-        "parts": [
-            {"kind": part.kind, "text": part.text, "citations": list(part.citations)}
-            for part in parts
-        ],
-        "citations": citations,
-        "usage": usage.body(),
-        "retrieval": {
-            "stages": retrieval["stages"],
-            "settings": retrieval["settings"],
-        },
+        **{key: details[key] for key in ("question", "search_query", "model")},
+        "parts": [_part_body(part) for part in parts],
+        **{key: details[key] for key in ("citations", "usage", "retrieval")},
     }
+
+
+Event = tuple[str, dict[str, Any]]
+
+
+class _StreamedAnswer:
+    """The parts of one streamed answer, checked and numbered as they arrive.
+
+    A book claim is ready as soon as its citations are checked, because book
+    claims come first in the checked answer and keep their order. A synthesis
+    or general part is ready only at the end: a later part can merge into it.
+    """
+
+    def __init__(self, context: Sequence[Mapping[str, Any]]) -> None:
+        self.context = context
+        self.parts: list[Part] = []
+        self.sent = 0
+
+    def add(self, parts: Sequence[Part]) -> list[Event]:
+        """Add parts from the reader; return the book claims that are now ready."""
+        self.parts.extend(parts)
+        checked = check_citations(self.parts, len(self.context))
+        books = 0
+        while books < len(checked) and checked[books].kind == "book":
+            books += 1
+        return self._send(checked[:books])
+
+    def finish(self) -> tuple[list[Event], list[dict[str, Any]]]:
+        """Return the parts not sent yet, and the citations of the whole answer."""
+        checked = check_citations(self.parts, len(self.context))
+        return self._send(checked), number_citations(checked, self.context)[1]
+
+    def _send(self, checked: list[Part]) -> list[Event]:
+        numbered, citations = number_citations(checked, self.context)
+        sources = {citation["n"]: citation for citation in citations}
+        events = [
+            (
+                "part",
+                {
+                    **_part_body(part),
+                    "sources": [sources[n] for n in part.citations],
+                },
+            )
+            for part in numbered[self.sent :]
+        ]
+        self.sent = len(numbered)
+        return events
+
+
+def _stream_answer(
+    llm: Llm, model: str, prompt: AnswerPrompt, usage: _Usage
+) -> Generator[Event, None, list[dict[str, Any]]]:
+    """Yield the answer's part events, and return its citations at the end.
+
+    Invalid JSON is asked for again only while no part was sent.
+    """
+    for attempt in range(1, ANSWER_ATTEMPTS + 1):
+        answer = _StreamedAnswer(prompt.passages)
+        reader = PartReader()
+        try:
+            for chunk in usage.stream(llm, model, prompt):
+                yield from answer.add(reader.feed(chunk))
+            yield from answer.add(reader.finish())
+        except AnswerFormatError as error:
+            if answer.sent:
+                msg = f"The model's answer was not valid JSON: {error}"
+                raise ChatError(msg) from error
+            if attempt == ANSWER_ATTEMPTS:
+                msg = f"The model's answer was not valid JSON, {ANSWER_ATTEMPTS} times"
+                raise ChatError(msg) from error
+            continue
+        events, citations = answer.finish()
+        yield from events
+        return citations
+    raise AssertionError  # pragma: no cover - the loop returns or raises
+
+
+def chat_stream(searcher: Searcher, llm: Llm, request: ChatRequest) -> Iterator[Event]:
+    """Answer `request` as events: status, the checked parts, then done or error.
+
+    The parts equal those of `chat` for the same LLM replies. The request is
+    logged once, also when it fails.
+    """
+    usage = _Usage()
+    search_query = request.question
+    yield "status", {"step": "searching"}
+    try:
+        search_query = _search_query(
+            llm, request, usage, rewrite=searcher.settings.query_rewrite
+        )
+        retrieval = _retrieve(searcher, request, search_query)
+        context = retrieval["results"]
+        yield "status", {"step": "writing", "passages": len(context)}
+        turns = tuple(request.turns[-MAX_TURNS:])
+        prompt = AnswerPrompt(request.question, context, turns)
+        citations = yield from _stream_answer(llm, request.model, prompt, usage)
+    except (LlmError, ChatError) as error:
+        _log(searcher.engine, request.model, search_query, usage, str(error))
+        yield "error", {"message": str(error)}
+        return
+    _log(searcher.engine, request.model, search_query, usage, None)
+    yield "done", _details(request, search_query, citations, usage, retrieval)
