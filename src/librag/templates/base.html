@@ -18,7 +18,7 @@
       </nav>
     </div>
   </header>
-  <main class="page">
+  <main class="page{% block main_class %}{% endblock %}">
     {% block main %}{% endblock %}
   </main>
   {% block after_main %}{% endblock %}

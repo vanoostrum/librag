@@ -1,0 +1,192 @@
+// Copyright (C) 2026 Theo van Oostrum
+// Drive the Chat page in headless Chromium, as a user does, and save
+// screenshots and a transcript. Needs Node and Playwright (the cloud container
+// has both; on a Mac, `npm i -g playwright` and `npx playwright install chromium`).
+//
+// Usage: node chat-browser.js <url> <evidence dir> <action> <platform>
+//   no-books  screenshot the page of a library with no indexed book
+//   chat      the whole flow: start, book picker, streaming, answer, follow-up,
+//             new conversation, a failed answer and "Try again", model memory
+// <platform> is desktop (1280x800) or mobile (390x844).
+//
+// The fake LLM answers at once, so the page's fetch is wrapped: it passes the
+// server's events through one at a time, and can hold them after the first
+// part (for the streaming screenshot). For the failed answer it replaces the
+// server's stream with a provider error, which only a live or scripted LLM gives.
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+const { chromium } = require("playwright");
+
+const WINDOWS = { desktop: { width: 1280, height: 800 }, mobile: { width: 390, height: 844 } };
+const PROVIDER_ERROR = "Rate limit reached for gpt-6.1-terra. Try again in a minute.";
+
+function wrapFetch() {
+  window.__chat = { hold: false, release: null, fail: null };
+  const realFetch = window.fetch.bind(window);
+  const encoder = new TextEncoder();
+  window.fetch = async (input, init) => {
+    if (!String(input).endsWith("/api/chat/stream")) return realFetch(input, init);
+    const control = window.__chat;
+    if (control.fail) {
+      const events = [
+        'event: status\ndata: {"step": "searching"}\n\n',
+        `event: error\ndata: ${JSON.stringify({ message: control.fail })}\n\n`,
+      ];
+      return new Response(new Blob(events), { headers: { "content-type": "text/event-stream" } });
+    }
+    const response = await realFetch(input, init);
+    if (!response.ok) return response;
+    const text = await response.text();
+    const blocks = text.split("\n\n").filter((b) => b.trim());
+    const body = new ReadableStream({
+      async start(controller) {
+        for (const block of blocks) {
+          controller.enqueue(encoder.encode(`${block}\n\n`));
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          if (block.startsWith("event: part") && control.hold) {
+            await new Promise((resolve) => { control.release = resolve; });
+          }
+        }
+        controller.close();
+      },
+    });
+    return new Response(body, { status: response.status, headers: response.headers });
+  };
+}
+
+async function summary(page) {
+  return page.evaluate(() => {
+    const form = document.querySelector("form.ask");
+    return {
+      intro: document.querySelector(".chat-intro:not([hidden]) .chat-intro__title")?.textContent.trim() ?? null,
+      head: Boolean(document.querySelector(".chat-head:not([hidden])")),
+      turns: [...document.querySelectorAll(".turn")].map((turn) => ({
+        question: turn.querySelector(".question").textContent.trim(),
+        status: [...turn.querySelectorAll(".stream-status li")].map((li) => li.textContent.trim()),
+        parts: [...turn.querySelectorAll(".answer > p")].map((p) => p.textContent.trim()),
+        sources: [...turn.querySelectorAll(".source summary")].map((s) => s.textContent.trim()),
+        diagnostics: turn.querySelectorAll(".diagnostics").length,
+        error: turn.querySelector(".turn-error .notice__text")?.textContent.trim() ?? null,
+      })),
+      askDisabled: form.querySelector(".ask__input").disabled,
+      askButtonDisabled: form.querySelector(".ask__bar button").disabled,
+      model: form.querySelector("select").value,
+      books: form.querySelector(".picker__toggle").textContent.trim(),
+    };
+  });
+}
+
+async function main() {
+  const [url, out, action, platform] = process.argv.slice(2);
+  if (!url || !out || !action || !WINDOWS[platform]) {
+    throw new Error("usage: chat-browser.js <url> <evidence dir> <no-books|chat> <desktop|mobile>");
+  }
+  fs.mkdirSync(out, { recursive: true });
+  const log = [];
+  const note = (line) => { log.push(line); console.log(line); };
+  const browser = await chromium.launch();
+  const context = await browser.newContext({ viewport: WINDOWS[platform] });
+  await context.addInitScript(wrapFetch);
+  const page = await context.newPage();
+  const external = [];
+  const sent = [];
+  page.on("request", (request) => {
+    if (!request.url().startsWith(url)) external.push(request.url());
+    if (request.url().endsWith("/api/chat/stream")) sent.push(JSON.parse(request.postData()));
+  });
+  const shot = async (name) => {
+    // The gallery draws no focus, so the screenshot is taken without it.
+    await page.evaluate(() => document.activeElement?.blur());
+    await page.mouse.move(0, 0);
+    await page.screenshot({ path: path.join(out, `app_${name}_${platform}.png`) });
+    note(`screenshot: app_${name}_${platform}.png`);
+  };
+  const state = async (label) => note(`${label}: ${JSON.stringify(await summary(page))}`);
+  const lastSent = () => JSON.stringify(sent[sent.length - 1]);
+  const ask = async (question) => {
+    await page.fill(".ask__input", question);
+    await page.click(".ask__bar button");
+  };
+  const answered = (n) => page.waitForFunction(
+    (count) => document.querySelectorAll(".turn .diagnostics, .turn .turn-error").length >= count, n,
+  );
+
+  await page.goto(`${url}/chat`);
+  note(`open ${url}/chat (${platform})`);
+  await state("loaded");
+
+  if (action === "no-books") {
+    await shot("no_books");
+  } else if (action === "chat") {
+    await shot("start");
+
+    // The book picker: untick one author, then tick one book back.
+    await page.click(".picker__toggle");
+    const authors = await page.$$eval(".picker__group .picker__author", (ls) => ls.map((l) => l.textContent.trim()));
+    note(`picker opened: authors ${JSON.stringify(authors)}`);
+    const second = page.locator(".picker__group").nth(1);
+    await second.locator(".picker__author input").uncheck();
+    note(`unticked author ${authors[1]}: its books ticked = ${JSON.stringify(await second.locator(".picker__book input").evaluateAll((bs) => bs.map((b) => b.checked)))}`);
+    await second.locator(".picker__author input").check();
+    note(`ticked author ${authors[1]}: its books ticked = ${JSON.stringify(await second.locator(".picker__book input").evaluateAll((bs) => bs.map((b) => b.checked)))}`);
+    await second.locator(".picker__book input").first().uncheck();
+    await state("one book unticked");
+    await shot("book_picker");
+    await page.keyboard.press("Escape");
+
+    // Ask, and hold the stream after its first part.
+    await page.evaluate(() => { window.__chat.hold = true; });
+    await ask("What did the lighthouse keeper do every evening?");
+    await page.waitForFunction(() => window.__chat.release !== null);
+    await state("streaming");
+    note(`sent: ${lastSent()}`);
+    await shot("streaming");
+    await page.evaluate(() => { window.__chat.hold = false; window.__chat.release(); });
+    await answered(1);
+    await state("answered");
+    await shot("answer");
+
+    // A follow-up sends the first turn.
+    await ask("And what did the keeper log?");
+    await answered(2);
+    note(`follow-up sent: ${lastSent()}`);
+    await state("two turns");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await shot("conversation");
+
+    await page.click("[data-new-conversation]");
+    await state("new conversation");
+
+    // A failed answer, then "Try again".
+    await page.evaluate((message) => { window.__chat.fail = message; }, PROVIDER_ERROR);
+    await ask("Which of the books mentions the harbour?");
+    await answered(1);
+    await state("failed");
+    await shot("error");
+    await page.evaluate(() => { window.__chat.fail = null; });
+    await page.click(".turn-error button");
+    await page.waitForFunction(() => document.querySelectorAll(".turn .diagnostics").length === 1);
+    note(`try again sent: ${lastSent()}`);
+    await state("tried again");
+
+    // The model is remembered after a reload.
+    await page.selectOption("select[name=model]", { label: "GPT 6.1 Terra" });
+    await page.reload();
+    await state("reloaded after picking GPT 6.1 Terra");
+    await ask("lighthouse");
+    await answered(1);
+    note(`sent after reload: ${lastSent()}`);
+  } else {
+    throw new Error(`unknown action ${action}`);
+  }
+  note(`external requests: ${JSON.stringify(external)}`);
+  fs.writeFileSync(path.join(out, `browser_${action}_${platform}.txt`), `${log.join("\n")}\n`);
+  await browser.close();
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

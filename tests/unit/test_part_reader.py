@@ -116,3 +116,28 @@ def test_text_after_the_answer_object_is_ignored_while_streaming() -> None:
     assert len(returned) == len(PARTS)
     with pytest.raises(AnswerFormatError):
         reader.finish()
+
+
+def test_leading_whitespace_waits_for_the_answer() -> None:
+    """A reply that starts with blank space still streams once the JSON starts."""
+    reader = PartReader()
+    assert reader.feed("\n  ") == []
+    assert reader.feed(REPLY[:FIRST_END]) == [FIRST]
+
+
+def test_fence_for_another_language_streams_nothing() -> None:
+    """Only a `json` fence, or a bare one, is read early."""
+    reader = PartReader()
+    assert reader.feed(f"```text\n{REPLY}\n```") == []
+    with pytest.raises(AnswerFormatError):
+        reader.finish()
+
+
+def test_second_parts_key_fails_the_streamed_parts() -> None:
+    """When JSON keeps a later `parts` list, the parts already read do not count."""
+    first = json.dumps({"parts": [PARTS[0]]})[:-1]
+    reply = first + ', "parts": [' + json.dumps(PARTS[2]) + "]}"
+    reader = PartReader()
+    assert reader.feed(reply) == [FIRST, Part("synthesis", "Both agree.")]
+    with pytest.raises(AnswerFormatError, match="differ"):
+        reader.finish()

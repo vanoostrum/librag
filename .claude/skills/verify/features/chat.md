@@ -1,6 +1,6 @@
 # Chat
 
-A client asks a question with `POST /api/chat` and gets an answer from the library, in parts: `book` claims that cite passages, a `synthesis`, and `general` knowledge. The server checks every citation against the context that search selected, so a claim never shows as coming from the books without a passage from the context. With earlier turns, the LLM first rewrites the question into a standalone search query. Each request adds a row to the `chat_usage` table with its model, search query, tokens, cost and latency. `GET /api/config/models` lists the models chat can answer with. The stack uses the fake LLM: its answer cites context passages 1 and 2 in one book part and adds a synthesis part, and its rewrite appends the last turn's question to the question.
+A client asks a question with `POST /api/chat`, or `POST /api/chat/stream` for the same answer as server-sent events, and gets an answer from the library, in parts: `book` claims that cite passages, a `synthesis`, and `general` knowledge. The server checks every citation against the context that search selected, so a claim never shows as coming from the books without a passage from the context. With earlier turns, the LLM first rewrites the question into a standalone search query. Each request adds a row to the `chat_usage` table with its model, search query, tokens, cost and latency. `GET /api/config/models` lists the models chat can answer with. The stack uses the fake LLM: its answer cites context passages 1 and 2 in one book part and adds a synthesis part, and its rewrite appends the last turn's question to the question.
 
 ## Sub-features
 
@@ -10,6 +10,7 @@ A client asks a question with `POST /api/chat` and gets an answer from the libra
 - `chat-filters` with `book_ids` or `authors`: every citation is from those books or authors.
 - `chat-usage` adds one `chat_usage` row per request that reaches the LLM, with the values of `usage`. A failed request is logged with its `error`.
 - `chat-invalid` returns 422 with `{"error": "<field>: <what is wrong>"}` for a missing, empty or blank `question`, and for a `model` that is not in `LIBRAG_CHAT_MODELS`. A provider error, or an answer that is not valid JSON twice, returns 502 with `{"error"}`.
+- `chat-stream` (`POST /api/chat/stream`) takes the same body and returns 200 `text/event-stream`: `status` `{"step":"searching"}`, `status` `{"step":"writing","passages":N}`, one `part` per answer part (`{"kind","text","citations","sources"}`, where `sources` are the cited passages in the shape of `citations`), then `done` with `question`, `search_query`, `model`, `citations`, `usage` and `retrieval`. The parts equal the `parts` of `POST /api/chat` for the same LLM reply. A failure ends the stream with `error` `{"message"}`; a 422 is returned as JSON before the stream starts.
 - `chat-models` returns 200 with `{"models": [{"id", "name", "default"}]}`: Claude Sonnet 5.5 (`anthropic/claude-sonnet-5-5`) as the default, and GPT 6.1 Terra (`openai/gpt-6.1-terra`).
 
 ## How to get to it (user POV)
@@ -58,7 +59,8 @@ usage() { uv run python -c "import sqlite3; [print(r) for r in sqlite3.connect('
 - **Rewrite.** Run `ask '{"question":"And the fog?","turns":[{"question":"What did the keeper polish?","answer":"The brass lamp."}]}' rewrite`. `search_query` is `"And the fog? What did the keeper polish?"`.
 - **Filters.** Run `ask '{"question":"lighthouse","authors":["Ben Author"]}' author`. Every citation has `author` `"Ben Author"`. With `"book_ids":["<sea id>"]` (`book`), every citation has that `book_id`.
 - **Invalid.** Run `ask '{"question":"  "}' blank` and `ask '{"question":"x","model":"openai/gpt-4"}' unknown-model`. Both are `422`, with `{"error":"question: String should have at least 1 character"}` and `{"error":"model: 'openai/gpt-4' is not one of the chat models"}`.
-- **Usage.** Run `usage`. There is one row per `200` request above, in order, with the model, the search query, the tokens and the latency of its response's `usage`, `cost_usd` `0.0`, and no `error`. The `422` requests added no row.
+- **Stream.** Run `curl -sS -N -D $E/stream.headers -H 'content-type: application/json' -d '{"question":"lighthouse keeper brass lamp"}' $URL/api/chat/stream | tee $E/stream.txt`. The headers have `content-type: text/event-stream`; the events are `status` searching, `status` writing with the passage count, a `book` part with `citations` `[1,2]` and two `sources`, a `synthesis` part, then `done`. Run the same with `'{"question":"  "}'` (`stream-blank`): `422` JSON, no events.
+- **Usage.** Run `usage`. There is one row per `200` request and stream above, in order, with the model, the search query, the tokens and the latency of its response's `usage`, `cost_usd` `0.0`, and no `error`. The `422` requests added no row.
 
 ## Gotchas
 

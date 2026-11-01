@@ -1,11 +1,11 @@
 ---
 name: verify
-description: Drive the running LibRag FastAPI app over HTTP and capture evidence that a route behaves as specified. Use to prove a change in the real app (the Library page, /health, /version, the books API, search, chat, disabled API docs), not just in tests. For lint, type check, and tests, use project-verify.
+description: Drive the running LibRag FastAPI app over HTTP and capture evidence that a route behaves as specified. Use to prove a change in the real app (the Library page, the Chat page, /health, /version, the books API, search, chat, disabled API docs), not just in tests. For lint, type check, and tests, use project-verify.
 ---
 
 # Verify LibRag in the running app
 
-LibRag is an HTTP service. The user surface is its routes: `/` (the Library page, with `GET /library/books` for its refresh), `/health`, `/version`, the books API (`POST /api/books`, `GET /api/books`), search (`POST /api/rag/search`), and chat (`POST /api/chat`, `GET /api/config/models`). The API docs (`/docs`, `/redoc`, `/openapi.json`) are off on purpose. The app runs as a stack: `api`, `worker`, Qdrant and a SQLite metadata database. There is no UI framework, auth, or seed data. The driver is `curl`, wrapped by one helper script, and for the Library page's browser flows, `scripts/library-browser.js` with Playwright.
+LibRag is an HTTP service. The user surface is its routes: `/` (the Library page, with `GET /library/books` for its refresh), `/health`, `/version`, the books API (`POST /api/books`, `GET /api/books`), search (`POST /api/rag/search`), the Chat page (`/chat`), and chat (`POST /api/chat`, `POST /api/chat/stream`, `GET /api/config/models`). The API docs (`/docs`, `/redoc`, `/openapi.json`) are off on purpose. The app runs as a stack: `api`, `worker`, Qdrant and a SQLite metadata database. There is no UI framework, auth, or seed data. The driver is `curl`, wrapped by one helper script, and for the browser flows of the Library and Chat pages, `scripts/library-browser.js` and `scripts/chat-browser.js` with Playwright.
 
 `project-verify` runs ruff, ty, and pytest, the same as CI. This skill is the other half: it starts a real server and checks what a client sees.
 

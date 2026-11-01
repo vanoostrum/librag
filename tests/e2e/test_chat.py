@@ -1,6 +1,10 @@
 # Copyright (C) 2026 Theo van Oostrum
-"""The running stack answers a question with citations. Run: uv run pytest tests/e2e."""
+"""The running stack answers a question with citations, whole and streamed.
 
+Run: uv run pytest tests/e2e.
+"""
+
+import json
 import os
 import time
 import uuid
@@ -15,8 +19,8 @@ BASE_URL = os.environ.get("LIBRAG_E2E_URL", "http://localhost:8000")
 INDEX_TIMEOUT_SECONDS = 60
 
 
-def test_chat_answers_with_citations_to_an_indexed_book() -> None:
-    """Upload a book, wait for indexed, and ask: the answer cites its passages."""
+def _index_book() -> tuple[str, str]:
+    """Upload a fixture book, wait until it is indexed; return its ID and word."""
     # A new identifier per run, so the test also passes on a stack it used before.
     word = f"zq{uuid.uuid4().hex[:10]}"
     book = FixtureBook(
@@ -36,7 +40,7 @@ def test_chat_answers_with_citations_to_an_indexed_book() -> None:
     files = {"file": ("chat.epub", make_epub(book), "application/epub+zip")}
     response = httpx2.post(f"{BASE_URL}/api/books", files=files, timeout=10.0)
     assert response.status_code == HTTPStatus.ACCEPTED, response.text
-    book_id = response.json()["id"]
+    book_id = str(response.json()["id"])
 
     deadline = time.monotonic() + INDEX_TIMEOUT_SECONDS
     listed: dict[str, Any] = {}
@@ -47,7 +51,12 @@ def test_chat_answers_with_citations_to_an_indexed_book() -> None:
             break
         time.sleep(0.5)
     assert listed["status"] == "indexed", listed
+    return book_id, word
 
+
+def test_chat_answers_with_citations_to_an_indexed_book() -> None:
+    """Upload a book, wait for indexed, and ask: the answer cites its passages."""
+    book_id, word = _index_book()
     response = httpx2.post(
         f"{BASE_URL}/api/chat",
         json={"question": f"Who polished the {word} lamp?", "book_ids": [book_id]},
@@ -63,3 +72,27 @@ def test_chat_answers_with_citations_to_an_indexed_book() -> None:
     assert first["book_id"] == book_id
     assert first["chapter"] == "Keeper"
     assert word in first["text"]
+
+
+def test_chat_streams_cited_parts_and_done() -> None:
+    """The stream sends parts whose citations resolve to the book, then done."""
+    book_id, word = _index_book()
+    response = httpx2.post(
+        f"{BASE_URL}/api/chat/stream",
+        json={"question": f"Who polished the {word} lamp?", "book_ids": [book_id]},
+        timeout=30.0,
+    )
+    assert response.status_code == HTTPStatus.OK, response.text
+    assert response.headers["content-type"].startswith("text/event-stream")
+    events = []
+    for block in response.text.strip().split("\n\n"):
+        fields = dict(line.split(": ", 1) for line in block.splitlines())
+        events.append((fields["event"], json.loads(fields["data"])))
+    assert events[-1][0] == "done"
+    [claim] = [
+        data for name, data in events if name == "part" and data["kind"] == "book"
+    ]
+    assert claim["citations"]
+    assert [source["n"] for source in claim["sources"]] == claim["citations"]
+    assert claim["sources"][0]["book_id"] == book_id
+    assert word in claim["sources"][0]["text"]

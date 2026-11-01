@@ -19,6 +19,7 @@ from starlette.staticfiles import StaticFiles
 
 from librag.books import BookConflictError, add_book, list_books
 from librag.chat import ChatError, ChatRequest, Event, chat, chat_stream
+from librag.chat_page import chat_context
 from librag.embeddings import make_embedder
 from librag.epub import EpubError
 from librag.health import check_database, check_qdrant, check_worker
@@ -226,6 +227,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "nav": "library",
                 "max_upload_mb": state.settings.max_upload_mb,
             },
+        )
+
+    @app.get("/chat", response_class=HTMLResponse)
+    def chat_page(request: Request) -> HTMLResponse:
+        """Return the Chat page: the ask bar, the models and the book picker."""
+        state = request.app.state
+        return TEMPLATES.TemplateResponse(
+            request,
+            "chat.html",
+            chat_context(list_books(state.engine), state.settings),
         )
 
     @app.get("/library/books", response_class=HTMLResponse)

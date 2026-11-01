@@ -94,6 +94,8 @@ a:hover { color: var(--accent-hover); }
   gap: 28px;
 }
 
+.page--reading { max-width: 760px; }
+
 .page-head {
   display: flex;
   flex-wrap: wrap;
@@ -202,6 +204,103 @@ a:hover { color: var(--accent-hover); }
 .progress::-webkit-progress-value { border-radius: 3px; background: var(--busy); }
 .progress::-moz-progress-bar { border-radius: 3px; background: var(--busy); }
 
+/* Chat: question, answer, sources */
+
+.question { margin: 0; font-size: 26px; line-height: 1.35; font-style: italic; color: var(--ink-soft); }
+
+.answer { font-size: 18px; line-height: 1.7; display: flex; flex-direction: column; gap: var(--space-4); }
+
+.answer p { margin: 0; }
+
+.cite {
+  padding: 0 3px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.answer-part { padding-left: var(--space-4); border-left: 3px double var(--rule-strong); color: var(--ink-soft); }
+
+.answer-part__label {
+  display: block;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.answer-part__label--synthesis { color: var(--synthesis); }
+
+.sources { display: flex; flex-direction: column; gap: var(--space-3); font-family: var(--sans); }
+
+.section-label {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.source {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 0 var(--space-4);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.source summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+
+.source__excerpt { display: block; padding-bottom: 14px; font-family: var(--serif); color: var(--ink-soft); }
+
+.diagnostics { font-size: 14px; color: var(--ink-soft); }
+
+.diagnostics summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+
+/* Chat: question form */
+
+.ask { display: flex; flex-direction: column; gap: var(--space-2); font-family: var(--sans); }
+
+.ask__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 6px 6px 18px;
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: 26px;
+}
+
+.ask__input {
+  flex-grow: 1;
+  min-width: 0;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+}
+
+.ask__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.ask__options select {
+  min-height: 32px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+}
+
 /* Library: upload notices, the empty library, and dropping files */
 
 .notices { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-family: var(--sans); }
@@ -276,6 +375,101 @@ a:hover { color: var(--accent-hover); }
 
 .drop-overlay__hint { margin: var(--space-2) 0 0; color: var(--ink-muted); font-family: var(--sans); font-size: 15px; }
 
+/* Chat: the conversation, streaming, errors and the book picker */
+
+.chat-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); font-family: var(--sans); }
+
+.chat-head__title { margin: 0; font-size: 14px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--ink-muted); }
+
+.button-quiet {
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--rule-strong);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--sans);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.button-quiet:hover { background: var(--rule); color: var(--ink); }
+
+.turn { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.turn + .turn { padding-top: var(--space-6); border-top: 1px solid var(--rule); }
+
+.stream-status { display: flex; flex-direction: column; gap: var(--space-1); margin: 0; padding: 0; list-style: none; font-family: var(--sans); font-size: 14px; color: var(--ink-muted); }
+
+.stream-status__step--done::before { content: "✓ "; color: var(--ok); font-weight: 700; }
+
+.stream-status__step--active { color: var(--busy); font-weight: 600; }
+
+.turn-error { font-family: var(--sans); }
+
+.chat-intro { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-6) 0 var(--space-5); text-align: center; }
+
+.chat-intro__title { margin: 0; font-size: 30px; font-weight: 400; }
+
+.chat-intro__hint { margin: 0; color: var(--ink-muted); font-family: var(--sans); font-size: 15px; }
+
+.chat-intro .button-primary { display: inline-flex; align-items: center; justify-content: center; align-self: center; margin-top: var(--space-3); text-decoration: none; }
+
+/* The Chat page fills the window, so the ask bar sits at the bottom and the book picker opens upward. */
+.chat-body { display: flex; flex-direction: column; min-height: 100vh; }
+
+.chat-body .page { flex-grow: 1; width: 100%; }
+
+.ask { position: sticky; bottom: 0; margin-top: auto; padding: var(--space-3) 0 var(--space-4); background: var(--paper); }
+
+.ask--disabled .ask__bar { background: var(--paper); border-style: dashed; }
+
+.ask--disabled .ask__input { cursor: not-allowed; }
+
+.button-primary:disabled { background: var(--rule-strong); color: var(--surface); cursor: not-allowed; }
+
+/* The picker panel is placed against the ask form, above the ask bar. */
+.picker { position: static; }
+
+.picker__toggle {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.picker__panel {
+  position: absolute;
+  bottom: calc(100% - var(--space-2));
+  left: 0;
+  width: 360px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(43, 38, 34, 0.14);
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.picker__panel fieldset { margin: 0; padding: 0; border: 0; }
+
+.picker__group { padding: var(--space-2) 0; border-top: 1px solid var(--rule); }
+
+.picker__panel label { display: flex; align-items: center; gap: var(--space-2); min-height: 40px; }
+
+.picker__author { font-weight: 600; }
+
+.picker__book { padding-left: var(--space-5); color: var(--ink-soft); }
+
+.picker__panel input { width: 18px; height: 18px; accent-color: var(--accent); }
+
 /* Phone layout */
 
 @media (max-width: 640px) {
@@ -303,6 +497,17 @@ a:hover { color: var(--accent-hover); }
     font-size: 18px;
     font-weight: 400;
   }
+
+  .question { font-size: 21px; }
+  .answer { font-size: 17px; line-height: 1.65; }
+  .chat-intro__title { font-size: 26px; }
+  .picker__panel { left: var(--space-3); right: var(--space-3); width: auto; bottom: calc(100% + var(--space-1)); }
+  .ask {
+    margin: auto calc(-1 * var(--space-4)) 0;
+    padding: 10px var(--space-3) 14px;
+    background: var(--paper);
+    border-top: 1px solid var(--rule);
+  }
 }
 
 /* App only: the parts of the page that the gallery draws as static states. */
@@ -313,3 +518,15 @@ a:hover { color: var(--accent-hover); }
 .notices:empty { display: none; }
 
 .drop-overlay[hidden] { display: none; }
+
+/* The conversation lays its turns out in the page, like the gallery's turns. */
+.conversation { display: contents; }
+
+.chat-head[hidden], .chat-intro[hidden], .picker__panel[hidden], .sources[hidden] { display: none; }
+
+.answer:empty { display: none; }
+
+/* The ask bar shows the focus of its input, which has no outline of its own. */
+.ask__input:focus { outline: none; }
+
+.ask__bar:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
