@@ -57,6 +57,7 @@ The api, the worker and `migrate` read these environment variables:
 | `LIBRAG_CHAT_MODELS` | `anthropic/claude-sonnet-5-5=Claude Sonnet 5.5,openai/gpt-6.1-terra=GPT 6.1 Terra` | The LiteLLM models that chat can answer with, as comma-separated `<id>=<name>` entries. In `live` mode each needs its provider's key, such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. |
 | `LIBRAG_CHAT_DEFAULT_MODEL` | the first chat model | The model a chat request gets when it names none. It must be one of `LIBRAG_CHAT_MODELS`. |
 | `LIBRAG_QUERY_REWRITE` | `on` | `on` lets the LLM rewrite a follow-up question into a standalone search query; `off` searches the question as asked. |
+| `LIBRAG_REINDEX_ENABLED` | `off` | `on` adds Reindex to the Library page and turns on `POST /api/books/{id}/reindex` and `POST /api/books/reindex-out-of-date`; `off` hides them, and the routes answer 404. Retry and Delete are always on. |
 
 ## Development
 

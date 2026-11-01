@@ -1,6 +1,7 @@
 # Copyright (C) 2026 Theo van Oostrum
 """Fixtures for the route tests that upload and index books."""
 
+import dataclasses
 import ipaddress
 import socket
 import uuid
@@ -74,6 +75,23 @@ def client(settings: Settings) -> Iterator[TestClient]:
     """Return a test client for the app with `settings`."""
     with TestClient(create_app(settings)) as client:
         yield client
+
+
+@pytest.fixture
+def on_settings(settings: Settings) -> Settings:
+    """Return the test settings with LIBRAG_REINDEX_ENABLED on."""
+    return dataclasses.replace(settings, reindex_enabled=True)
+
+
+@pytest.fixture
+def on(on_settings: Settings, client: TestClient) -> Iterator[TestClient]:
+    """Return a test client for the app with the reindex switch on.
+
+    It shares the stores of `client`, so a book added through one shows in both.
+    """
+    del client
+    with TestClient(create_app(on_settings)) as on:
+        yield on
 
 
 @pytest.fixture

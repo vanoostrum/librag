@@ -1,5 +1,5 @@
 # Copyright (C) 2026 Theo van Oostrum
-"""Add a book to the library and queue its ingestion job, and list the books."""
+"""Add, list, delete and retry the books of the library, with their ingestion jobs."""
 
 import hashlib
 import os
@@ -9,13 +9,31 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Engine, RowMapping, insert, literal_column, select
+from qdrant_client import QdrantClient
+from sqlalchemy import (
+    Connection,
+    Engine,
+    RowMapping,
+    and_,
+    case,
+    delete,
+    exists,
+    insert,
+    literal_column,
+    not_,
+    select,
+    update,
+)
 from sqlalchemy.exc import IntegrityError
 
-from librag.db import books, ingestion_jobs, to_db_time
+from librag.db import books, ingestion_jobs, passages, to_db_time
 from librag.epub import read_metadata
+from librag.index import delete_book_points
 from librag.passages import TOKENIZER
 from librag.settings import Settings
+
+IN_PROGRESS = ("queued", "parsing", "indexing")
+INTERRUPTED = "indexing was interrupted"
 
 
 @dataclass(frozen=True)
@@ -24,6 +42,32 @@ class BookConflictError(Exception):
 
     message: str
     book_id: str
+
+
+@dataclass(frozen=True)
+class BookNotFoundError(Exception):
+    """No book in the library has this ID."""
+
+    book_id: str
+
+
+@dataclass(frozen=True)
+class BookStateError(Exception):
+    """The book is in a state that does not allow the action."""
+
+    message: str
+
+
+# A book is interrupted when it is in progress but no job is queued or running to
+# finish it. The API shows it as failed, so the user can retry it.
+_has_active_job = exists().where(
+    ingestion_jobs.c.book_id == books.c.id,
+    ingestion_jobs.c.status.in_(("queued", "running")),
+)
+_interrupted = and_(books.c.status.in_(IN_PROGRESS), not_(_has_active_job))
+# The status and error that the API shows.
+STATUS = case((_interrupted, "failed"), else_=books.c.status)
+_ERROR = case((_interrupted, INTERRUPTED), else_=books.c.error)
 
 
 def book_path(file_store_dir: str, book_id: str) -> Path:
@@ -118,10 +162,10 @@ _COLUMNS = (
     books.c.id,
     books.c.title,
     books.c.author,
-    books.c.status,
+    STATUS.label("status"),
     books.c.passages_indexed,
     books.c.passages_total,
-    books.c.error,
+    _ERROR.label("error"),
     books.c.embedding_tokens,
     books.c.embedding_cost_usd,
     books.c.uploaded_at,
@@ -129,13 +173,18 @@ _COLUMNS = (
 
 
 def get_book(engine: Engine, book_id: str) -> dict[str, Any]:
-    """Return the book `book_id` as the API shows it."""
+    """Return the book `book_id` as the API shows it.
+
+    Raises `BookNotFoundError` when there is no such book.
+    """
     with engine.connect() as connection:
         row = (
             connection.execute(select(*_COLUMNS).where(books.c.id == book_id))
             .mappings()
-            .one()
+            .one_or_none()
         )
+    if row is None:
+        raise BookNotFoundError(book_id)
     return _json(row)
 
 
@@ -152,3 +201,81 @@ def list_books(engine: Engine) -> list[dict[str, Any]]:
             .all()
         )
     return [_json(row) for row in rows]
+
+
+def delete_book(
+    engine: Engine, settings: Settings, client: QdrantClient, book_id: str
+) -> None:
+    """Delete the book, its points in every collection, passages, jobs and EPUB.
+
+    Raises `BookNotFoundError` when there is no such book, and `BookStateError`
+    while a job is queued or running for it.
+    """
+    in_progress = BookStateError("The book is queued or being indexed")
+    if get_book(engine, book_id)["status"] in IN_PROGRESS:
+        raise in_progress
+    # The points go first: if Qdrant fails, the book is still there to delete again.
+    delete_book_points(client, settings.qdrant_collection_prefix, book_id)
+    with engine.begin() as connection:
+        status = connection.scalar(select(STATUS).where(books.c.id == book_id))
+        if status in IN_PROGRESS:
+            raise in_progress  # pragma: no cover - a job was queued since the check
+        connection.execute(delete(passages).where(passages.c.book_id == book_id))
+        connection.execute(
+            delete(ingestion_jobs).where(ingestion_jobs.c.book_id == book_id)
+        )
+        connection.execute(delete(books).where(books.c.id == book_id))
+    book_path(settings.file_store_dir, book_id).unlink(missing_ok=True)
+
+
+def queue_job(
+    connection: Connection,
+    settings: Settings,
+    book_id: str,
+    kind: str = "ingest",
+) -> None:
+    """Put the book back in `queued` under the current passage settings, with a job.
+
+    The book shows as new until the job has run, and search leaves it out.
+    """
+    connection.execute(
+        update(books)
+        .where(books.c.id == book_id)
+        .values(
+            status="queued",
+            error=None,
+            passages_indexed=0,
+            passages_total=None,
+            passage_target_tokens=settings.passage_target_tokens,
+            passage_overlap_tokens=settings.passage_overlap_tokens,
+            tokenizer=TOKENIZER,
+        )
+    )
+    connection.execute(
+        insert(ingestion_jobs).values(
+            book_id=book_id,
+            status="queued",
+            kind=kind,
+            created_at=to_db_time(datetime.now(UTC)),
+        )
+    )
+
+
+def retry_book(
+    engine: Engine, settings: Settings, client: QdrantClient, book_id: str
+) -> dict[str, Any]:
+    """Run the full ingestion of a failed or interrupted book again.
+
+    Raises `BookNotFoundError` when there is no such book, and `BookStateError`
+    when the book is not failed or interrupted.
+    """
+    not_failed = BookStateError("Only a failed or interrupted book can be retried")
+    if get_book(engine, book_id)["status"] != "failed":
+        raise not_failed
+    # A failed indexing can leave some points behind; the new passages may differ.
+    delete_book_points(client, settings.qdrant_collection_prefix, book_id)
+    with engine.begin() as connection:
+        if connection.scalar(select(STATUS).where(books.c.id == book_id)) != "failed":
+            raise not_failed  # pragma: no cover - a job was queued since the check
+        queue_job(connection, settings, book_id)
+    return get_book(engine, book_id)

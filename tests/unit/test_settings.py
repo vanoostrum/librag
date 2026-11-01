@@ -132,6 +132,7 @@ def test_rerank_settings_are_read_from_the_environment() -> None:
             "a/one=One,,b/two",
         ),
         ({"LIBRAG_QUERY_REWRITE": "sometimes"}, "LIBRAG_QUERY_REWRITE", "sometimes"),
+        ({"LIBRAG_REINDEX_ENABLED": "yes"}, "LIBRAG_REINDEX_ENABLED", "yes"),
     ],
 )
 def test_invalid_chat_setting_stops_startup(
@@ -168,3 +169,9 @@ def test_default_chat_model_is_the_first_configured() -> None:
     assert settings.chat_default_model == "b/two"
     assert Settings.from_env({}).chat_default_model == "anthropic/claude-sonnet-5-5"
     assert Settings.from_env({"LIBRAG_QUERY_REWRITE": "1"}).query_rewrite is True
+
+
+def test_reindex_switch_is_off_by_default() -> None:
+    """LIBRAG_REINDEX_ENABLED is off unless the environment turns it on."""
+    assert Settings.from_env({}).reindex_enabled is False
+    assert Settings.from_env({"LIBRAG_REINDEX_ENABLED": "on"}).reindex_enabled is True

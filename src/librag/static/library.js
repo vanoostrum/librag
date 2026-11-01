@@ -1,6 +1,8 @@
 // Copyright (C) 2026 Theo van Oostrum
 // The Library page: add books with the file picker or by dropping files on the
 // page, upload each one with POST /api/books, and show a notice for each refusal.
+// The card links delete (after a confirmation in the card), retry and reindex a
+// book through the books API, then refresh the grid.
 "use strict";
 
 (() => {
@@ -54,8 +56,17 @@
     }
   }
 
+  // The live refresh skips a beat while a card asks to confirm a delete; a
+  // refresh after an action of the page always goes.
+  let refreshing = false;
+
   function refresh() {
-    return htmx.ajax("GET", "/library/books", { target: "#library", swap: "outerHTML" });
+    refreshing = true;
+    try {
+      return htmx.ajax("GET", "/library/books", { target: "#library", swap: "outerHTML" });
+    } finally {
+      refreshing = false;
+    }
   }
 
   // Upload the files one after the other, and show each new book as it lands.
@@ -78,9 +89,64 @@
     }
   }
 
+  const FAILED = {
+    DELETE: " could not be deleted. Try again.",
+    POST: " could not be queued. Try again.",
+  };
+
+  // Send the action of a link or button, then show the books as they are now.
+  async function act(control) {
+    const { method, url } = control.dataset;
+    const title = control.closest(".book-card")?.querySelector(".book-card__title")?.textContent;
+    control.setAttribute("aria-disabled", "true");
+    let ok = false;
+    try {
+      ok = (await fetch(url, { method })).ok;
+    } catch {
+      ok = false;
+    }
+    if (!ok) {
+      showNotice(title || "The out-of-date books", FAILED[method]);
+    }
+    await refresh();
+  }
+
+  function confirming(card, on) {
+    card.classList.toggle("book-card--confirming", on);
+    card.querySelector(".confirm").hidden = !on;
+    const focus = on ? ".confirm [data-cancel]" : "[data-delete]";
+    card.querySelector(focus).focus();
+  }
+
+  // While a card asks to confirm a delete, the live refresh waits, so it does
+  // not take the question away.
+  document.addEventListener("htmx:beforeRequest", (event) => {
+    if (refreshing || event.detail.elt.id !== "library") return;
+    if (document.querySelector(".book-card--confirming")) {
+      event.preventDefault();
+    }
+  });
+
   document.addEventListener("click", (event) => {
     if (event.target.closest("[data-add-book]")) {
       picker.click();
+      return;
+    }
+    const deleting = event.target.closest("[data-delete]");
+    if (deleting) {
+      event.preventDefault();
+      confirming(deleting.closest(".book-card"), true);
+      return;
+    }
+    const cancel = event.target.closest("[data-cancel]");
+    if (cancel) {
+      confirming(cancel.closest(".book-card"), false);
+      return;
+    }
+    const action = event.target.closest("[data-url]");
+    if (action) {
+      event.preventDefault();
+      if (action.getAttribute("aria-disabled") !== "true") act(action);
       return;
     }
     const dismiss = event.target.closest(".notice__dismiss");

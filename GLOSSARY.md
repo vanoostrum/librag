@@ -32,6 +32,14 @@ _Avoid_: Index settings
 Rebuild the indexed passages of one book, without changing the other books.
 _Avoid_: Refresh, rebuild
 
+**Out of date**:
+A book whose index configuration differs from the current settings. Search cannot find it, or finds passages cut differently, until it is reindexed.
+_Avoid_: Stale, outdated index
+
+**Interrupted**:
+A book whose ingestion stopped without a result: it is left in parsing or indexing with no job to finish it. The user retries it.
+_Avoid_: Stuck, hung
+
 **Contextual enrichment**:
 A short context line that an LLM writes for a passage at indexing time, indexed with the passage but kept apart from its original text.
 _Avoid_: Augmentation, annotation

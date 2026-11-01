@@ -381,6 +381,10 @@ a:hover { color: var(--accent-hover); }
 
 .drop-overlay__hint { margin: var(--space-2) 0 0; color: var(--ink-muted); font-family: var(--sans); font-size: 15px; }
 
+/* Library: confirming a delete, and reindexing (when the reindex switch is on) */
+
+.page-head__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+
 /* Chat: the conversation, streaming, errors and the book picker */
 
 .chat-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); font-family: var(--sans); }
@@ -400,6 +404,27 @@ a:hover { color: var(--accent-hover); }
 }
 
 .button-quiet:hover { background: var(--rule); color: var(--ink); }
+
+.button-danger {
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: 20px;
+  background: var(--danger);
+  color: var(--surface);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.confirm { display: flex; flex-direction: column; gap: var(--space-2); margin-top: auto; padding-top: var(--space-2); font-family: var(--sans); }
+
+.confirm__question { margin: 0; color: var(--danger); font-size: 14px; font-weight: 600; }
+
+.confirm__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+.status-note { color: var(--ink-muted); font-family: var(--sans); font-size: 13px; }
 
 .turn { display: flex; flex-direction: column; gap: var(--space-5); }
 
@@ -530,6 +555,8 @@ a:hover { color: var(--accent-hover); }
   .page-title { font-size: 30px; }
   .lede { font-size: 16px; }
   .page-head .button-primary { width: 100%; min-height: 48px; border-radius: 24px; font-size: 16px; }
+  .page-head__actions { width: 100%; flex-direction: column-reverse; align-items: stretch; }
+  .page-head__actions .button-quiet { min-height: 44px; }
 
   .book-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
   .book-card { flex-direction: row; }
