@@ -3,7 +3,7 @@
 
 import dataclasses
 import hashlib
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
@@ -173,8 +173,12 @@ class Store:
             return 0
         return self.qdrant.count(name, count_filter=_of_book(book_id), exact=True).count
 
-    def copy_to_old(self, book_id: str) -> None:
-        """Copy the book's points to the old model's collection, as if it made them."""
+    def copy_to_old(self, book_id: str, name: str | None = None) -> None:
+        """Copy the book's points to the old model's collection, as if it made them.
+
+        With `name`, copy them to that collection instead.
+        """
+        target = name or self.old
         records, _ = self.qdrant.scroll(
             self.collection, scroll_filter=_of_book(book_id), with_vectors=True
         )
@@ -187,8 +191,8 @@ class Store:
             )
             for record in records
         ]
-        ensure_collection(self.qdrant, self.old, len(points[0].vector))
-        upsert(self.qdrant, self.old, points)
+        ensure_collection(self.qdrant, target, len(points[0].vector))
+        upsert(self.qdrant, target, points)
 
 
 def _of_book(book_id: str) -> models.Filter:
@@ -205,23 +209,6 @@ def store(
 ) -> Store:
     """Return the test stores."""
     return Store(engine, settings, qdrant, collection)
-
-
-@pytest.fixture
-def on_settings(settings: Settings) -> Settings:
-    """Return the test settings with LIBRAG_REINDEX_ENABLED on."""
-    return dataclasses.replace(settings, reindex_enabled=True)
-
-
-@pytest.fixture
-def on(on_settings: Settings, client: TestClient) -> Iterator[TestClient]:
-    """Return a test client for the app with the reindex switch on.
-
-    It depends on `client`, so books can be added through either.
-    """
-    del client
-    with TestClient(create_app(on_settings)) as on:
-        yield on
 
 
 class BrokenEmbedder(FakeEmbedder):
@@ -242,6 +229,7 @@ def test_delete_removes_the_book_from_every_collection(
     client: TestClient,
     index: Callable[..., None],
     store: Store,
+    request: pytest.FixtureRequest,
 ) -> None:
     """DELETE returns 204; the book is gone from the list, search and every collection.
 
@@ -250,6 +238,10 @@ def test_delete_removes_the_book_from_every_collection(
     index(SEA, HARBOUR)
     store.copy_to_old(SEA_ID)
     assert store.points(SEA_ID, store.old) == 2  # noqa: PLR2004
+    # A collection under another prefix belongs to another LibRag; it stays.
+    foreign = f"{store.settings.qdrant_collection_prefix}x_fake"
+    store.copy_to_old(SEA_ID, foreign)
+    request.addfinalizer(lambda: store.qdrant.delete_collection(foreign))
     assert SEA_ID in book_ids_found(client, "lighthouse keeper strawberries")
 
     response = client.delete(f"/api/books/{SEA_ID}")
@@ -259,6 +251,7 @@ def test_delete_removes_the_book_from_every_collection(
     assert book_ids_found(client, "lighthouse keeper strawberries") == {HARBOUR_ID}
     assert store.points(SEA_ID) == 0
     assert store.points(SEA_ID, store.old) == 0
+    assert store.points(SEA_ID, foreign) == 2  # noqa: PLR2004
     assert store.passages(SEA_ID) == []
     assert store.jobs(SEA_ID) == 0
     assert not store.file(SEA_ID).exists()

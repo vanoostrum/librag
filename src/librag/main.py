@@ -37,7 +37,7 @@ from librag.index import qdrant_client
 from librag.library import STATIC_DIR, TEMPLATES, library_context
 from librag.llm import make_llm
 from librag.prompts import Turn
-from librag.reindex import reindex_book, reindex_out_of_date
+from librag.reindex import out_of_date_books, reindex_book, reindex_out_of_date
 from librag.rerank import make_reranker
 from librag.search import Searcher, SearchRequest, search
 from librag.settings import MAX_SEARCH_K, MAX_TOKEN_BUDGET, MIN_TOKEN_BUDGET, Settings
@@ -291,6 +291,17 @@ def _searcher(request: Request) -> Searcher:
     )
 
 
+def _library_context(request: Request) -> dict[str, Any]:
+    """Return what the library templates need: the books, and the out-of-date ones."""
+    state = request.app.state
+    out_of_date = (
+        out_of_date_books(state.engine, state.settings, state.embedder.model)
+        if state.settings.reindex_enabled
+        else None
+    )
+    return library_context(list_books(state.engine), out_of_date)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Return the LibRag app. Without `settings`, it reads them at startup."""
 
@@ -319,7 +330,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             request,
             "library.html",
             {
-                **library_context(list_books(state.engine)),
+                **_library_context(request),
                 "nav": "library",
                 "max_upload_mb": state.settings.max_upload_mb,
             },
@@ -338,9 +349,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/library/books", response_class=HTMLResponse)
     def library_books(request: Request) -> HTMLResponse:
         """Return the library region of the page, for the live refresh."""
-        books = list_books(request.app.state.engine)
         return TEMPLATES.TemplateResponse(
-            request, "library_region.html", library_context(books)
+            request, "library_region.html", _library_context(request)
         )
 
     @app.get("/health")

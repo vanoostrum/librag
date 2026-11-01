@@ -125,6 +125,37 @@ a:hover { color: var(--accent-hover); }
 
 .button-primary:hover { background: var(--accent-hover); }
 
+.action-links { display: flex; gap: var(--space-4); margin-top: auto; padding-top: var(--space-2); font-size: 14px; }
+
+.action-links a { padding: var(--space-1) 0; }
+
+.action-links .danger { color: var(--danger); }
+
+/* Library: confirming a delete, and reindexing (when the reindex switch is on) */
+
+.page-head__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+
+.button-danger {
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: 20px;
+  background: var(--danger);
+  color: var(--surface);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.confirm { display: flex; flex-direction: column; gap: var(--space-2); margin-top: auto; padding-top: var(--space-2); font-family: var(--sans); }
+
+.confirm__question { margin: 0; color: var(--danger); font-size: 14px; font-weight: 600; }
+
+.confirm__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+.status-note { color: var(--ink-muted); font-family: var(--sans); font-size: 13px; }
+
 /* Library: book cards */
 
 .book-grid {
@@ -482,6 +513,8 @@ a:hover { color: var(--accent-hover); }
   .page-title { font-size: 30px; }
   .lede { font-size: 16px; }
   .page-head .button-primary { width: 100%; min-height: 48px; border-radius: 24px; font-size: 16px; }
+  .page-head__actions { width: 100%; flex-direction: column-reverse; align-items: stretch; }
+  .page-head__actions .button-quiet { min-height: 44px; }
 
   .book-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
   .book-card { flex-direction: row; }
@@ -497,6 +530,8 @@ a:hover { color: var(--accent-hover); }
     font-size: 18px;
     font-weight: 400;
   }
+  .action-links { font-size: 15px; gap: 20px; }
+  .action-links a { padding: var(--space-2) 0; }
 
   .question { font-size: 21px; }
   .answer { font-size: 17px; line-height: 1.65; }
@@ -518,6 +553,11 @@ a:hover { color: var(--accent-hover); }
 .notices:empty { display: none; }
 
 .drop-overlay[hidden] { display: none; }
+
+/* A card that asks to confirm a delete shows the question instead of its status. */
+.confirm[hidden] { display: none; }
+
+.book-card--confirming .status, .book-card--confirming .progress, .book-card--confirming .status-note, .book-card--confirming .action-links { display: none; }
 
 /* The conversation lays its turns out in the page, like the gallery's turns. */
 .conversation { display: contents; }

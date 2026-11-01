@@ -9,7 +9,12 @@
       <p class="lede">Add an EPUB to ask questions about it in Chat.</p>
       {% endif %}
     </div>
-    {% if cards %}
+    {% if reindex_label %}
+    <div class="page-head__actions">
+      <button type="button" class="button-quiet" data-method="POST" data-url="/api/books/reindex-out-of-date">{{ reindex_label }}</button>
+      <button type="button" class="button-primary" data-add-book>Add a book</button>
+    </div>
+    {% elif cards %}
     <button type="button" class="button-primary" data-add-book>Add a book</button>
     {% endif %}
   </div>
@@ -25,6 +30,23 @@
         <div class="status status--{{ card.status }}">{{ card.status_text }}</div>
         {% if card.progress is not none %}
         <progress class="progress" value="{{ card.progress }}" max="100" aria-label="Indexing progress">{{ card.progress }}%</progress>
+        {% endif %}
+        {% if card.note %}
+        <div class="status-note">{{ card.note }}</div>
+        {% endif %}
+        {% if card.actions %}
+        <div class="action-links">
+          {%- if "retry" in card.actions %}<a href="#" data-method="POST" data-url="/api/books/{{ card.book_id }}/retry">Retry</a>{% endif -%}
+          {%- if "reindex" in card.actions %}<a href="#" data-method="POST" data-url="/api/books/{{ card.book_id }}/reindex">Reindex</a>{% endif -%}
+          <a href="#" class="danger" data-delete>Delete</a>
+        </div>
+        <div class="confirm" role="group" aria-label="Confirm delete" hidden>
+          <p class="confirm__question">Delete this book and its passages?</p>
+          <div class="confirm__actions">
+            <button type="button" class="button-danger" data-method="DELETE" data-url="/api/books/{{ card.book_id }}">Delete</button>
+            <button type="button" class="button-quiet" data-cancel>Cancel</button>
+          </div>
+        </div>
         {% endif %}
       </div>
     </article>

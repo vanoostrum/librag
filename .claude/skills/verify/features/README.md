@@ -35,6 +35,7 @@ Each feature file starts with an H1 title and one paragraph on the behavior a cl
 - [Version](./version.md) covers `/version` and its match with `pyproject.toml`.
 - [API docs disabled](./api-docs-disabled.md) covers the 404s for `/docs`, `/redoc`, and `/openapi.json`.
 - [Books](./books.md) covers uploading an EPUB with `POST /api/books`, its parsing in the background, and the list at `GET /api/books`.
+- [Book actions](./book-actions.md) covers deleting, retrying and reindexing books with `DELETE /api/books/{id}`, `POST /api/books/{id}/retry`, `POST /api/books/{id}/reindex` and `POST /api/books/reindex-out-of-date`.
 - [Search](./search.md) covers searching the indexed passages with `POST /api/rag/search`, with each retrieval stage.
 - [Chat](./chat.md) covers answering questions with citations at `POST /api/chat`, streamed at `POST /api/chat/stream`, and the model list at `GET /api/config/models`.
 - [Chat page](./chat-page.md) covers the Chat page at `/chat`: asking, the streamed answer, turns, the book picker, "Try again" and the remembered model, in the browser.
