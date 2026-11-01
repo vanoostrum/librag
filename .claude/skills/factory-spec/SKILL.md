@@ -55,7 +55,7 @@ Optional steering arguments follow it, as Steering in `CLAUDE.md` describes.
    - **Risks:** only if there are any.
    If a spec already exists and the human gave feedback, update it instead and note what changed.
 6. **Replan check.** Run the replan check from `factory-next` with this spec's decisions and domain docs.
-7. **Gate.** Post `🤖 Gate: spec` with the acceptance criteria, the replan proposals, and "Reply approve, or give feedback." For a `ui` ticket, the gate also approves the gallery pages: list them, and point to their screenshots on the ticket. In chat, ask for approval with the ticket link and the number of criteria. Stop.
+7. **Gate.** Post `🤖 Gate: spec` with the acceptance criteria, the replan proposals, and "Reply approve, or give feedback." For a `ui` ticket, the gate also approves the gallery pages: list them, and point to their screenshots on the ticket. In chat, ask for approval, by 👍 on the message or a reply "approve", with the ticket link and the number of criteria. Stop.
 
 ## Done when
 
