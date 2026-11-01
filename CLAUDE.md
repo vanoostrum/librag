@@ -56,7 +56,7 @@ This repo is worked on by a software factory: Claude Code agents take a Linear t
 | 🚦 Gate 2: approve merge | — | build | In Review |
 | Merge, with the replan check | `factory-merge` | build | Done |
 
-The factory works in two lanes, in parallel. The spec lane needs the human and runs one or two tickets ahead. The build lane runs on its own, up to the merge gate. `factory-next` picks the ticket for each lane and holds the lane rules, the replan check, and the milestone checkpoint.
+The factory works in two lanes, in parallel. The spec lane needs the human and runs up to four tickets ahead. The build lane runs on its own, up to the merge gate. `factory-next` picks the ticket for each lane and holds the lane rules, the replan check, and the milestone checkpoint.
 
 When asked to "work on" a ticket or a feature, run the steps in order from wherever the ticket is. Stop at each gate. Start at `factory-plan` for a project spec, or for new work that spans more than one or two tickets or adds a new user flow. Otherwise start at `factory-spec`. `factory-spec` runs `factory-design` itself. When asked to "work on the plan" or to "pick up the next ticket", run `factory-next`.
 
