@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Library · LibRag</title>
+  <link rel="stylesheet" href="../../gallery.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header__inner">
+      <div class="wordmark">LibRag</div>
+      <nav class="main-nav" aria-label="Main">
+        <a href="default.html" aria-current="page">Library</a>
+        <a href="../chat/answer.html">Chat</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Your library</h1>
+        <p class="lede">Four books. Ask about any of them in Chat once they are indexed.</p>
+      </div>
+      <button type="button" class="button-primary">Add a book</button>
+    </div>
+    <ul class="notices" aria-live="polite">
+      <li class="notice"><span class="notice__text"><em>Thinking, Fast and Slow</em> is already in your library.</span><button type="button" class="notice__dismiss" aria-label="Dismiss">Dismiss</button></li>
+      <li class="notice"><span class="notice__text"><em>holiday-photos.zip</em> isn't an EPUB we can read.</span><button type="button" class="notice__dismiss" aria-label="Dismiss">Dismiss</button></li>
+      <li class="notice"><span class="notice__text"><em>complete-encyclopedia.epub</em> is larger than 50 MB.</span><button type="button" class="notice__dismiss" aria-label="Dismiss">Dismiss</button></li>
+    </ul>
+    <div class="book-grid">
+      <article class="book-card">
+        <div class="book-card__cover cover--slate" aria-hidden="true">Thinking, Fast and Slow</div>
+        <div class="book-card__body">
+          <h2 class="book-card__title">Thinking, Fast and Slow</h2>
+          <div class="book-card__author">Daniel Kahneman</div>
+          <div class="status status--indexed">Indexed · 612 passages</div>
+        </div>
+      </article>
+      <article class="book-card">
+        <div class="book-card__cover cover--ink" aria-hidden="true">The Black Swan</div>
+        <div class="book-card__body">
+          <h2 class="book-card__title">The Black Swan</h2>
+          <div class="book-card__author">Nassim Nicholas Taleb</div>
+          <div class="status status--indexing">Indexing · 63%</div>
+          <progress class="progress" value="63" max="100" aria-label="Indexing progress">63%</progress>
+        </div>
+      </article>
+      <article class="book-card">
+        <div class="book-card__cover cover--clay" aria-hidden="true">Antifragile</div>
+        <div class="book-card__body">
+          <h2 class="book-card__title">Antifragile</h2>
+          <div class="book-card__author">Nassim Nicholas Taleb</div>
+          <div class="status status--parsing">Reading the book</div>
+        </div>
+      </article>
+      <article class="book-card">
+        <div class="book-card__cover cover--olive" aria-hidden="true">Meditations</div>
+        <div class="book-card__body">
+          <h2 class="book-card__title">Meditations</h2>
+          <div class="book-card__author">Marcus Aurelius</div>
+          <div class="status status--queued">Waiting in the queue</div>
+        </div>
+      </article>
+    </div>
+  </main>
+</body>
+</html>
