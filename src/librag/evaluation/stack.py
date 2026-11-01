@@ -175,7 +175,7 @@ def _wait_until_indexed(
             if entry["status"] == "failed":
                 msg = (
                     f"{title} is not indexed: it failed with '{entry['error']}'. "
-                    "Retry it in the Library, then run the evaluation again."
+                    "Check its EPUB in the books folder, then run the evaluation again."
                 )
                 raise EvalError(msg)
         waiting = [key for key, entry in found.items() if entry["status"] != "indexed"]

@@ -337,7 +337,7 @@ def test_unreachable_stack_fails_with_a_clear_message(
 def test_book_that_fails_to_index_stops_the_run(
     client: TestClient, run: Callable[..., tuple[int, str, str]], eval_dir: Path
 ) -> None:
-    """A book that fails to index stops the run with its error."""
+    """A book that fails to index stops the run, and the run removes its books."""
     (eval_dir / "eval" / "books" / "pg2.epub").write_bytes(
         make_epub(_book("urn:harbour", "Harbour Tales", "Ben Author", ""))
     )
@@ -348,7 +348,7 @@ def test_book_that_fails_to_index_stops_the_run(
         in err
     )
     assert not (eval_dir / "eval-reports").exists()
-    del client
+    assert library(client) == {}
 
 
 def test_author_filter_that_matches_no_book_is_refused(

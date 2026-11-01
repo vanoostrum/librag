@@ -195,16 +195,26 @@ def main(argv: Sequence[str], io: Io | None = None) -> int:
     stack = Stack(http, url, wait=io.wait, log=lambda line: print(line, file=io.out))
     try:
         evalset = load(args.set)
-        books = ensure_books(stack, evalset, args.books_dir, _fetcher(io))
         if args.command == "fetch":
+            books = ensure_books(stack, evalset, args.books_dir, _fetcher(io))
             print(f"All {len(books)} evaluation books are indexed.", file=io.out)
             return 0
         try:
+            books = ensure_books(stack, evalset, args.books_dir, _fetcher(io))
             _evaluate(stack, evalset, args, books, io)
         finally:
             if not args.keep_books:
-                delete_uploaded(stack, args.books_dir)
+                _clean_up(stack, args.books_dir, io)
     except (EvalError, EvalSetError) as error:
         print(f"eval: {error}", file=io.err)
         return 1
     return 0
+
+
+def _clean_up(stack: Stack, books_dir: Path, io: Io) -> None:
+    """Delete the books the run uploaded, also when the run failed."""
+    try:
+        delete_uploaded(stack, books_dir)
+    except EvalError as error:
+        # A book still indexing cannot be deleted yet; the next run tries again.
+        print(f"eval: {error}. The next run deletes it.", file=io.err)
