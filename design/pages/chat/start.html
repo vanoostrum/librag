@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat · LibRag</title>
+  <link rel="stylesheet" href="../../gallery.css">
+</head>
+<body class="chat-body">
+  <header class="site-header">
+    <div class="site-header__inner">
+      <div class="wordmark">LibRag</div>
+      <nav class="main-nav" aria-label="Main">
+        <a href="../library/default.html">Library</a>
+        <a href="answer.html" aria-current="page">Chat</a>
+      </nav>
+    </div>
+  </header>
+  <main class="page page--reading">
+    <h1 class="visually-hidden">Chat</h1>
+    <section class="chat-intro">
+      <p class="chat-intro__title">Ask your library</p>
+      <p class="chat-intro__hint">Answers quote the passages they come from. Pick a model and the books to search below.</p>
+    </section>
+    <form class="ask">
+      <div class="ask__bar">
+        <label class="visually-hidden" for="question">Question</label>
+        <input class="ask__input" id="question" type="text" placeholder="Ask your library a question">
+        <button type="submit" class="button-primary">Ask</button>
+      </div>
+      <div class="ask__options">
+        <label>Model <select><option>Claude Sonnet 5.5</option><option>GPT 6.1 Terra</option></select></label>
+        <div class="picker">
+          <button type="button" class="picker__toggle" aria-expanded="false">Books: All indexed books ▾</button>
+        </div>
+      </div>
+    </form>
+  </main>
+</body>
+</html>
