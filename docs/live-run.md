@@ -38,7 +38,7 @@ The cost of a run is the sum of `usage.cost_usd` of each chat answer and `embedd
 
 LiteLLM can lack the price of a model. Its cost is then unknown, and the cap cannot count it. The table shows `unknown`, the JSON shows `null`, and the report prints a warning for each model with an unknown cost.
 
-A chat request that fails with 502 returns no usage, so the cap does not count it either.
+A chat request that fails returns no usage, so the cap does not count it either. That holds for a 502 from `POST /api/chat` and for a stream that ends with an `error` event. The provider can still charge for such a request.
 
 ## The report
 

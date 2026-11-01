@@ -197,6 +197,52 @@ LIVE = Library(
                     "gallery where the keepers once stood to watch for the "
                     "far buoy.",
                 ),
+                _chapter(
+                    "The Relief Boat",
+                    "The relief boat was a broad wooden launch with a single "
+                    "engine, crewed by two boatmen from the harbour. It brought "
+                    "fresh water in casks, paraffin in tins, letters, "
+                    "newspapers, meat, bread and vegetables, and it took one "
+                    "keeper ashore for his month of leave while another came "
+                    "out to take his place.",
+                    "Landing at Gannet Rock was the hardest part of the work. "
+                    "There was no harbour, only an iron ladder fixed to the "
+                    "rock and a derrick that swung the stores up in a net. In a "
+                    "heavy swell the boat could lie off for hours, and more "
+                    "than once it turned back to the mainland with the stores "
+                    "still aboard and the relieving keeper seasick in the bows.",
+                    "On foggy mornings the boatmen refused to put out at all, "
+                    "since they had no compass worth the name and the rock gave "
+                    "no warning of itself until the boat was almost on it. The "
+                    "keepers on the rock would hear the harbour church bell on "
+                    "a still day, and know that the boat was not coming.",
+                    "When the weather held the boat back for weeks, the keepers "
+                    "rationed the tinned food and the tobacco, and the "
+                    "principal keeper wrote in the logbook how many days of "
+                    "stores were left. In the winter of 1947 the count fell to "
+                    "four days before the boat came through.",
+                ),
+                _chapter(
+                    "The Logbook",
+                    "The Gannet Rock logbooks fill eleven volumes, now kept in "
+                    "the county record office. Each page is ruled into columns: "
+                    "the date, the hours of lighting, the wind and the sea, the "
+                    "visibility, the ships seen, and a last wide column headed "
+                    "remarks, where the keepers wrote whatever else the day had "
+                    "brought.",
+                    "Most remarks are short. A gull broke a pane of the "
+                    "lantern. The stove smoked. The assistant keeper cut his "
+                    "hand on a tin. Some are longer: an account of a schooner "
+                    "that drifted past with no one at the wheel, or of a whale "
+                    "that lay for an hour in the lee of the rock, blowing.",
+                    "Weather fills more of the logbooks than anything else. The "
+                    "keepers measured the wind by the Beaufort scale, and they "
+                    "noted frost, snow and hail as carefully as gales. Frost on "
+                    "the gallery rail was a danger in its own right, since a "
+                    "keeper could slip on the iron while he cleaned the outside "
+                    "of the lantern glass, and the logbook records two such "
+                    "falls, neither of them fatal.",
+                ),
             ),
         ),
         FixtureBook(
@@ -287,6 +333,44 @@ LIVE = Library(
                     "every spring about whether the smudge pots should be "
                     "replaced with wind machines.",
                 ),
+                _chapter(
+                    "Bees and Blossom",
+                    "Every spring the orchard hired forty hives from a "
+                    "beekeeper in the next valley. The hives came on a lorry at "
+                    "night, so that the bees were all at home, and were set out "
+                    "along the hedges at the edge of the bowl. Without them the "
+                    "blossom would set little fruit, however well it was "
+                    "guarded.",
+                    "The bees do not fly in cold or fog. On a grey May morning "
+                    "the growers would walk the rows and find the blossom open "
+                    "and untouched, and the hives silent. A run of such days "
+                    "could do as much harm to the crop as a frost, and nothing "
+                    "could be done about it but wait for the sun.",
+                    "The beekeeper asked the growers not to spray while the "
+                    "bees were working, and the two sides argued every year "
+                    "about it. The cooperative now keeps a few hives of its "
+                    "own, at the top of the bowl, where the morning sun reaches "
+                    "first.",
+                ),
+                _chapter(
+                    "Cider",
+                    "Not every apple goes to market. The windfalls, the bruised "
+                    "fruit and the small apples go to the cider house, a stone "
+                    "barn at the head of the lane where an old screw press "
+                    "still stands. The apples are milled to a pulp, built into "
+                    "a cheese between layers of straw, and pressed until the "
+                    "juice runs brown into the trough.",
+                    "The juice ferments in oak barrels through the winter. The "
+                    "barn is never heated, and in a hard frost the cider makers "
+                    "wrap the barrels in sacking and keep a small stove burning "
+                    "by the door, so that the cider keeps working and does not "
+                    "stop. By spring the cider is dry and sharp, and it is "
+                    "drunk at the blossom festival in May.",
+                    "The cider house kept its own book of each year's pressing, "
+                    "and in a wet autumn, when fog lay in the bowl for days and "
+                    "the apples could not be picked, the book shows that almost "
+                    "the whole crop went to cider.",
+                ),
             ),
         ),
         FixtureBook(
@@ -343,6 +427,26 @@ LIVE = Library(
                     "light on Gannet Rock swept past them far out to sea.",
                     "The column ends in 1912 with a single word, closed, "
                     "written larger than the rest.",
+                ),
+                _chapter(
+                    "The Marsh Chapel",
+                    "The chapel on the marsh was built by the salt makers "
+                    "themselves, of brick carried out on the carts that took "
+                    "the salt to market. It held sixty people on a good Sunday. "
+                    "Its bell, cast in the market town, hung in a little open "
+                    "turret at the west end, where the wind could carry its "
+                    "sound across the whole marsh.",
+                    "The bell had three uses. It rang for the services on "
+                    "Sunday, it rang for funerals, and it rang the alarm when "
+                    "the sea wall was in danger. Each use had its own pattern "
+                    "of strokes, which every child on the marsh learned before "
+                    "it could read, so that no one ever mistook a storm tide "
+                    "for a burial.",
+                    "In fog the chapel bell was rung every quarter of an hour "
+                    "through the night, so that men out on the pans or the sea "
+                    "wall could find their way home by the sound. The ledger "
+                    "notes the cost of the bell rope, which wore through every "
+                    "two years, and of the candles burned by the ringer.",
                 ),
             ),
         ),
