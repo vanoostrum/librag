@@ -14,6 +14,13 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "e2e-live"
 KEYS = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY")
+SCRIPT_SETTINGS = (
+    "LIBRAG_LIVE_BUDGET_USD",
+    "LIBRAG_LIVE_PORT",
+    "LIBRAG_LIVE_QDRANT_PORT",
+    "LIBRAG_E2E_LIVE",
+    "LIBRAG_E2E_URL",
+)
 COMPOSE = "docker compose -p librag-live -f compose.yaml"
 STAND_IN = """#!/usr/bin/env bash
 name="$(basename "$0")"
@@ -36,8 +43,8 @@ def _run(
         stand_in.write_text(STAND_IN, encoding="utf-8")
         stand_in.chmod(0o755)
     calls = tmp_path / "calls.log"
-    base = {k: v for k, v in os.environ.items() if k not in KEYS}
-    base.pop("LIBRAG_LIVE_BUDGET_USD", None)
+    # The caller's shell must not steer the script under test.
+    base = {k: v for k, v in os.environ.items() if k not in (*KEYS, *SCRIPT_SETTINGS)}
     full_env = {
         **base,
         "PATH": f"{bin_dir}{os.pathsep}{base['PATH']}",
