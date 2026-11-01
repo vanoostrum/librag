@@ -166,8 +166,20 @@ async function main() {
     await state("failed");
     await shot("error");
     await page.evaluate(() => { window.__chat.fail = null; });
+
+    // Ask on after the failure; then "Try again" with no book ticked does nothing.
+    await ask("And what did the keeper log?");
+    await answered(2);
+    await page.click(".picker__toggle");
+    await page.locator("input[data-all]").check();
+    await page.locator("input[data-all]").uncheck();
+    note(`no book ticked: ask button disabled ${await page.locator(".ask__bar button").isDisabled()}, try again disabled ${await page.locator(".turn-error button").isDisabled()}`);
+    await page.locator("input[data-all]").check();
+    await page.keyboard.press("Escape");
+
+    // "Try again" replaces the failed turn where it is, and sends only the turns before it.
     await page.click(".turn-error button");
-    await page.waitForFunction(() => document.querySelectorAll(".turn .diagnostics").length === 1);
+    await page.waitForFunction(() => document.querySelectorAll(".turn .diagnostics").length === 2);
     note(`try again sent: ${lastSent()}`);
     await state("tried again");
 

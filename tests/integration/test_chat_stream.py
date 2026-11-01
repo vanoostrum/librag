@@ -1,6 +1,7 @@
 # Copyright (C) 2026 Theo van Oostrum
 """HTTP tests for streaming answers with POST /api/chat/stream."""
 
+import itertools
 import json
 from collections.abc import Callable, Iterator
 from http import HTTPStatus
@@ -10,8 +11,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 
+from librag.chat import ABORTED, ChatRequest, chat_stream
 from librag.llm import Completion, LlmError
 from librag.prompts import NO_PASSAGE, Prompt
+from librag.search import Searcher
 from tests.integration.test_chat import (
     DEFAULT_MODEL,
     HARBOUR,
@@ -341,3 +344,36 @@ def test_default_model_is_used_without_one(client: TestClient) -> None:
     """Without `model`, the stream answers with the default model."""
     found = stream(client, "lighthouse")
     assert named(found, "done")[0]["model"] == DEFAULT_MODEL
+
+
+def test_stream_the_client_stops_reading_is_logged(
+    client: TestClient, engine: Engine, index: Callable[..., None]
+) -> None:
+    """A stream that the client leaves halfway still adds its usage row.
+
+    No request through TestClient can leave a stream halfway, so the test
+    reads the events of the chat service and stops after the first part.
+    """
+    index(SEA)
+    state = client.app.state  # ty: ignore[unresolved-attribute]
+    searcher = Searcher(
+        engine=state.engine,
+        settings=state.settings,
+        embedder=state.embedder,
+        reranker=state.reranker,
+        client=state.qdrant,
+    )
+    events = chat_stream(
+        searcher, state.llm, ChatRequest("lighthouse keeper", DEFAULT_MODEL)
+    )
+    assert [name for name, _ in itertools.islice(events, 3)] == [
+        "status",
+        "status",
+        "part",
+    ]
+    events.close()  # ty: ignore[unresolved-attribute]
+    [row] = usage_rows(engine)
+    assert row["error"] == ABORTED
+    assert row["search_query"] == "lighthouse keeper"
+    # The provider counts the tokens at the end of its reply, so they are unknown.
+    assert (row["input_tokens"], row["output_tokens"]) == (0, 0)

@@ -533,16 +533,19 @@ def _stream_answer(
     raise AssertionError  # pragma: no cover - the loop returns or raises
 
 
+ABORTED = "The client closed the stream before the answer was done"
+
+
 def chat_stream(searcher: Searcher, llm: Llm, request: ChatRequest) -> Iterator[Event]:
     """Answer `request` as events: status, the checked parts, then done or error.
 
     The parts equal those of `chat` for the same LLM replies. The request is
-    logged once, also when it fails.
+    logged once, also when it fails or the client stops reading.
     """
     usage = _Usage()
     search_query = request.question
-    yield "status", {"step": "searching"}
     try:
+        yield "status", {"step": "searching"}
         search_query = _search_query(
             llm, request, usage, rewrite=searcher.settings.query_rewrite
         )
@@ -552,9 +555,12 @@ def chat_stream(searcher: Searcher, llm: Llm, request: ChatRequest) -> Iterator[
         turns = tuple(request.turns[-MAX_TURNS:])
         prompt = AnswerPrompt(request.question, context, turns)
         citations = yield from _stream_answer(llm, request.model, prompt, usage)
-    except (LlmError, ChatError) as error:
-        _log(searcher.engine, request.model, search_query, usage, str(error))
-        yield "error", {"message": str(error)}
-        return
-    _log(searcher.engine, request.model, search_query, usage, None)
-    yield "done", _details(request, search_query, citations, usage, retrieval)
+    except (LlmError, ChatError) as failure:
+        _log(searcher.engine, request.model, search_query, usage, str(failure))
+        yield "error", {"message": str(failure)}
+    except GeneratorExit:
+        _log(searcher.engine, request.model, search_query, usage, ABORTED)
+        raise
+    else:
+        _log(searcher.engine, request.model, search_query, usage, None)
+        yield "done", _details(request, search_query, citations, usage, retrieval)

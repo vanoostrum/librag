@@ -23,8 +23,6 @@
   const allBox = panel.querySelector("input[data-all]");
   const bookBoxes = [...panel.querySelectorAll("input[name=book_ids]")];
 
-  // Completed turns: what the next question sends as the conversation so far.
-  let turns = [];
   let turnCount = 0;
   let streaming = null;
 
@@ -97,9 +95,11 @@
     }
   });
 
+  // The ticked books to send as `book_ids`: [] for all of them, which is no
+  // filter, so a book indexed later is searched too; null for none.
   function bookIds() {
     const ticked = bookBoxes.filter((b) => b.checked);
-    // All books ticked means no filter, so a book indexed later is searched too.
+    if (!ticked.length) return null;
     return ticked.length === bookBoxes.length ? [] : ticked.map((b) => b.value);
   }
 
@@ -107,10 +107,13 @@
 
   function updateAsk() {
     const busy = streaming !== null;
-    const noBooks = !bookBoxes.some((b) => b.checked);
+    const noBooks = bookIds() === null;
     input.disabled = busy;
     askButton.disabled = busy || noBooks;
     form.classList.toggle("ask--disabled", busy);
+    for (const retry of conversation.querySelectorAll(".turn-error button")) {
+      retry.disabled = busy || noBooks;
+    }
   }
 
   function showConversation(started) {
@@ -201,7 +204,10 @@
     diagnostics.append(element("summary", "", "How this answer was found"));
     turn.sources.append(diagnostics);
     turn.sources.hidden = false;
-    turns.push({ question: turn.question, answer: turn.parts.map((p) => p.text).join(" ") });
+    turn.section.answered = {
+      question: turn.question,
+      answer: turn.parts.map((p) => p.text).join(" "),
+    };
   }
 
   function failTurn(turn, message) {
@@ -212,9 +218,8 @@
     const retry = element("button", "button-quiet", "Try again");
     retry.type = "button";
     retry.addEventListener("click", () => {
-      if (streaming) return;
-      turn.section.remove();
-      ask(turn.question);
+      if (streaming || bookIds() === null) return;
+      ask(turn.question, turn.section);
     });
     notice.append(retry);
     turn.section.append(notice);
@@ -270,16 +275,32 @@
     failTurn(turn, "the answer stopped before it was complete.");
   }
 
-  async function ask(question) {
+  // The answered turns before `section`: the conversation that its question follows.
+  function turnsBefore(section) {
+    const earlier = [];
+    for (const node of conversation.children) {
+      if (node === section) break;
+      if (node.answered) earlier.push(node.answered);
+    }
+    return earlier;
+  }
+
+  // Ask `question` in a new turn at the bottom, or in place of the turn `replacing`.
+  async function ask(question, replacing = null) {
+    const ids = bookIds();
+    if (ids === null) return;
     showConversation(true);
     const turn = newTurn(question);
-    conversation.append(turn.section);
+    if (replacing) {
+      replacing.replaceWith(turn.section);
+    } else {
+      conversation.append(turn.section);
+    }
     const controller = new AbortController();
     streaming = controller;
     updateAsk();
     turn.section.scrollIntoView({ block: "start" });
-    const body = { question, turns, model: modelSelect.value };
-    const ids = bookIds();
+    const body = { question, turns: turnsBefore(turn.section), model: modelSelect.value };
     if (ids.length) body.book_ids = ids;
     try {
       const response = await fetch("/api/chat/stream", {
@@ -317,7 +338,6 @@
   head.querySelector("[data-new-conversation]").addEventListener("click", () => {
     if (streaming) streaming.abort();
     streaming = null;
-    turns = [];
     conversation.replaceChildren();
     showConversation(false);
     updateAsk();

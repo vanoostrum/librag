@@ -9,7 +9,7 @@ The Chat page at `/chat` lets the user ask questions about their library and rea
 - `chat-page-picker`: the picker lists the indexed books by author. Ticking or unticking an author ticks or unticks their books. The toggle says "All indexed books", "N books" or "none". The next question sends the ticked books as `book_ids`, or no `book_ids` when all are ticked.
 - `chat-page-stream`: asking shows "Searched your books · N passages found" and "Writing the answer…" with the parts that have arrived; the ask bar is disabled until `done`. Then the progress lines go and "How this answer was found" (closed, empty) appears.
 - `chat-page-turns`: a follow-up sends the earlier turns as `turns`; turns stack. "New conversation" clears them.
-- `chat-page-error`: an `error` event shows "The model didn't answer: <message>" and "Try again", which asks again and replaces the failed turn.
+- `chat-page-error`: an `error` event shows "The model didn't answer: <message>" and "Try again", which asks again in place of the failed turn, with the turns before it. With no book ticked, "Try again" is disabled, like Ask.
 - `chat-page-model`: the picked model is still selected after a reload.
 
 ## How to get to it (user POV)
@@ -37,7 +37,9 @@ B=.claude/skills/verify/scripts/chat-browser.js
   - while streaming: the two progress lines, the first part, `askDisabled: true`; the request has the two ticked `book_ids`;
   - answered: no progress lines, a book part and a synthesis, two sources, one diagnostics placeholder, `askDisabled: false`;
   - the follow-up request has the first turn in `turns`; two turns; after "New conversation" no turns and the intro is back;
-  - the failed turn shows "The model didn't answer: Rate limit reached for gpt-6.1-terra. Try again in a minute."; after "Try again" one answered turn;
+  - the failed turn shows "The model didn't answer: Rate limit reached for gpt-6.1-terra. Try again in a minute."; a question asked after it is answered below it;
+  - with no book ticked, both Ask and "Try again" are disabled;
+  - "Try again" sends `turns: []` (no answered turn comes before the failed one), and the retried turn stays first, above the later turn;
   - after picking GPT 6.1 Terra and reloading, the model is `openai/gpt-6.1-terra` and the next request sends it;
   - `external requests: []`.
 - **Gallery.** For each platform, compare `app_<state>_<platform>.png` with `$V gallery chat-page pages/chat/<page>.html <platform>`, for start, book-picker, streaming, answer, conversation and error.
