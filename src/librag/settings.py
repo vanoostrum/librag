@@ -68,6 +68,8 @@ class Settings:
     chat_default_model: str = DEFAULT_CHAT_MODELS[0].id
     # Rewrite a follow-up question into a standalone search query.
     query_rewrite: bool = True
+    # Reindexing is for retrieval experiments, so it is off unless asked for.
+    reindex_enabled: bool = False
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "Settings":
@@ -130,6 +132,9 @@ class Settings:
             chat_models=chat_models,
             chat_default_model=chat_default_model,
             query_rewrite=_switch(env, "LIBRAG_QUERY_REWRITE", defaults.query_rewrite),
+            reindex_enabled=_switch(
+                env, "LIBRAG_REINDEX_ENABLED", defaults.reindex_enabled
+            ),
         )
 
 

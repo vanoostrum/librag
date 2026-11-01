@@ -79,3 +79,19 @@ def upsert(client: QdrantClient, name: str, points: Sequence[Point]) -> None:
         ],
         wait=True,
     )
+
+
+def delete_book_points(client: QdrantClient, prefix: str, book_id: str) -> None:
+    """Delete the points of `book_id` from the collection of every embedding model."""
+    book = models.Filter(
+        must=[
+            models.FieldCondition(key="book_id", match=models.MatchValue(value=book_id))
+        ]
+    )
+    for collection in client.get_collections().collections:
+        if collection.name.startswith(f"{prefix}_"):
+            client.delete(
+                collection.name,
+                points_selector=models.FilterSelector(filter=book),
+                wait=True,
+            )
