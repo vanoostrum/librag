@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Chat · LibRag{% endblock %}
+{% block scripts %}{% if authors %}<script src="/static/chat.js" defer></script>{% endif %}{% endblock %}
+{% block body_attributes %} class="chat-body"{% endblock %}
+{% block main_class %} page--reading{% endblock %}
+{% block main %}
+    <h1 class="visually-hidden">Chat</h1>
+{% if authors %}
+    <div class="chat-head" hidden>
+      <h2 class="chat-head__title">Conversation</h2>
+      <button type="button" class="button-quiet" data-new-conversation>New conversation</button>
+    </div>
+    <section class="chat-intro">
+      <p class="chat-intro__title">Ask your library</p>
+      <p class="chat-intro__hint">Answers quote the passages they come from. Pick a model and the books to search below.</p>
+    </section>
+    <div class="conversation"></div>
+    <form class="ask">
+      <div class="ask__bar">
+        <label class="visually-hidden" for="question">Question</label>
+        <input class="ask__input" id="question" name="question" type="text" placeholder="Ask your library a question" autocomplete="off" required>
+        <button type="submit" class="button-primary">Ask</button>
+      </div>
+      <div class="ask__options">
+        <label>Model <select name="model">
+{%- for model in models %}<option value="{{ model.id }}"{% if model.id == default_model %} selected{% endif %}>{{ model.name }}</option>{% endfor -%}
+        </select></label>
+        <div class="picker">
+          <button type="button" class="picker__toggle" aria-expanded="false" aria-controls="picker-panel">Books: All indexed books ▾</button>
+          <div class="picker__panel" id="picker-panel" role="dialog" aria-label="Books to search" hidden>
+            <fieldset>
+              <legend class="visually-hidden">Books to search</legend>
+              <label class="picker__author"><input type="checkbox" data-all checked> All indexed books</label>
+{%- for author in authors %}
+              <div class="picker__group">
+                <label class="picker__author"><input type="checkbox" data-author checked> {{ author.name }}</label>
+{%- for book in author.books %}
+                <label class="picker__book"><input type="checkbox" name="book_ids" value="{{ book.id }}" checked> {{ book.title }}</label>
+{%- endfor %}
+              </div>
+{%- endfor %}
+            </fieldset>
+          </div>
+        </div>
+      </div>
+    </form>
+{% else %}
+    <section class="chat-intro">
+      <p class="chat-intro__title">No books are indexed yet</p>
+      <p class="chat-intro__hint">You can ask questions here once a book in your library is indexed.</p>
+      <a class="button-primary" href="/">Go to the Library</a>
+    </section>
+    <form class="ask ask--disabled">
+      <div class="ask__bar">
+        <label class="visually-hidden" for="question">Question</label>
+        <input class="ask__input" id="question" type="text" placeholder="Add a book to start asking" disabled>
+        <button type="submit" class="button-primary" disabled>Ask</button>
+      </div>
+      <div class="ask__options">
+        <label>Model <select disabled>
+{%- for model in models %}<option value="{{ model.id }}"{% if model.id == default_model %} selected{% endif %}>{{ model.name }}</option>{% endfor -%}
+        </select></label>
+        <div class="picker">
+          <button type="button" class="picker__toggle" aria-expanded="false" disabled>Books: none ▾</button>
+        </div>
+      </div>
+    </form>
+{% endif %}
+{% endblock %}

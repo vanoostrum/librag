@@ -106,6 +106,13 @@ class ScriptedLlm:
             raise reply
         return reply
 
+    def stream(self, model: str, prompt: Prompt) -> Iterator[str | Completion]:
+        """Stream the next reply in chunks of 5 characters, then its completion."""
+        reply = self.complete(model, prompt)
+        for start in range(0, len(reply.text), 5):
+            yield reply.text[start : start + 5]
+        yield reply
+
 
 def reply(text: str, cost_usd: float | None = 0.25) -> Completion:
     """Return a completion of `text` with 100 input and 10 output tokens."""

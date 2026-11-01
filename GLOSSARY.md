@@ -62,6 +62,14 @@ _Avoid_: Response, completion
 A reference in an answer to one passage in the context.
 _Avoid_: Source, reference, footnote
 
+**Conversation**:
+The turns of one chat in the page, from the first question until "New conversation" or a reload. It is not saved.
+_Avoid_: Session, thread, chat history
+
+**Turn**:
+One question and its answer within a conversation.
+_Avoid_: Message, exchange
+
 **Diagnostics**:
 The record of each retrieval stage for one question: search queries, candidates, scores, context, model, tokens, latency and cost.
 _Avoid_: Trace, debug info

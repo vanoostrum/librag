@@ -6,7 +6,7 @@
   <title>Chat · LibRag</title>
   <link rel="stylesheet" href="../../gallery.css">
 </head>
-<body>
+<body class="chat-body">
   <header class="site-header">
     <div class="site-header__inner">
       <div class="wordmark">LibRag</div>
@@ -18,29 +18,35 @@
   </header>
   <main class="page page--reading">
     <h1 class="visually-hidden">Chat</h1>
-    <p class="question">Do Kahneman and Taleb agree on whether experts can make good long-term forecasts?</p>
-    <article class="answer">
-      <p>Both authors doubt expert forecasts in fields with low regularity. Kahneman describes Philip Tetlock's study of political experts, who predicted barely better than chance.<sup><a class="cite" href="#source-1">1</a></sup> He separates this from fields with stable patterns and fast feedback, where expert intuition can be valid.<sup><a class="cite" href="#source-2">2</a></sup> Taleb goes further: rare, high-impact events make long-range forecasting in social and economic fields close to useless.<sup><a class="cite" href="#source-3">3</a></sup></p>
-      <p class="answer-part"><span class="answer-part__label answer-part__label--synthesis">Synthesis</span>They agree on the diagnosis but differ in scope. Kahneman names the conditions under which expertise works. Taleb treats forecasting in his domains as suspect altogether.</p>
-      <p class="answer-part"><span class="answer-part__label">General knowledge, not from your library</span>The two discussed each other's work in public. Your books hold no passage on that.</p>
-    </article>
-    <section class="sources" aria-labelledby="sources-label">
-      <h2 class="section-label" id="sources-label">Cited passages</h2>
-      <details class="source" id="source-1" open>
-        <summary><span><strong>1 · Thinking, Fast and Slow</strong>, ch. 20, The Illusion of Validity</span></summary>
-        <span class="source__excerpt">“Tetlock interviewed 284 people who made their living commenting on political and economic trends…”</span>
-      </details>
-      <details class="source" id="source-2">
-        <summary><span><strong>2 · Thinking, Fast and Slow</strong>, ch. 22, Expert Intuition: When Can We Trust It?</span></summary>
-        <span class="source__excerpt">“…an environment that is sufficiently regular to be predictable…”</span>
-      </details>
-      <details class="source" id="source-3">
-        <summary><span><strong>3 · The Black Swan</strong>, ch. 10, The Scandal of Prediction</span></summary>
-        <span class="source__excerpt">“…our track record in predicting rare, consequential events…”</span>
-      </details>
-      <details class="diagnostics">
-        <summary>How this answer was found</summary>
-      </details>
+    <div class="chat-head">
+      <h2 class="chat-head__title">Conversation</h2>
+      <button type="button" class="button-quiet">New conversation</button>
+    </div>
+    <section class="turn">
+      <p class="question">Do Kahneman and Taleb agree on whether experts can make good long-term forecasts?</p>
+      <article class="answer">
+        <p>Both authors doubt expert forecasts in fields with low regularity. Kahneman describes Philip Tetlock's study of political experts, who predicted barely better than chance.<sup><a class="cite" href="#source-1">1</a></sup> He separates this from fields with stable patterns and fast feedback, where expert intuition can be valid.<sup><a class="cite" href="#source-2">2</a></sup> Taleb goes further: rare, high-impact events make long-range forecasting in social and economic fields close to useless.<sup><a class="cite" href="#source-3">3</a></sup></p>
+        <p class="answer-part"><span class="answer-part__label answer-part__label--synthesis">Synthesis</span>They agree on the diagnosis but differ in scope. Kahneman names the conditions under which expertise works. Taleb treats forecasting in his domains as suspect altogether.</p>
+        <p class="answer-part"><span class="answer-part__label">General knowledge, not from your library</span>The two discussed each other's work in public. Your books hold no passage on that.</p>
+      </article>
+      <section class="sources" aria-label="Cited passages">
+        <h3 class="section-label">Cited passages</h3>
+        <details class="source" id="source-1" open>
+          <summary><span><strong>1 · Thinking, Fast and Slow</strong>, ch. 20, The Illusion of Validity</span></summary>
+          <span class="source__excerpt">“Tetlock interviewed 284 people who made their living commenting on political and economic trends…”</span>
+        </details>
+        <details class="source" id="source-2">
+          <summary><span><strong>2 · Thinking, Fast and Slow</strong>, ch. 22, Expert Intuition: When Can We Trust It?</span></summary>
+          <span class="source__excerpt">“…an environment that is sufficiently regular to be predictable…”</span>
+        </details>
+        <details class="source" id="source-3">
+          <summary><span><strong>3 · The Black Swan</strong>, ch. 10, The Scandal of Prediction</span></summary>
+          <span class="source__excerpt">“…our track record in predicting rare, consequential events…”</span>
+        </details>
+        <details class="diagnostics">
+          <summary>How this answer was found</summary>
+        </details>
+      </section>
     </section>
     <form class="ask">
       <div class="ask__bar">
@@ -49,8 +55,10 @@
         <button type="submit" class="button-primary">Ask</button>
       </div>
       <div class="ask__options">
-        <label>Model <select><option>Claude Sonnet 4.5</option><option>GPT-4.1</option></select></label>
-        <label>Books <select><option>All indexed books</option></select></label>
+        <label>Model <select><option>Claude Sonnet 5.5</option><option>GPT 6.1 Terra</option></select></label>
+        <div class="picker">
+          <button type="button" class="picker__toggle" aria-expanded="false">Books: All indexed books ▾</button>
+        </div>
       </div>
     </form>
   </main>
