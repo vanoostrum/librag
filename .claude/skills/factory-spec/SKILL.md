@@ -37,13 +37,14 @@ Optional steering arguments follow it, as Steering in `CLAUDE.md` describes.
      - what the feature does for its users: behavior, rules, and scope;
      - UX: screens, flows, states, and copy;
      - an architecture choice that goes against `docs/adr/`, the existing code, or the plan or spec.
+   - **How sure you are.** For each question in that scope, judge how likely the human is to accept your recommended answer. Ask it only when your certainty is medium or low. When your certainty is high, because the ticket, the plan, the ADRs, the existing screens, or the human's earlier answers already point to it, do not ask. Take your recommended answer and write it under **Decisions** in step 5, marked `(default)`, so the human can override it at the gate. When in doubt, ask.
    - **What to decide yourself.** Do not ask about a technical choice where your recommended answer follows the code, the ADRs, or common practice. Do not ask how to handle an error case when the right handling is clear. Do not ask about the test seam or how to test: use the test seam rule in `CLAUDE.md`, and write it under **Testing decisions** in step 5. Write each decision you take yourself under **Decisions** in step 5, marked `(agent)`, so the human sees it at the gate.
 4. **Design.** If the ticket has the `ui` label, run the `factory-design` skill in ticket mode. It returns the gallery pages for this ticket. If the grill shows that a ticket without the label changes a screen, add the label and run it too.
 5. **Write the spec** into the ticket description, below the original text, under `## Spec`. Use the `clear-technical-prose` skill for its text. Base it on the decisions and the code from the grill. Read more code if a plan task needs it.
    - **Goal:** one or two sentences.
    - **Scope:** what changes.
    - **Out of scope:** what does not.
-   - **Decisions:** the decisions from the grill, one line each. Mark the ones you took without asking with `(agent)`.
+   - **Decisions:** the decisions from the grill, one line each. Mark the technical ones you took without asking with `(agent)`, and the high-certainty ones on behavior, UX, or architecture with `(default)`.
    - **Acceptance criteria:** a numbered list. Each one is testable and observable, e.g. "GET /version returns 200 with `{"version": "<pyproject version>"}`". For a `ui` ticket, each screen state cites its gallery page, e.g. "GET /search with no results matches `design/pages/search/empty.html`".
    - **Gallery pages:** for a `ui` ticket only. Each page from `factory-design`, with one line on what it shows.
    - **Testing decisions:**
@@ -55,7 +56,7 @@ Optional steering arguments follow it, as Steering in `CLAUDE.md` describes.
    - **Risks:** only if there are any.
    If a spec already exists and the human gave feedback, update it instead and note what changed.
 6. **Replan check.** Run the replan check from `factory-next` with this spec's decisions and domain docs.
-7. **Gate.** Post `🤖 Gate: spec` with the acceptance criteria, the replan proposals, and "Reply approve, or give feedback." For a `ui` ticket, the gate also approves the gallery pages: list them, and point to their screenshots on the ticket. In chat, ask for approval, by 👍 on the message or a reply "approve", with the ticket link and the number of criteria. Stop.
+7. **Gate.** Post `🤖 Gate: spec` with the acceptance criteria, the `(default)` decisions, the replan proposals, and "Reply approve, or give feedback." For a `ui` ticket, the gate also approves the gallery pages: list them, and point to their screenshots on the ticket. In chat, ask for approval, by 👍 on the message or a reply "approve", with the ticket link, the number of criteria, and the `(default)` decisions, one line each, so the human can override any of them before approving. If there are none, leave the list out. Stop.
 
 ## Done when
 
