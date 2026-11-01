@@ -50,7 +50,7 @@ B=.claude/skills/verify/scripts/chat-browser.js
   - the summary rows Question, Search query (no "rewritten"), Model, Retrieval; 20 cards, the first ones "Sent to model"; "Show all 30 candidates";
   - the first words open to the full text; after "Show all", 30 cards and no button;
   - the follow-up's search query ends in "rewritten";
-  - rerank off (the wrapper empties the `done` event's rerank stage and sets `settings.rerank` false, since the stack always reranks): "rerank off" in the summary, `rerank tags ["Rerank –"]`, `fusion order true`;
+  - rerank off and an unknown cost (the wrapper empties the `done` event's rerank stage, sets `settings.rerank` false and `usage.cost_usd` null, since the stack always reranks and the fake LLM always has a price): "rerank off" and "cost unknown" in the summary, `rerank tags ["Rerank –"]`, `fusion order true`;
   - `failed turn: {"diagnostics":false}`; `external requests: []`.
   Compare `app_diagnostics_<platform>.png` with `$V gallery chat-page pages/chat/diagnostics.html <platform>`, and `app_diagnostics_cards_<platform>.png` with `gallery_diagnostics_cards_<platform>.png`, which the script takes from the gallery page scrolled to the panel.
 - **Gallery.** For each platform, compare `app_<state>_<platform>.png` with `$V gallery chat-page pages/chat/<page>.html <platform>`, for start, book-picker, streaming, answer, conversation and error.

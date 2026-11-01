@@ -43,12 +43,15 @@ function wrapFetch() {
     const text = await response.text();
     let blocks = text.split("\n\n").filter((b) => b.trim());
     if (control.noRerank) {
-      // The stack always reranks; this is the `done` event of a search without it.
+      // The stack always reranks, and the fake LLM always has a price; this is
+      // the `done` event of a search without rerank and a model without a price.
       blocks = blocks.map((block) => {
         if (!block.startsWith("event: done")) return block;
         const done = JSON.parse(block.slice(block.indexOf("data: ") + 6));
         done.retrieval.stages.rerank = { passages: [], time_ms: 0 };
         done.retrieval.settings.rerank = false;
+        // And a model missing from LiteLLM's price table, which logs no cost.
+        done.usage.cost_usd = null;
         return `event: done\ndata: ${JSON.stringify(done)}`;
       });
     }
@@ -261,7 +264,8 @@ async function main() {
     await page.locator(".diagnostics > summary").nth(1).click();
     note(`follow-up summary: ${JSON.stringify((await panel(page, 1)).summary)}`);
 
-    // Rerank off: no rerank tag, and the cards in fusion order.
+    // Rerank off and an unknown cost: no rerank tag, the cards in fusion order,
+    // and "cost unknown".
     await page.evaluate(() => { window.__chat.noRerank = true; });
     await ask("lighthouse keeper brass lamp");
     await answered(3);
