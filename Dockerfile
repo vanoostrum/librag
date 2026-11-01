@@ -11,15 +11,24 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# Dependencies first, so a code change does not rebuild this layer.
+# Dependencies first, so a code change does not rebuild this layer. The `rerank`
+# extra brings sentence-transformers and CPU-only PyTorch for the live reranker.
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --frozen --no-dev --extra rerank --no-install-project
+
+# Bake in the reranker model, so the running stack never fetches it. Its name is
+# also the default of LIBRAG_RERANKER_MODEL in the image.
+ARG RERANKER_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
+ENV HF_HOME=/app/hf-cache \
+    LIBRAG_RERANKER_MODEL=${RERANKER_MODEL}
+RUN python -c "import sys; from sentence_transformers import CrossEncoder; CrossEncoder(sys.argv[1])" "$RERANKER_MODEL"
+ENV HF_HUB_OFFLINE=1
 
 COPY README.md alembic.ini ./
 COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-editable
+    uv sync --frozen --no-dev --extra rerank --no-editable
 
 # Bake in the tokenizer file, so the worker never downloads it at run time.
 ENV TIKTOKEN_CACHE_DIR=/app/tiktoken-cache
