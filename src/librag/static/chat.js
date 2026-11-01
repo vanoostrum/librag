@@ -198,10 +198,149 @@
     for (const source of part.sources) addSource(turn, source);
   }
 
-  function finishTurn(turn) {
+  // The diagnostics: "How this answer was found", built from the `done` event.
+
+  const FIRST_CARDS = 20;
+  const FIRST_WORDS = 70;
+
+  function count(n) {
+    return n.toLocaleString("en-US");
+  }
+
+  function duration(ms) {
+    return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
+  }
+
+  function cost(usd) {
+    return usd === null || usd === undefined ? "cost unknown" : `$${usd.toFixed(3)}`;
+  }
+
+  function modelName(id) {
+    const option = [...modelSelect.options].find((o) => o.value === id);
+    return option ? option.textContent : id;
+  }
+
+  function summaryRow(term, ...description) {
+    const row = element("div");
+    const dd = element("dd");
+    dd.append(...description);
+    row.append(element("dt", "", term), dd);
+    return row;
+  }
+
+  function stageText(label, stage) {
+    return `${label} ${stage.passages.length} in ${duration(stage.time_ms)}`;
+  }
+
+  function diagSummary(done) {
+    const { stages, settings, context } = done.retrieval;
+    const usage = done.usage;
+    const query = [done.search_query];
+    if (done.search_query !== done.question) {
+      query.push(" ", element("span", "diag-tag", "rewritten"));
+    }
+    const sent = context.passage_ids.length;
+    const retrieval = [
+      stageText("dense", stages.dense),
+      stageText("BM25", stages.bm25),
+      stageText("fusion", stages.fusion),
+      settings.rerank ? stageText("rerank", stages.rerank) : "rerank off",
+      `${sent === 1 ? "1 passage" : `${sent} passages`} sent, ${count(context.tokens)} tokens`,
+    ];
+    const list = element("dl", "diag-summary");
+    list.append(
+      summaryRow("Question", done.question),
+      summaryRow("Search query", ...query),
+      summaryRow(
+        "Model",
+        [
+          modelName(done.model),
+          `${count(usage.input_tokens)} tokens in, ${count(usage.output_tokens)} out`,
+          cost(usage.cost_usd),
+          duration(usage.latency_ms),
+        ].join(" · "),
+      ),
+      summaryRow("Retrieval", retrieval.join(" · ")),
+    );
+    return list;
+  }
+
+  function byPassage(stage) {
+    return new Map(stage.passages.map((p) => [p.passage_id, p]));
+  }
+
+  // The fused candidates in final order: rerank's, or fusion's with rerank off.
+  function rankedCandidates(retrieval) {
+    const { stages } = retrieval;
+    const order = stages.rerank.passages.length ? stages.rerank : stages.fusion;
+    const candidates = new Map(retrieval.candidates.map((c) => [c.passage_id, c]));
+    const dense = byPassage(stages.dense);
+    const bm25 = byPassage(stages.bm25);
+    const fusion = byPassage(stages.fusion);
+    const rerank = byPassage(stages.rerank);
+    const sent = new Set(retrieval.context.passage_ids);
+    return order.passages.map((p, index) => ({
+      rank: index + 1,
+      candidate: candidates.get(p.passage_id),
+      dense: dense.get(p.passage_id),
+      bm25: bm25.get(p.passage_id),
+      fusion: fusion.get(p.passage_id),
+      rerank: rerank.get(p.passage_id),
+      sent: sent.has(p.passage_id),
+    }));
+  }
+
+  function chip(label, value) {
+    return element("span", "", `${label} ${value === undefined ? "–" : value}`);
+  }
+
+  function diagCard(item) {
+    const { candidate } = item;
+    const card = element("li", item.sent ? "diag-card diag-card--ctx" : "diag-card");
+    const head = element("div", "diag-card__head");
+    const place = element("span");
+    place.append(element("strong", "", candidate.title));
+    const where = [candidate.chapter, candidate.section].filter(Boolean).join(", ");
+    if (where) place.append(`, ${where}`);
+    head.append(element("span", "diag-rank", String(item.rank)), place);
+    if (item.sent) head.append(element("span", "diag-tag diag-tag--ctx", "Sent to model"));
+    const text = candidate.text;
+    const words = text.length > FIRST_WORDS ? `${text.slice(0, FIRST_WORDS).trimEnd()}…` : text;
+    const full = element("details");
+    full.append(element("summary", "diag-words", `“${words}”`), element("p", "diag-text", `“${text}”`));
+    const chips = element("div", "diag-chips");
+    chips.append(
+      chip("Dense", item.dense && `#${item.dense.rank}`),
+      chip("BM25", item.bm25 && `#${item.bm25.rank}`),
+      chip("Fusion", item.fusion && item.fusion.score.toFixed(4)),
+      chip("Rerank", item.rerank && item.rerank.score.toFixed(2)),
+    );
+    card.append(head, full, chips);
+    return card;
+  }
+
+  function diagnosticsPanel(done) {
+    const panel = element("div", "diag");
+    const ranked = rankedCandidates(done.retrieval);
+    const cards = element("ol", "diag-cards");
+    cards.append(...ranked.slice(0, FIRST_CARDS).map(diagCard));
+    panel.append(diagSummary(done), cards);
+    if (ranked.length > FIRST_CARDS) {
+      const more = element("button", "button-quiet", `Show all ${ranked.length} candidates`);
+      more.type = "button";
+      more.addEventListener("click", () => {
+        cards.append(...ranked.slice(FIRST_CARDS).map(diagCard));
+        more.remove();
+      });
+      panel.append(more);
+    }
+    return panel;
+  }
+
+  function finishTurn(turn, done) {
     turn.status.remove();
     const diagnostics = element("details", "diagnostics");
-    diagnostics.append(element("summary", "", "How this answer was found"));
+    diagnostics.append(element("summary", "", "How this answer was found"), diagnosticsPanel(done));
     turn.sources.append(diagnostics);
     turn.sources.hidden = false;
     turn.section.answered = {
@@ -246,7 +385,7 @@
         addPart(turn, event.data);
         return false;
       case "done":
-        finishTurn(turn);
+        finishTurn(turn, event.data);
         return true;
       case "error":
         failTurn(turn, event.data.message);
