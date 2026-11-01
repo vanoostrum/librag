@@ -183,14 +183,6 @@ class Searcher:
     client: QdrantClient
 
 
-def search(searcher: Searcher, request: SearchRequest) -> dict[str, Any]:
-    """Return the context for `request`, with each retrieval stage.
-
-    See `retrieve`; this is its response body.
-    """
-    return retrieve(searcher, request).body
-
-
 def retrieve(searcher: Searcher, request: SearchRequest) -> Retrieval:
     """Return the context for `request`, with each retrieval stage.
 
