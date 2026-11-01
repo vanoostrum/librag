@@ -49,6 +49,8 @@ The api, the worker and `migrate` read these environment variables:
 | `LIBRAG_DATABASE_URL` | `sqlite:///data/librag.db` | SQLAlchemy URL of the metadata database. |
 | `LIBRAG_FILE_STORE_DIR` | `data/files` | Folder for uploaded EPUB files. |
 | `LIBRAG_AI_PROVIDERS` | `live` | `live` uses the real AI APIs. `fake` uses deterministic fakes. Any other value stops the app at startup. |
+| `LIBRAG_EMBEDDING_MODEL` | `openai/text-embedding-3-small` | The LiteLLM model that embeds passages in `live` mode. It also needs that provider's key, such as `OPENAI_API_KEY`. |
+| `LIBRAG_QDRANT_COLLECTION_PREFIX` | `passages` | Each embedding model gets the Qdrant collection `<prefix>_<model>`, such as `passages_openai_text-embedding-3-small` or `passages_fake`. |
 
 ## Development
 

@@ -7,8 +7,10 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from pathlib import Path
 
+import httpx2
 from sqlalchemy import create_engine, select, update
 
 from librag.books import add_book
@@ -70,9 +72,10 @@ def test_worker_keeps_running_without_database(tmp_path: Path) -> None:
 
 
 def test_worker_runs_an_interrupted_job_on_start(
-    database_url: str, tmp_path: Path
+    database_url: str, tmp_path: Path, qdrant_url: str
 ) -> None:
-    """A job left running by a stopped worker is parsed when a worker starts."""
+    """A job left running by a stopped worker is indexed when a worker starts."""
+    prefix = f"test_{uuid.uuid4().hex[:12]}"
     file_store_dir = str(tmp_path / "files")
     engine = create_engine(database_url)
     add_book(
@@ -87,6 +90,9 @@ def test_worker_runs_an_interrupted_job_on_start(
         **os.environ,
         "LIBRAG_DATABASE_URL": database_url,
         "LIBRAG_FILE_STORE_DIR": file_store_dir,
+        "LIBRAG_QDRANT_URL": qdrant_url,
+        "LIBRAG_AI_PROVIDERS": "fake",
+        "LIBRAG_QDRANT_COLLECTION_PREFIX": prefix,
     }
     worker = subprocess.Popen(
         [sys.executable, "-m", "librag.worker"], env=env, stderr=subprocess.PIPE
@@ -94,13 +100,14 @@ def test_worker_runs_an_interrupted_job_on_start(
     try:
         deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
         status = "parsing"
-        while status != "indexing" and time.monotonic() < deadline:
+        while status != "indexed" and time.monotonic() < deadline:
             with engine.connect() as connection:
                 status = connection.scalar(select(books.c.status))
             time.sleep(0.1)
-        assert status == "indexing", "the worker did not run the interrupted job"
+        assert status == "indexed", "the worker did not run the interrupted job"
         worker.send_signal(signal.SIGTERM)
         assert worker.wait(timeout=STOP_TIMEOUT_SECONDS) == 0
     finally:
         worker.kill()
         engine.dispose()
+        httpx2.delete(f"{qdrant_url}/collections/{prefix}_fake", timeout=5.0)

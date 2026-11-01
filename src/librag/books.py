@@ -108,6 +108,8 @@ def _json(row: RowMapping) -> dict[str, Any]:
         "passages_indexed": row["passages_indexed"],
         "passages_total": row["passages_total"],
         "error": row["error"],
+        "embedding_tokens": row["embedding_tokens"],
+        "embedding_cost_usd": row["embedding_cost_usd"],
         "uploaded_at": row["uploaded_at"].replace(tzinfo=UTC).isoformat(),
     }
 
@@ -120,6 +122,8 @@ _COLUMNS = (
     books.c.passages_indexed,
     books.c.passages_total,
     books.c.error,
+    books.c.embedding_tokens,
+    books.c.embedding_cost_usd,
     books.c.uploaded_at,
 )
 

@@ -19,7 +19,7 @@ The route tests for `/health` use a real Qdrant. They read its URL from `LIBRAG_
 - **Without Docker, or when Docker cannot pull images** (the cloud sandbox): start the verify skill's process mode with `$V launch`. Then run `export LIBRAG_QDRANT_URL=http://127.0.0.1:$(cat .verify/$LIBRAG_VERIFY_RUN/run/qdrant-port)`. Run `$V cleanup` when you are done.
 - **In CI:** the `checks` job runs Qdrant as a service container on `localhost:6333`.
 
-Each test gets its own SQLite database and file store in a temporary folder, migrated with Alembic. No test writes to Qdrant yet. Fixture EPUBs are written by `tests/epubs.py`; the repo holds no binary EPUBs.
+Each test gets its own SQLite database and file store in a temporary folder, migrated with Alembic. Tests that index books write to Qdrant collections under a prefix of their own (`test_<random>_fake`), and delete them afterwards. Fixture EPUBs are written by `tests/epubs.py`; the repo holds no binary EPUBs.
 
 ## The tokenizer file
 

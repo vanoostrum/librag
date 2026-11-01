@@ -53,3 +53,21 @@ def test_size_settings_are_read_from_the_environment() -> None:
         settings.max_upload_mb,
     ) == (200, 0, 5)
     assert (Settings().passage_target_tokens, Settings().max_upload_mb) == (350, 50)
+
+
+def test_embedding_settings_are_read_from_the_environment() -> None:
+    """The embedding model and the collection prefix come from LIBRAG_* variables."""
+    settings = Settings.from_env(
+        {
+            "LIBRAG_EMBEDDING_MODEL": "openai/text-embedding-3-large",
+            "LIBRAG_QDRANT_COLLECTION_PREFIX": "staging",
+        }
+    )
+    assert (settings.embedding_model, settings.qdrant_collection_prefix) == (
+        "openai/text-embedding-3-large",
+        "staging",
+    )
+    assert (Settings().embedding_model, Settings().qdrant_collection_prefix) == (
+        "openai/text-embedding-3-small",
+        "passages",
+    )
