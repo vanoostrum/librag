@@ -41,7 +41,7 @@ None, or a Linear project. Without a project, use every open ticket in the Linea
 4. **Gallery pages.** For each open `ui` ticket, check its gallery pages against the new facts:
    - A change to the look lives in `design/gallery.css` or, from gallery stage 2, `design/components/`. Every page follows. Propose no redraw. Name the pages to look at again in their next screenshots.
    - A change to a screen, such as a field, a state, or the copy, does not follow on its own. Propose to mark the page stale. Do not redraw it now: `factory-design` redraws it when that ticket is grilled.
-5. Post the proposals with the gate or the merge message, as the calling step says. They need the human's approval. One "approve" covers the gate and the proposals.
+5. Post the proposals with the gate or the merge message, as the calling step says. They need the human's approval. One approval covers the gate and the proposals.
 6. **After approval**, apply each change in Linear. Mark a stale page with a ticket comment `🤖 replan: stale <page> — <the decision that changed it>`. A change to a ticket in **Ready to build** moves it back to **Todo**, so the spec lane grills it again.
 7. Comment on each changed ticket `🤖 replan: success — <one line>`.
 
