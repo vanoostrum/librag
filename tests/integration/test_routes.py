@@ -53,13 +53,13 @@ def ready_settings(qdrant_url: str, database_url: str) -> Settings:
     return Settings(qdrant_url=qdrant_url, database_url=database_url)
 
 
-def test_homepage(client: TestClient) -> None:
-    """GET / returns the LibRag HTML page."""
+def test_homepage_is_the_library(client: TestClient) -> None:
+    """GET / returns the Library page; test_library.py checks its content."""
     response = client.get("/")
     assert response.status_code == HTTPStatus.OK
-    assert response.headers["content-type"].split(";", 1)[0] == "text/html"
-    assert "<title>LibRag</title>" in response.text
-    assert "<h1>LibRag</h1>" in response.text
+    assert response.headers["content-type"] == "text/html; charset=utf-8"
+    assert "<title>Library · LibRag</title>" in response.text
+    assert '<h1 class="page-title">Your library is empty</h1>' in response.text
 
 
 def test_health(ready_settings: Settings) -> None:
@@ -165,5 +165,6 @@ def test_only_expected_routes_are_registered() -> None:
         ("/api/books", "POST"),
         ("/api/rag/search", "POST"),
         ("/health", "GET"),
+        ("/library/books", "GET"),
         ("/version", "GET"),
     ]

@@ -30,7 +30,7 @@ Each feature file starts with an H1 title and one paragraph on the behavior a cl
 
 ## Features
 
-- [Homepage](./homepage.md) covers the HTML page at `/`.
+- [Library](./library.md) covers the Library page at `/`, its refresh at `GET /library/books`, and adding books in the browser.
 - [Health](./health.md) covers the `/health` readiness check of Qdrant, the database and the worker.
 - [Version](./version.md) covers `/version` and its match with `pyproject.toml`.
 - [API docs disabled](./api-docs-disabled.md) covers the 404s for `/docs`, `/redoc`, and `/openapi.json`.

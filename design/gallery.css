@@ -306,6 +306,80 @@ a:hover { color: var(--accent-hover); }
   font-size: 13px;
 }
 
+/* Library: upload notices, the empty library, and dropping files */
+
+.notices { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; list-style: none; font-family: var(--sans); }
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 1px solid var(--rule-warn);
+  border-radius: var(--radius);
+  background: var(--surface-warn);
+  color: var(--danger);
+  font-size: 15px;
+}
+
+.notice__text { flex: 1; }
+
+.notice__dismiss {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 22px;
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: var(--sans);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.notice__dismiss:hover { background: var(--rule); color: var(--ink); }
+
+.status--parsing { color: var(--busy); }
+
+.drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 56px var(--space-5);
+  border: 2px dashed var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+}
+
+.drop-zone__title { margin: 0; font-size: 24px; font-weight: 400; }
+
+.drop-zone__hint { margin: 0 0 var(--space-3); color: var(--ink-muted); font-family: var(--sans); font-size: 15px; }
+
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: rgba(250, 247, 240, 0.92);
+}
+
+.drop-overlay__target {
+  width: 100%;
+  max-width: 640px;
+  padding: 72px var(--space-5);
+  border: 3px dashed var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+}
+
+.drop-overlay__title { margin: 0; color: var(--accent); font-size: 28px; font-weight: 400; }
+
+.drop-overlay__hint { margin: var(--space-2) 0 0; color: var(--ink-muted); font-family: var(--sans); font-size: 15px; }
+
 /* Phone layout */
 
 @media (max-width: 640px) {

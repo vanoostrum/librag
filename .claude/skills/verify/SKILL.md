@@ -1,11 +1,11 @@
 ---
 name: verify
-description: Drive the running LibRag FastAPI app over HTTP and capture evidence that a route behaves as specified. Use to prove a change in the real app (homepage, /health, /version, the books API, search, disabled API docs), not just in tests. For lint, type check, and tests, use project-verify.
+description: Drive the running LibRag FastAPI app over HTTP and capture evidence that a route behaves as specified. Use to prove a change in the real app (the Library page, /health, /version, the books API, search, disabled API docs), not just in tests. For lint, type check, and tests, use project-verify.
 ---
 
 # Verify LibRag in the running app
 
-LibRag is an HTTP service. The user surface is its routes: `/` (HTML homepage), `/health`, `/version`, the books API (`POST /api/books`, `GET /api/books`), and search (`POST /api/rag/search`). The API docs (`/docs`, `/redoc`, `/openapi.json`) are off on purpose. The app runs as a stack: `api`, `worker`, Qdrant and a SQLite metadata database. There is no UI framework, auth, or seed data. The driver is `curl`, wrapped by one helper script.
+LibRag is an HTTP service. The user surface is its routes: `/` (the Library page, with `GET /library/books` for its refresh), `/health`, `/version`, the books API (`POST /api/books`, `GET /api/books`), and search (`POST /api/rag/search`). The API docs (`/docs`, `/redoc`, `/openapi.json`) are off on purpose. The app runs as a stack: `api`, `worker`, Qdrant and a SQLite metadata database. There is no UI framework, auth, or seed data. The driver is `curl`, wrapped by one helper script, and for the Library page's browser flows, `scripts/library-browser.js` with Playwright.
 
 `project-verify` runs ruff, ty, and pytest, the same as CI. This skill is the other half: it starts a real server and checks what a client sees.
 
@@ -78,7 +78,7 @@ $V gallery <feature id> <page> [platform]
 - For a ticket with the `ui` label, take the app screenshot and the gallery screenshot of the same screen state, so the two can be compared. Take both once for each platform in `design/README.md`.
 - This helper drives LibRag as a web app. A native app needs its own app driver skill for app screenshots; the gallery screenshots still come from here.
 
-- Screen recordings are for multi-step UI flows, such as filling in and sending a form. LibRag has no such flow yet. When one arrives, add a `record` command with Playwright video, and add a feature file for the flow.
+- Multi-step UI flows, such as choosing files or dropping them on the Library page, run in Playwright with `node .claude/skills/verify/scripts/library-browser.js`, which saves screenshots and a transcript of each step. The Library feature file has the commands.
 
 The feature map in [features/README.md](features/README.md) has one recipe per feature, with the exact paths and the expected results.
 
@@ -113,4 +113,6 @@ $V cleanup
 
 ## Helpers
 
-- `scripts/librag-verify launch|doctor|get <feature> <path>|screenshot <feature> <path>|gallery <feature> <page>|cleanup`: the only helper. It needs `bash`, `curl`, `lsof`, `tar`, and `uv`, which are on macOS and on the cloud container. Compose mode also needs Docker with the Compose plugin. `screenshot` and `gallery` also need Chrome or Chromium.
+- `scripts/librag-verify launch|doctor|get <feature> <path>|screenshot <feature> <path>|gallery <feature> <page>|cleanup`: the main helper.
+- `scripts/library-browser.js <url> <evidence dir> add|refused|drop <platform> [files...]`: drives the Library page in Playwright. Needs Node and Playwright.
+- `scripts/library-states.py <database url> default|upload-error`: puts the books of a run in the states of a Library gallery page, for screenshots. It needs `bash`, `curl`, `lsof`, `tar`, and `uv`, which are on macOS and on the cloud container. Compose mode also needs Docker with the Compose plugin. `screenshot` and `gallery` also need Chrome or Chromium.

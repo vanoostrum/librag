@@ -14,12 +14,14 @@ from pydantic import BaseModel, Field, StrictBool, StringConstraints
 from sqlalchemy import create_engine
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
+from starlette.staticfiles import StaticFiles
 
 from librag.books import BookConflictError, add_book, list_books
 from librag.embeddings import make_embedder
 from librag.epub import EpubError
 from librag.health import check_database, check_qdrant, check_worker
 from librag.index import qdrant_client
+from librag.library import STATIC_DIR, TEMPLATES, library_context
 from librag.rerank import make_reranker
 from librag.search import Searcher, SearchRequest, search
 from librag.settings import MAX_SEARCH_K, MAX_TOKEN_BUDGET, MIN_TOKEN_BUDGET, Settings
@@ -44,19 +46,6 @@ class SearchBody(BaseModel):
     rerank: StrictBool = True
     book_ids: list[str] = []
     authors: list[str] = []
-
-
-HOMEPAGE_HTML = """\
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>LibRag</title>
-  </head>
-  <body>
-    <h1>LibRag</h1>
-  </body>
-</html>
-"""
 
 
 async def upload_book(request: Request) -> JSONResponse:
@@ -123,10 +112,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.add_exception_handler(RequestValidationError, refuse_invalid_request)
 
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
     @app.get("/", response_class=HTMLResponse)
-    def homepage() -> str:
-        """Return the LibRag homepage."""
-        return HOMEPAGE_HTML
+    def library_page(request: Request) -> HTMLResponse:
+        """Return the Library page: the books, and the controls to add more."""
+        state = request.app.state
+        return TEMPLATES.TemplateResponse(
+            request,
+            "library.html",
+            {
+                **library_context(list_books(state.engine)),
+                "nav": "library",
+                "max_upload_mb": state.settings.max_upload_mb,
+            },
+        )
+
+    @app.get("/library/books", response_class=HTMLResponse)
+    def library_books(request: Request) -> HTMLResponse:
+        """Return the library region of the page, for the live refresh."""
+        books = list_books(request.app.state.engine)
+        return TEMPLATES.TemplateResponse(
+            request, "library_region.html", library_context(books)
+        )
 
     @app.get("/health")
     def health(request: Request) -> JSONResponse:
