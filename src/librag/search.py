@@ -9,8 +9,8 @@ that fit a count and a token budget.
 """
 
 import time
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Any
 
 from qdrant_client import QdrantClient, models
@@ -142,6 +142,37 @@ def _result(rank: int, candidate: _Candidate) -> dict[str, Any]:
 
 
 @dataclass(frozen=True)
+class Retrieval:
+    """What a search found: its response body, and each staged passage's payload."""
+
+    body: dict[str, Any]
+    payloads: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+
+    def candidates(self) -> list[dict[str, Any]]:
+        """Return the book and text of each passage in any stage.
+
+        The fused candidates come first, in fusion order, then the passages
+        that only dense or BM25 found, in the order of those stages.
+        """
+        ids = [
+            passage["passage_id"]
+            for stage in ("fusion", "dense", "bm25")
+            for passage in self.body["stages"][stage]["passages"]
+        ]
+        return [
+            {
+                "passage_id": passage,
+                "book_id": self.payloads[passage]["book_id"],
+                "title": self.payloads[passage]["title"],
+                "chapter": self.payloads[passage]["chapter_title"],
+                "section": self.payloads[passage]["section_title"],
+                "text": self.payloads[passage]["text"],
+            }
+            for passage in dict.fromkeys(ids)
+        ]
+
+
+@dataclass(frozen=True)
 class Searcher:
     """What search reads from: the database, Qdrant, and the models and settings."""
 
@@ -153,6 +184,14 @@ class Searcher:
 
 
 def search(searcher: Searcher, request: SearchRequest) -> dict[str, Any]:
+    """Return the context for `request`, with each retrieval stage.
+
+    See `retrieve`; this is its response body.
+    """
+    return retrieve(searcher, request).body
+
+
+def retrieve(searcher: Searcher, request: SearchRequest) -> Retrieval:
     """Return the context for `request`, with each retrieval stage.
 
     `results` is the context: the fused candidates, reranked unless the
@@ -191,7 +230,7 @@ def search(searcher: Searcher, request: SearchRequest) -> dict[str, Any]:
     collection = collection_name(settings.qdrant_collection_prefix, embedder.model)
     # Books indexed with another embedding model are not in this collection.
     if not book_ids or not client.collection_exists(collection):
-        return body
+        return Retrieval(body)
 
     [vector] = embedder.embed([request.query]).vectors
     document = models.Document(text=request.query, model=BM25_METHOD)
@@ -206,7 +245,7 @@ def search(searcher: Searcher, request: SearchRequest) -> dict[str, Any]:
                 using=DENSE,
                 limit=dense_k,
                 query_filter=only_books,
-                with_payload=False,
+                with_payload=True,
             ).points
         )
     )
@@ -218,7 +257,7 @@ def search(searcher: Searcher, request: SearchRequest) -> dict[str, Any]:
                 using=BM25,
                 limit=bm25_k,
                 query_filter=only_books,
-                with_payload=False,
+                with_payload=True,
             ).points
         )
     )
@@ -255,4 +294,6 @@ def search(searcher: Searcher, request: SearchRequest) -> dict[str, Any]:
     body["results"] = [
         _result(rank, candidate) for rank, candidate in enumerate(context, start=1)
     ]
-    return body
+    staged = [*dense, *bm25, *fusion]
+    payloads = {str(point.id): point.payload or {} for point in staged}
+    return Retrieval(body, payloads)

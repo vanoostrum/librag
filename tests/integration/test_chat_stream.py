@@ -218,7 +218,7 @@ def test_done_carries_the_answer_details_and_the_stream_is_logged(
     assert done["search_query"] == "brass lamp"
     assert done["model"] == "openai/gpt-6.1-terra"
     assert done["citations"] == []
-    assert set(done["retrieval"]) == {"stages", "settings"}
+    assert set(done["retrieval"]) == {"stages", "settings", "candidates", "context"}
     assert {k: done["usage"][k] for k in ("input_tokens", "output_tokens")} == {
         "input_tokens": 200,
         "output_tokens": 20,
@@ -393,3 +393,21 @@ def test_stream_the_client_leaves_is_logged(
     [row] = usage_rows(engine)
     assert row["error"] == ABORTED
     assert row["search_query"] == "lighthouse keeper"
+
+
+def test_done_carries_the_same_candidates_and_context_as_chat(
+    client: TestClient, index: Callable[..., None]
+) -> None:
+    """`done` has the candidates and the context that POST /api/chat returns."""
+    index(SEA, HARBOUR)
+    script(client, reply(answer()), reply(answer()))
+    whole = ask(client, "lighthouse keeper")["retrieval"]
+    done = named(stream(client, "lighthouse keeper"), "done")[0]["retrieval"]
+    # Equal scores can order passages differently between two requests.
+    assert done["context"]["tokens"] == whole["context"]["tokens"]
+    assert sorted(done["context"]["passage_ids"]) == sorted(
+        whole["context"]["passage_ids"]
+    )
+    assert done["context"]["passage_ids"]
+    by_id = {c["passage_id"]: c for c in whole["candidates"]}
+    assert {c["passage_id"]: c for c in done["candidates"]} == by_id

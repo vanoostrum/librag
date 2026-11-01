@@ -15,6 +15,7 @@ from sqlalchemy import Engine, select
 from librag.db import chat_usage
 from librag.llm import Completion, LlmError
 from librag.main import create_app
+from librag.passages import count_tokens
 from librag.prompts import NO_PASSAGE, AnswerPrompt, Prompt, RewritePrompt
 from librag.settings import ChatModel, Settings
 from tests.epubs import FixtureBook, FixtureChapter, paragraphs
@@ -168,6 +169,79 @@ def test_answer_cites_passages_of_the_context(
     assert {c["passage_id"] for c in body["citations"]} <= {
         p["passage_id"] for p in fusion
     }
+
+
+CANDIDATE_FIELDS = ("passage_id", "book_id", "title", "chapter", "section", "text")
+
+
+def staged_ids(retrieval: dict[str, Any]) -> set[str]:
+    """Return the IDs of the passages in any stage of `retrieval`."""
+    return {
+        passage["passage_id"]
+        for stage in retrieval["stages"].values()
+        for passage in stage["passages"]
+    }
+
+
+def test_retrieval_lists_the_candidates_and_the_context(
+    client: TestClient, index: Callable[..., None]
+) -> None:
+    """`retrieval` has each candidate's book and text, and the context sent."""
+    index(SEA, HARBOUR)
+    llm = script(client, reply(answer()))
+    body = ask(client, "lighthouse keeper")
+    retrieval = body["retrieval"]
+    [prompt] = llm.prompts
+    assert isinstance(prompt, AnswerPrompt)
+    sent = [passage["passage_id"] for passage in prompt.passages]
+    assert sent
+    assert retrieval["context"] == {
+        "passage_ids": sent,
+        "tokens": sum(count_tokens(passage["text"]) for passage in prompt.passages),
+    }
+    search = client.post(
+        "/api/rag/search", json={"query": "lighthouse keeper", "top_k": 100}
+    ).json()
+    known = {result["passage_id"]: result for result in search["results"]}
+    fused = [p["passage_id"] for p in retrieval["stages"]["fusion"]["passages"]]
+    assert [c["passage_id"] for c in retrieval["candidates"]] == fused
+    assert retrieval["candidates"] == [
+        {key: known[passage][key] for key in CANDIDATE_FIELDS} for passage in fused
+    ]
+
+
+@pytest.fixture
+def few_fused_client(settings: Settings) -> Iterator[TestClient]:
+    """Return a test client for the app that fuses only 2 candidates."""
+    few = dataclasses.replace(settings, fusion_top_k=2)
+    with TestClient(create_app(few)) as client:
+        yield client
+
+
+def test_passages_outside_fusion_are_candidates_too(
+    few_fused_client: TestClient, index: Callable[..., None]
+) -> None:
+    """A passage that only dense or BM25 found still has a candidate entry."""
+    client = few_fused_client
+    index(SEA, HARBOUR)
+    retrieval = ask(client, "lighthouse keeper")["retrieval"]
+    fused = [p["passage_id"] for p in retrieval["stages"]["fusion"]["passages"]]
+    ids = [c["passage_id"] for c in retrieval["candidates"]]
+    assert len(fused) == 2  # noqa: PLR2004
+    assert ids[:2] == fused
+    assert set(ids) == staged_ids(retrieval)
+    assert len(ids) == len(set(ids)) == 5  # noqa: PLR2004
+    assert {c["title"] for c in retrieval["candidates"]} == {
+        "Sea Stories",
+        "Harbour Tales",
+    }
+
+
+def test_empty_library_has_no_candidates(client: TestClient) -> None:
+    """With no indexed book, there are no candidates and an empty context."""
+    retrieval = ask(client, "lighthouse keeper")["retrieval"]
+    assert retrieval["candidates"] == []
+    assert retrieval["context"] == {"passage_ids": [], "tokens": 0}
 
 
 def test_every_citation_number_resolves(
