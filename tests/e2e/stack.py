@@ -78,7 +78,11 @@ def _check_budget() -> None:
     try:
         USAGE.check_budget(BUDGET_USD)
     except BudgetReachedError as error:
-        pytest.fail(str(error), pytrace=False)
+        message = str(error)
+    else:
+        return
+    # Fail outside the except block, so the report shows the message once.
+    pytest.fail(message, pytrace=False)
 
 
 def _log_chat(
