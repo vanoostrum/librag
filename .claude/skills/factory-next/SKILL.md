@@ -18,7 +18,7 @@ None, or a Linear project. Without a project, use every open ticket in the Linea
 
 | Lane | Takes a ticket when | Limit | Runs |
 |---|---|---|---|
-| Spec | It is in **Todo**, and each ticket that blocks it is in **Ready to build**, **Building**, **In Review**, or **Done**. | One ticket in **Specifying**, and at most 2 tickets in **Ready to build**. | `factory-spec`, in this session. |
+| Spec | It is in **Todo**, and each ticket that blocks it is in **Ready to build**, **Building**, **In Review**, or **Done**. | One ticket in **Specifying**, and at most 4 tickets in **Ready to build**. | `factory-spec`, in this session. |
 | Build | It is in **Ready to build**, and each ticket that blocks it is **Done**. | One ticket in **Building**. A ticket in **In Review** does not count. | `factory-build`, then `factory-review`, in a new session. |
 
 "Blocks" means a Linear "blocked by" relation. A blocked ticket is never picked. A ticket can be grilled before its blockers are built, because the grill needs their decisions, not their code.
