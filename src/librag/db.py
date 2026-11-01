@@ -59,12 +59,15 @@ books = Table(
 )
 
 # The work queue that the worker polls. `status` is queued, running, done or failed.
+# `kind` is `ingest`, which parses the EPUB and indexes its passages, or `reembed`,
+# which indexes the stored passages again with the current embedding model.
 ingestion_jobs = Table(
     "ingestion_jobs",
     metadata,
     Column("id", Integer(), primary_key=True, autoincrement=True),
     Column("book_id", String(16), ForeignKey("books.id"), nullable=False),
     Column("status", String(16), nullable=False),
+    Column("kind", String(16), nullable=False, server_default="ingest"),
     Column("created_at", DateTime(), nullable=False),
     Column("started_at", DateTime()),
     Column("finished_at", DateTime()),

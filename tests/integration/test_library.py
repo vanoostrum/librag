@@ -161,8 +161,9 @@ def test_books_are_listed_newest_first(
         (cover,) = select(each, ".book-card__cover")
         assert text(cover) == title
         assert cover.get("aria-hidden") == "true"
-    # This ticket adds no Delete or Retry links (LIBRAG-14).
-    assert not select(root, ".action-links")
+    # Delete waits until the queued book is done.
+    assert not select(noise, ".action-links")
+    assert texts(meditations, ".action-links a") == ["Delete"]
 
 
 def test_indexed_book_counts_its_passages(
@@ -363,3 +364,149 @@ def test_page_loads_no_external_resources(client: TestClient) -> None:
     assert "@import" not in css
     assert "@font-face" not in css
     assert "url(" not in css
+
+
+def actions(found: html.HtmlElement) -> list[tuple[str, str | None, str | None]]:
+    """Return each action link of a card: its text, method and URL."""
+    return [
+        (text(link), link.get("data-method"), link.get("data-url"))
+        for link in select(found, ".action-links a")
+    ]
+
+
+def test_card_actions_with_the_reindex_switch_off(
+    client: TestClient, engine: Engine, work: Callable[[], bool]
+) -> None:
+    """Indexed books have Delete, failed books Retry and Delete, as in `default.html`.
+
+    Books in progress have no actions, and nothing says Reindex or out of date.
+    """
+    upload(client, book(1, "Thinking, Fast and Slow"))
+    assert work()
+    no_text = FixtureBook(
+        identifier="atlas",
+        title="scanned-atlas.epub",
+        chapters=(FixtureChapter("<p> </p>"),),
+    )
+    failed = upload(client, make_epub(no_text))
+    assert work()
+    upload(client, book(2, "Meditations"))
+    swan = upload(client, book(3, "The Black Swan"))
+    set_status(engine, swan["id"], status="indexing", passages_total=10)
+    noise = upload(client, book(4, "Noise"))
+    set_status(engine, noise["id"], status="parsing")
+
+    root = page(client)
+    delete_link = ("Delete", None, None)
+    assert actions(card(root, "Thinking, Fast and Slow")) == [delete_link]
+    assert actions(card(root, "scanned-atlas.epub")) == [
+        ("Retry", "POST", f"/api/books/{failed['id']}/retry"),
+        delete_link,
+    ]
+    for title in ("Meditations", "The Black Swan", "Noise"):
+        assert not select(card(root, title), ".action-links, .confirm")
+    (link,) = select(card(root, "Thinking, Fast and Slow"), ".action-links a.danger")
+    assert link.get("data-delete") is not None
+    assert link.get("href") == "#"
+    assert not select(root, ".status-note, .page-head__actions")
+    assert "Reindex" not in client.get("/").text
+    # The page head is the one of `default.html`: only "Add a book".
+    assert texts(root, ".page-head button") == ["Add a book"]
+
+
+def test_delete_asks_for_confirmation_in_the_card(
+    client: TestClient, work: Callable[[], bool]
+) -> None:
+    """Each deletable card holds the hidden confirmation of `delete-confirm.html`."""
+    uploaded = upload(client, book(1, "Noise"))
+    assert work()
+    (confirm,) = select(card(page(client), "Noise"), ".confirm")
+    assert confirm.get("hidden") is not None
+    assert confirm.get("role") == "group"
+    assert confirm.get("aria-label") == "Confirm delete"
+    assert texts(confirm, ".confirm__question") == [
+        "Delete this book and its passages?"
+    ]
+    buttons = select(confirm, ".confirm__actions button")
+    assert [
+        (b.get("class"), text(b), b.get("data-method"), b.get("data-url"))
+        for b in buttons
+    ] == [
+        ("button-danger", "Delete", "DELETE", f"/api/books/{uploaded['id']}"),
+        ("button-quiet", "Cancel", None, None),
+    ]
+    assert buttons[1].get("data-cancel") is not None
+
+
+def test_interrupted_book_shows_as_failed(
+    client: TestClient, engine: Engine, work: Callable[[], bool]
+) -> None:
+    """A book left in indexing with its job done shows as failed, with Retry."""
+    uploaded = upload(client, book(1, "Antifragile"))
+    assert work()
+    set_status(engine, uploaded["id"], status="indexing")
+    found = card(page(client), "Antifragile")
+    assert found.get("class") == "book-card book-card--failed"
+    assert texts(found, ".status.status--failed") == [
+        "Failed: indexing was interrupted"
+    ]
+    assert [name for name, _, _ in actions(found)] == ["Retry", "Delete"]
+
+
+def test_reindex_switch_on_shows_out_of_date_books(
+    on: TestClient, engine: Engine, work: Callable[[], bool]
+) -> None:
+    """With the switch on, the page is `reindex.html`.
+
+    Each out-of-date book says why, every indexed book has Reindex, and the head
+    has a button that reindexes the out-of-date books.
+    """
+    titles = ("Up to date", "Model", "Target", "Overlap", "Tokenizer")
+    ids = {title: upload(on, book(n, title))["id"] for n, title in enumerate(titles)}
+    for _ in titles:
+        assert work()
+    set_status(engine, ids["Model"], embedding_model="openai/text-embedding-3-small")
+    set_status(engine, ids["Target"], passage_target_tokens=500)
+    set_status(engine, ids["Overlap"], passage_overlap_tokens=80)
+    set_status(engine, ids["Tokenizer"], tokenizer="o200k_base")
+    swan = upload(on, book(9, "The Black Swan"))
+    set_status(engine, swan["id"], status="indexing", passages_total=10)
+
+    root = page(on)
+    notes = {title: texts(card(root, title), ".status-note") for title in titles}
+    assert notes == {
+        "Up to date": [],
+        "Model": ["Out of date: indexed with text-embedding-3-small"],
+        "Target": ["Out of date: passages of 500 tokens"],
+        "Overlap": ["Out of date: passage overlap of 80 tokens"],
+        "Tokenizer": ["Out of date: tokenized with o200k_base"],
+    }
+    for title in titles:
+        assert actions(card(root, title)) == [
+            ("Reindex", "POST", f"/api/books/{ids[title]}/reindex"),
+            ("Delete", None, None),
+        ]
+    assert not select(card(root, "The Black Swan"), ".action-links, .status-note")
+    (head,) = select(root, ".page-head .page-head__actions")
+    buttons = select(head, "button")
+    assert [(b.get("class"), text(b)) for b in buttons] == [
+        ("button-quiet", "Reindex 4 out-of-date books"),
+        ("button-primary", "Add a book"),
+    ]
+    assert buttons[0].get("data-method") == "POST"
+    assert buttons[0].get("data-url") == "/api/books/reindex-out-of-date"
+
+
+def test_reindex_button_counts_one_book(
+    on: TestClient, engine: Engine, work: Callable[[], bool]
+) -> None:
+    """One out-of-date book: "Reindex 1 out-of-date book"; none: no button."""
+    uploaded = upload(on, book(1))
+    assert work()
+    root = page(on)
+    assert not select(root, ".page-head__actions")
+    assert texts(root, ".page-head button") == ["Add a book"]
+    set_status(engine, uploaded["id"], passage_target_tokens=500)
+    assert texts(page(on), ".page-head__actions .button-quiet") == [
+        "Reindex 1 out-of-date book"
+    ]

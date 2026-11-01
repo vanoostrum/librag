@@ -19,7 +19,15 @@ from starlette.datastructures import UploadFile
 from starlette.staticfiles import StaticFiles
 from starlette.types import Receive, Scope, Send
 
-from librag.books import BookConflictError, add_book, list_books
+from librag.books import (
+    BookConflictError,
+    BookNotFoundError,
+    BookStateError,
+    add_book,
+    delete_book,
+    list_books,
+    retry_book,
+)
 from librag.chat import ChatError, ChatRequest, Event, chat, chat_stream
 from librag.chat_page import chat_context
 from librag.embeddings import make_embedder
@@ -29,6 +37,7 @@ from librag.index import qdrant_client
 from librag.library import STATIC_DIR, TEMPLATES, library_context
 from librag.llm import make_llm
 from librag.prompts import Turn
+from librag.reindex import out_of_date_books, reindex_book, reindex_out_of_date
 from librag.rerank import make_reranker
 from librag.search import Searcher, SearchRequest, search
 from librag.settings import MAX_SEARCH_K, MAX_TOKEN_BUDGET, MIN_TOKEN_BUDGET, Settings
@@ -108,6 +117,68 @@ async def upload_book(request: Request) -> JSONResponse:
             status_code=HTTPStatus.CONFLICT,
         )
     return JSONResponse(book, status_code=HTTPStatus.ACCEPTED)
+
+
+def _not_found(message: str = "No book with this ID") -> JSONResponse:
+    return JSONResponse({"error": message}, status_code=HTTPStatus.NOT_FOUND)
+
+
+REINDEX_OFF = "Reindexing is turned off"
+
+
+def _conflict(error: BookStateError) -> JSONResponse:
+    return JSONResponse({"error": error.message}, status_code=HTTPStatus.CONFLICT)
+
+
+def remove_book(book_id: str, request: Request) -> Response:
+    """Delete the book, its passages in every collection, its jobs and its EPUB."""
+    state = request.app.state
+    try:
+        delete_book(state.engine, state.settings, state.qdrant, book_id)
+    except BookNotFoundError:
+        return _not_found()
+    except BookStateError as error:
+        return _conflict(error)
+    return Response(status_code=HTTPStatus.NO_CONTENT)
+
+
+def retry(book_id: str, request: Request) -> JSONResponse:
+    """Run the full ingestion of a failed or interrupted book again."""
+    state = request.app.state
+    try:
+        book = retry_book(state.engine, state.settings, state.qdrant, book_id)
+    except BookNotFoundError:
+        return _not_found()
+    except BookStateError as error:
+        return _conflict(error)
+    return JSONResponse(book, status_code=HTTPStatus.ACCEPTED)
+
+
+def reindex(book_id: str, request: Request) -> JSONResponse:
+    """Rebuild an indexed book; only when LIBRAG_REINDEX_ENABLED is on."""
+    state = request.app.state
+    if not state.settings.reindex_enabled:
+        return _not_found(REINDEX_OFF)
+    try:
+        book = reindex_book(
+            state.engine, state.settings, state.qdrant, book_id, state.embedder.model
+        )
+    except BookNotFoundError:
+        return _not_found()
+    except BookStateError as error:
+        return _conflict(error)
+    return JSONResponse(book, status_code=HTTPStatus.ACCEPTED)
+
+
+def reindex_all(request: Request) -> JSONResponse:
+    """Reindex every out-of-date book; only when LIBRAG_REINDEX_ENABLED is on."""
+    state = request.app.state
+    if not state.settings.reindex_enabled:
+        return _not_found(REINDEX_OFF)
+    book_ids = reindex_out_of_date(
+        state.engine, state.settings, state.qdrant, state.embedder.model
+    )
+    return JSONResponse({"book_ids": book_ids}, status_code=HTTPStatus.ACCEPTED)
 
 
 async def refuse_invalid_request(_request: Request, error: Exception) -> JSONResponse:
@@ -220,6 +291,17 @@ def _searcher(request: Request) -> Searcher:
     )
 
 
+def _library_context(request: Request) -> dict[str, Any]:
+    """Return what the library templates need: the books, and the out-of-date ones."""
+    state = request.app.state
+    out_of_date = (
+        out_of_date_books(state.engine, state.settings, state.embedder.model)
+        if state.settings.reindex_enabled
+        else None
+    )
+    return library_context(list_books(state.engine), out_of_date)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Return the LibRag app. Without `settings`, it reads them at startup."""
 
@@ -248,7 +330,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             request,
             "library.html",
             {
-                **library_context(list_books(state.engine)),
+                **_library_context(request),
                 "nav": "library",
                 "max_upload_mb": state.settings.max_upload_mb,
             },
@@ -267,9 +349,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/library/books", response_class=HTMLResponse)
     def library_books(request: Request) -> HTMLResponse:
         """Return the library region of the page, for the live refresh."""
-        books = list_books(request.app.state.engine)
         return TEMPLATES.TemplateResponse(
-            request, "library_region.html", library_context(books)
+            request, "library_region.html", _library_context(request)
         )
 
     @app.get("/health")
@@ -299,6 +380,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """Return the context that retrieval and reranking select, without the LLM."""
         return search(_searcher(request), SearchRequest(**body.model_dump()))
 
+    app.post("/api/books/reindex-out-of-date")(reindex_all)
+    app.delete("/api/books/{book_id}", response_model=None)(remove_book)
+    app.post("/api/books/{book_id}/retry")(retry)
+    app.post("/api/books/{book_id}/reindex")(reindex)
     app.post("/api/chat")(answer_question)
     app.post("/api/chat/stream", response_model=None)(stream_answer)
     app.get("/api/config/models")(list_chat_models)

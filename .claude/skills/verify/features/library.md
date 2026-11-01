@@ -1,6 +1,6 @@
 # Library
 
-The Library page at `/` lists the books as cards, newest first, with their status and indexing progress, and refreshes while a book is in progress. The user adds books with "Add a book" and the file picker, or by dropping files on the page. A refused upload shows a dismissable notice. `GET /library/books` returns the page's library region for that refresh. The page matches the gallery pages in `design/pages/library/`, without the Delete and Retry links (LIBRAG-14).
+The Library page at `/` lists the books as cards, newest first, with their status and indexing progress, and refreshes while a book is in progress. The user adds books with "Add a book" and the file picker, or by dropping files on the page. A refused upload shows a dismissable notice. `GET /library/books` returns the page's library region for that refresh. Each card has its actions: Delete on an indexed book, Retry and Delete on a failed or interrupted one, none while a book is in progress. Delete asks first, inside the card. With `LIBRAG_REINDEX_ENABLED=on`, indexed books also have Reindex, an out-of-date book says why, and "Reindex N out-of-date books" sits next to "Add a book". The page matches the gallery pages in `design/pages/library/`.
 
 ## Sub-features
 
@@ -11,6 +11,10 @@ The Library page at `/` lists the books as cards, newest first, with their statu
 - `library-add`: "Add a book" opens a file picker for several `.epub` files; each chosen file is uploaded and appears as a card.
 - `library-drop`: files dragged over the page show "Drop to add to your library", as `dropping.html`; dropping uploads each one.
 - `library-notices`: a refused upload shows a notice, as `upload-error.html`: 409 "*<title>* is already in your library.", 422 "*<file name>* isn't an EPUB we can read.", 413 "*<file name>* is larger than 50 MB." The notices survive the refresh, and "Dismiss" removes one.
+- `library-actions`: Delete on indexed cards, Retry and Delete on failed cards, nothing on queued, parsing and indexing cards, as `default.html`. An interrupted book shows "Failed: indexing was interrupted".
+- `library-delete-confirm`: Delete turns the card's status and links into "Delete this book and its passages?" with Delete and Cancel, as `delete-confirm.html`. The live refresh waits while the question is open. Cancel restores the card; Delete removes the book and its card.
+- `library-retry-reindex`: Retry and Reindex move the card to "Waiting in the queue", and the refresh then shows it indexed again.
+- `library-reindex`: with the switch on, the page is `reindex.html`: "Out of date: indexed with <model>" or "Out of date: passages of N tokens" under the status, Reindex on every indexed book, and "Reindex N out-of-date books", which reindexes them.
 - `library-local-only`: the page loads no script, stylesheet or font from another host.
 
 ## How to get to it (user POV)
@@ -53,14 +57,15 @@ printf 'not a zip' > $F/holiday-photos.zip
 head -c 52428801 /dev/zero > $F/complete-encyclopedia.epub
 ```
 
-`library-states.py` sets the status and passage counts of the books, by title, to those of a gallery page, because the worker passes through `parsing` and `indexing` too fast for a screenshot.
+`library-states.py` sets the status, passage counts and index configuration of the books, by title, to those of a gallery page, because the worker passes through `parsing` and `indexing` too fast for a screenshot. It gives each book it shows in progress a running job, so the book does not show as interrupted.
 
-**Part 1, on an empty library: empty, add, default.**
+**Part 1, on an empty library: empty, add, default, delete confirmation.**
 
 - **Empty.** Run `$V get library /`. Status `200`, `content-type: text/html; charset=utf-8`, and the body has `Your library is empty` and no `book-card`. Run `$V get library /library/books`: the body starts with `<div id="library" class="library">`, with no `hx-trigger`. Run `$V screenshot library / desktop` and `$V screenshot library / mobile`, then rename them to `app_empty_<platform>.png`. Take `$V gallery library pages/library/empty.html <platform>` for both.
 - **Add.** Run `node $B $URL $E add desktop $F/scanned-atlas.epub $F/meditations.epub $F/black-swan.epub $F/noise.epub $F/thinking.epub`. The transcript `browser_add_desktop.txt` shows `multiple=true accept=.epub,application/epub+zip`, five cards in "Waiting in the queue" with Thinking, Fast and Slow first, `"polling":"every 2s"`, and `external requests: []`.
 - **Refresh stops.** Wait 3 seconds, then `$V get library /library/books`. No `hx-trigger`: the worker has indexed four books and failed `scanned-atlas.epub`.
 - **Default.** Run `uv run python $S $DB default`. Run `$V get library /library/books`: it has `hx-trigger="every 2s"` again, since Meditations is queued. Take `$V screenshot library / <platform>` (rename to `app_default_<platform>.png`) and `$V gallery library pages/library/default.html <platform>` for both platforms. The lede is "Five books."; the Black Swan card shows "Indexing · 63%" and its bar.
+- **Delete confirmation**. Run `node $B $URL $E confirm mobile Noise`, then `node $B $URL $E confirm desktop Noise delete`. The transcripts show the Noise card with `"statusVisible":false`, `"confirm":"Delete this book and its passages? Delete Cancel"` and `"focused":"Cancel"`, the same after 2.5 seconds, the card restored after Cancel, and on desktop `DELETE /api/books/<id>: 204` and Noise gone. Compare `app_delete_confirm_<platform>.png` with `$V gallery library pages/library/delete-confirm.html <platform>`.
 
 **Part 2, on a new empty run: upload error, dropping.** Reset the library and repeat the setup.
 
@@ -68,7 +73,14 @@ head -c 52428801 /dev/zero > $F/complete-encyclopedia.epub
 - **Refused uploads.** For each platform, run `node $B $URL $E refused <platform> $F/thinking.epub $F/holiday-photos.zip $F/complete-encyclopedia.epub`. The transcript shows the three notices in the copy above, the same three after a refresh, and two after "Dismiss". Compare `app_upload_error_<platform>.png` with `$V gallery library pages/library/upload-error.html <platform>`.
 - **Dropping.** Run `node $B $URL $E drop desktop $F/dropped-1.epub` and `node $B $URL $E drop mobile $F/dropped-2.epub`. The transcript shows `"overlayVisible":true` while dragging, then the dropped book as the first card and the overlay gone. Compare `app_dropping_<platform>.png` with `$V gallery library pages/library/dropping.html <platform>`.
 
-Expected differences from the gallery: the cover colours (the app picks them from the book ID), the failed book's error text (the real one is "No text found in the EPUB"), the Delete and Retry links (LIBRAG-14), and the books behind the dropping overlay. Anything else in layout, copy or look is a fail.
+**Part 3, on a new run with the reindex switch on: reindex, retry.** Run `$V cleanup`, set a new run id, run `LIBRAG_REINDEX_ENABLED=on $V launch`, and repeat the setup.
+
+- **Books.** Run `node $B $URL $E add desktop $F/antifragile.epub $F/meditations.epub $F/black-swan.epub $F/noise.epub $F/thinking.epub`, wait 3 seconds, then `uv run python $S $DB reindex`.
+- **Reindex page.** Take `$V screenshot library / <platform>` (rename to `app_reindex_<platform>.png`) and `$V gallery library pages/library/reindex.html <platform>` for both platforms. The head has "Reindex 2 out-of-date books"; Antifragile shows "Failed: indexing was interrupted" with Retry.
+- **Retry and Reindex.** Pause the worker (`kill -STOP $(cat .verify/$LIBRAG_VERIFY_RUN/run/worker.pid)`), run `node $B $URL $E act desktop Antifragile Retry &`, wait 4 seconds and resume it (`kill -CONT ...`). The transcript `browser_act_retry_desktop.txt` shows the POST's 202, Antifragile "Waiting in the queue" right after, then "Indexed · 1 passage". Do the same with `act desktop Meditations Reindex`.
+- **Reindex all.** Run `node $B $URL $E reindex-all desktop`. The transcript shows `POST /api/books/reindex-out-of-date: 202` with two book IDs, then no out-of-date line and only "Add a book" in the head.
+
+Expected differences from the gallery: the cover colours (the app picks them from the book ID), the failed book's error text (the real one is "No text found in the EPUB"), and the books behind the dropping overlay. Anything else in layout, copy or look is a fail.
 
 ## Gotchas
 

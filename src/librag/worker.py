@@ -108,8 +108,8 @@ def requeue_interrupted_jobs(engine: Engine) -> int:
     return len(book_ids)
 
 
-def _claim(engine: Engine) -> tuple[int, str] | None:
-    """Mark the oldest queued job as running, and return its ID and book ID."""
+def _claim(engine: Engine) -> tuple[int, str, str] | None:
+    """Mark the oldest queued job as running, and return its ID, book ID and kind."""
     oldest = (
         select(ingestion_jobs.c.id)
         .where(ingestion_jobs.c.status == "queued")
@@ -122,14 +122,16 @@ def _claim(engine: Engine) -> tuple[int, str] | None:
             update(ingestion_jobs)
             .where(ingestion_jobs.c.id == oldest, ingestion_jobs.c.status == "queued")
             .values(status="running", started_at=to_db_time(utc_now()))
-            .returning(ingestion_jobs.c.id, ingestion_jobs.c.book_id)
+            .returning(
+                ingestion_jobs.c.id, ingestion_jobs.c.book_id, ingestion_jobs.c.kind
+            )
         ).first()
         if claimed is None:
             return None
         connection.execute(
             update(books).where(books.c.id == claimed.book_id).values(status="parsing")
         )
-    return int(claimed.id), str(claimed.book_id)
+    return int(claimed.id), str(claimed.book_id), str(claimed.kind)
 
 
 def _finish(engine: Engine, job_id: int, book: dict[str, object]) -> None:
@@ -234,19 +236,30 @@ def _index(
     return None
 
 
-def run_one_job(
-    engine: Engine, settings: Settings, indexing: Indexing | None = None
-) -> bool:
-    """Parse the book of the oldest queued job into passages, and index them.
+def _stored_passages(engine: Engine, book_id: str) -> list[Passage]:
+    """Return the passages of the book as the last parse stored them."""
+    with engine.connect() as connection:
+        rows = connection.execute(
+            select(
+                passages.c.position,
+                passages.c.text,
+                passages.c.chapter_title,
+                passages.c.section_title,
+                passages.c.spine_index,
+                passages.c.first_paragraph,
+                passages.c.last_paragraph,
+            )
+            .where(passages.c.book_id == book_id)
+            .order_by(passages.c.position)
+        ).all()
+    return [Passage(*row) for row in rows]
 
-    The book ends in `indexed`, or in `failed` with an error. Without `indexing`,
-    the job uses the embedder that `settings` picks, and the standard retries.
-    Returns False when no job was queued.
+
+def _parse(engine: Engine, settings: Settings, book_id: str) -> list[Passage] | str:
+    """Parse the stored EPUB into passages, and store them. Return them, or the error.
+
+    The book's passage settings say how to cut the passages.
     """
-    claimed = _claim(engine)
-    if claimed is None:
-        return False
-    job_id, book_id = claimed
     with engine.connect() as connection:
         config = connection.execute(
             select(books.c.passage_target_tokens, books.c.passage_overlap_tokens).where(
@@ -256,16 +269,13 @@ def run_one_job(
     try:
         data = book_path(settings.file_store_dir, book_id).read_bytes()
         built = build_passages(read_chapters(data), *config)
-        error = None if built else NO_TEXT
     except EpubError as epub_error:
-        built, error = [], str(epub_error)
+        return str(epub_error)
     except Exception:
         logger.exception("parsing book %s failed", book_id)
-        built, error = [], UNEXPECTED_FAILURE
-    if error is not None:
-        _finish(engine, job_id, {"id": book_id, "status": "failed", "error": error})
-        return True
-    indexing = indexing or Indexing(make_embedder(settings))
+        return UNEXPECTED_FAILURE
+    if not built:
+        return NO_TEXT
     with engine.begin() as connection:
         connection.execute(delete(passages).where(passages.c.book_id == book_id))
         connection.execute(
@@ -285,6 +295,31 @@ def run_one_job(
                 for passage in built
             ],
         )
+    return built
+
+
+def run_one_job(
+    engine: Engine, settings: Settings, indexing: Indexing | None = None
+) -> bool:
+    """Run the oldest queued job: parse the book into passages, and index them.
+
+    A `reembed` job indexes the stored passages without a new parse. The book
+    ends in `indexed`, or in `failed` with an error. Without `indexing`, the job
+    uses the embedder that `settings` picks, and the standard retries. Returns
+    False when no job was queued.
+    """
+    claimed = _claim(engine)
+    if claimed is None:
+        return False
+    job_id, book_id, kind = claimed
+    stored = _stored_passages(engine, book_id) if kind == "reembed" else []
+    # A re-embed of a book without stored passages parses it after all.
+    built = stored or _parse(engine, settings, book_id)
+    if isinstance(built, str):
+        _finish(engine, job_id, {"id": book_id, "status": "failed", "error": built})
+        return True
+    indexing = indexing or Indexing(make_embedder(settings))
+    with engine.begin() as connection:
         connection.execute(
             update(books)
             .where(books.c.id == book_id)
