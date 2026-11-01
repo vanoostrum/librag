@@ -8,8 +8,10 @@ description: How to install, run, lint, type-check, and test the LibRag FastAPI 
 ## Install
 
 ```bash
-uv sync
+uv sync --group eval
 ```
+
+The `eval` group holds `ranx`, which the retrieval evaluation and its tests use. The app image leaves it out.
 
 ## Qdrant for the tests
 

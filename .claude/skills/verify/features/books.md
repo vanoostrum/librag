@@ -4,8 +4,8 @@ A client uploads an EPUB with `POST /api/books` and gets the new book back in `q
 
 ## Sub-features
 
-- `books-upload` returns 202 with the book: `id`, `title`, `author`, `status` `"queued"`, `passages_indexed` 0, `passages_total` null, `error` null, `embedding_tokens` 0, `embedding_cost_usd` 0.0 and `uploaded_at`.
-- `books-indexed` shows the book in `indexed` with `passages_indexed` equal to `passages_total`, `embedding_tokens` above 0 and `embedding_cost_usd` 0.0 (the fake embedder), within a few seconds of the upload.
+- `books-upload` returns 202 with the book: `id`, `title`, `author`, `status` `"queued"`, `passages_indexed` 0, `passages_total` null, `error` null, `embedding_tokens` 0, `embedding_cost_usd` 0.0, `uploaded_at`, and `index_configuration` with `passage_target_tokens` 350, `passage_overlap_tokens` 50, `tokenizer` `"cl100k_base"` and `embedding_model` null.
+- `books-indexed` shows the book in `indexed` with `passages_indexed` equal to `passages_total`, `embedding_tokens` above 0 and `embedding_cost_usd` 0.0 (the fake embedder), within a few seconds of the upload. Its `index_configuration.embedding_model` is `"fake"`.
 - `books-points` shows the book's points in Qdrant: one per passage, with the payload `book_id`, `title`, `author`, `text`, `position`, `chapter_title`, `section_title`, `spine_index`, `first_paragraph` and `last_paragraph`.
 - `books-list` returns `{"books":[...]}`, newest first.
 - `books-duplicate` returns 409 with `error` and the existing `book_id`, for the same file or another file with the same book ID.

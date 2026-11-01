@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Download the books of the evaluation set and index them on the running stack.
+# Usage: scripts/eval-fetch-books
+#
+# The EPUBs go to eval/books/, which git ignores. A book that is already in the
+# library is not uploaded again. LIBRAG_EVAL_URL is the stack (default
+# http://localhost:8000). See docs/evaluation.md.
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+exec uv run --group eval python -m librag.evaluation fetch "$@"
