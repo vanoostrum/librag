@@ -1,0 +1,229 @@
+# The retrieval evaluation set. See docs/evaluation.md.
+#
+# Each question names its evidence quotes: sentences from a book that a good
+# answer needs. Retrieval finds a quote when a passage contains it, after case,
+# whitespace and punctuation are folded. Keep a quote to one sentence or less,
+# from the book's own text, never from the Project Gutenberg header or footer.
+#
+# A question may narrow the search with `books` (keys below) or `authors` (as
+# GET /api/books shows them). Every search covers only the books below.
+
+[books.pride]
+gutenberg = 1342
+title = "Pride and Prejudice"
+
+[books.persuasion]
+gutenberg = 105
+title = "Persuasion"
+
+[books.frankenstein]
+gutenberg = 84
+title = "Frankenstein"
+
+[books.dracula]
+gutenberg = 345
+title = "Dracula"
+
+# Factual: a fact stated in one place, asked with the book's own words.
+
+[[questions]]
+id = "factual-netherfield"
+type = "factual"
+question = "Which house does Mrs. Bennet say has been let at last?"
+evidence = [
+  { book = "pride", quote = "have you heard that Netherfield Park is let at last?" },
+]
+
+[[questions]]
+id = "factual-kellynch"
+type = "factual"
+question = "Where is Sir Walter Elliot's home, and in which county?"
+evidence = [
+  { book = "persuasion", quote = "Sir Walter Elliot, of Kellynch Hall, in Somersetshire" },
+]
+
+[[questions]]
+id = "factual-november-night"
+type = "factual"
+question = "On what kind of night did Victor Frankenstein bring his creature to life?"
+evidence = [
+  { book = "frankenstein", quote = "It was on a dreary night of November that I beheld the accomplishment of my toils." },
+]
+
+[[questions]]
+id = "factual-golden-krone"
+type = "factual"
+question = "Which hotel in Bistritz did Count Dracula tell Jonathan Harker to stay at?"
+evidence = [
+  { book = "dracula", quote = "Count Dracula had directed me to go to the Golden Krone Hotel" },
+]
+
+[[questions]]
+id = "factual-demeter"
+type = "factual"
+question = "What was the ship that came ashore at Whitby called, and what cargo did it carry?"
+evidence = [
+  { book = "dracula", quote = "It turns out that the schooner is a Russian from Varna, and is called the Demeter." },
+  { book = "dracula", quote = "a number of great wooden boxes filled with mould" },
+]
+
+# Conceptual: a reason or motive, which the book states in other words.
+
+[[questions]]
+id = "conceptual-darcy-slight"
+type = "conceptual"
+question = "Why does Elizabeth Bennet take against Mr. Darcy at the first ball?"
+evidence = [
+  { book = "pride", quote = "She is tolerable, but not handsome enough to tempt me" },
+]
+
+[[questions]]
+id = "conceptual-broken-engagement"
+type = "conceptual"
+question = "Why did Anne Elliot end her engagement to Frederick Wentworth?"
+evidence = [
+  { book = "persuasion", quote = "She was persuaded to believe the engagement a wrong thing" },
+]
+
+[[questions]]
+id = "conceptual-creature-wicked"
+type = "conceptual"
+question = "How does the creature explain why he turned to evil?"
+evidence = [
+  { book = "frankenstein", quote = "I was benevolent and good; misery made me a fiend." },
+]
+
+[[questions]]
+id = "conceptual-destroy-lucy"
+type = "conceptual"
+question = "How do the men mean to give Lucy rest after she becomes undead?"
+evidence = [
+  { book = "dracula", quote = "I shall cut off her head and fill her mouth with garlic, and I shall drive a stake through her body." },
+]
+
+[[questions]]
+id = "conceptual-charlotte-marriage"
+type = "conceptual"
+question = "Why does Charlotte Lucas accept Mr. Collins?"
+evidence = [
+  { book = "pride", quote = "I am not romantic, you know; I never was. I ask only a comfortable home" },
+]
+
+# Cross-book: the answer needs passages from at least two books.
+
+[[questions]]
+id = "cross-heroines-change"
+type = "cross-book"
+question = "How do Elizabeth Bennet and Anne Elliot come to see their younger judgement differently?"
+authors = ["Jane Austen"]
+evidence = [
+  { book = "pride", quote = "Till this moment I never knew myself." },
+  { book = "persuasion", quote = "She had been forced into prudence in her youth, she learned romance as she grew older" },
+]
+
+[[questions]]
+id = "cross-letters-and-journals"
+type = "cross-book"
+question = "Which novels begin with a letter or a travel journal, and where is the writer when it starts?"
+evidence = [
+  { book = "frankenstein", quote = "You will rejoice to hear that no disaster has accompanied the commencement of an enterprise" },
+  { book = "dracula", quote = "Left Munich at 8:35 P. M., on 1st May, arriving at Vienna early next morning" },
+]
+
+[[questions]]
+id = "cross-proud-men"
+type = "cross-book"
+question = "How do the Austen novels show the pride and vanity of a wealthy man?"
+authors = ["Jane Austen"]
+evidence = [
+  { book = "pride", quote = "He was the proudest, most disagreeable man in the world" },
+  { book = "persuasion", quote = "Vanity was the beginning and the end of Sir Walter Elliot's character" },
+]
+
+[[questions]]
+id = "cross-second-proposal"
+type = "cross-book"
+question = "Which heroes ask the heroine a second time, after she refused or left them?"
+books = ["pride", "persuasion"]
+evidence = [
+  { book = "pride", quote = "My affections and wishes are unchanged" },
+  { book = "persuasion", quote = "I offer myself to you again with a heart even more your own than when you almost broke it" },
+]
+
+[[questions]]
+id = "cross-ships-in-danger"
+type = "cross-book"
+question = "Which ships are in danger at sea in Frankenstein and in Dracula?"
+evidence = [
+  { book = "frankenstein", quote = "we were nearly surrounded by ice, which closed in the ship on all sides" },
+  { book = "dracula", quote = "It turns out that the schooner is a Russian from Varna, and is called the Demeter." },
+]
+
+# Indirect: the question avoids the words of the passage that answers it.
+
+[[questions]]
+id = "indirect-muddy-walk"
+type = "indirect"
+question = "Whose clothes are dirty after a long walk to a sick relative, and who mocks her for it?"
+evidence = [
+  { book = "pride", quote = "her petticoat, six inches deep in mud" },
+]
+
+[[questions]]
+id = "indirect-fall-at-lyme"
+type = "indirect"
+question = "Which young woman is badly hurt jumping down steps by the sea?"
+evidence = [
+  { book = "persuasion", quote = "she fell on the pavement on the Lower Cobb, and was taken up lifeless!" },
+]
+
+[[questions]]
+id = "indirect-no-reflection"
+type = "indirect"
+question = "What strange thing does the guest notice while shaving with his host standing behind him?"
+evidence = [
+  { book = "dracula", quote = "But there was no reflection of him in the mirror!" },
+]
+
+[[questions]]
+id = "indirect-learning-speech"
+type = "indirect"
+question = "How does the creature feel when he first watches people talk to each other?"
+evidence = [
+  { book = "frankenstein", quote = "This was indeed a godlike science, and I ardently desired to become acquainted with it." },
+]
+
+[[questions]]
+id = "indirect-elopement"
+type = "indirect"
+question = "Which of the sisters runs away with a soldier, and who is he?"
+evidence = [
+  { book = "pride", quote = "she was gone off to Scotland with one of his officers; to own the truth, with Wickham!" },
+]
+
+# Negative: no book answers these. The report lists their top rerank score.
+
+[[questions]]
+id = "negative-titanic"
+type = "negative"
+question = "In what year did the Titanic sink?"
+
+[[questions]]
+id = "negative-speckled-band"
+type = "negative"
+question = "How does Sherlock Holmes solve the case of the speckled band?"
+
+[[questions]]
+id = "negative-darcy-car"
+type = "negative"
+question = "What kind of car does Mr. Darcy drive?"
+
+[[questions]]
+id = "negative-moon-crater"
+type = "negative"
+question = "Which crater on the Moon is named after Victor Frankenstein?"
+
+[[questions]]
+id = "negative-sourdough"
+type = "negative"
+question = "How do you keep a sourdough starter alive?"

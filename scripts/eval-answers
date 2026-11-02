@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Review answer quality: ask the evaluation set through chat, grade, summarize.
+# Usage: scripts/eval-answers run [--ragas] [--keep-books]
+#        scripts/eval-answers grade [report]
+#        scripts/eval-answers summary [report]
+#
+# `run` asks every question on each chat model of the running stack and writes
+# eval-reports/answers-<timestamp>.json. It stops at LIBRAG_LIVE_BUDGET_USD
+# (default 2). `grade` serves the grading page on 127.0.0.1:8010, which saves
+# to eval-reports/grades.json. LIBRAG_EVAL_URL is the stack (default
+# http://localhost:8000). See docs/answer-evaluation.md.
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+exec uv run --group eval python -m librag.evaluation.answers_cli "$@"

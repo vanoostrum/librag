@@ -70,6 +70,9 @@ class Settings:
     query_rewrite: bool = True
     # Reindexing is for retrieval experiments, so it is off unless asked for.
     reindex_enabled: bool = False
+    # Contextual enrichment: an LLM writes a context line for each passage.
+    enrichment: bool = False
+    enrichment_model: str = "anthropic/claude-haiku-5-5"
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "Settings":
@@ -134,6 +137,10 @@ class Settings:
             query_rewrite=_switch(env, "LIBRAG_QUERY_REWRITE", defaults.query_rewrite),
             reindex_enabled=_switch(
                 env, "LIBRAG_REINDEX_ENABLED", defaults.reindex_enabled
+            ),
+            enrichment=_switch(env, "LIBRAG_ENRICHMENT", defaults.enrichment),
+            enrichment_model=env.get(
+                "LIBRAG_ENRICHMENT_MODEL", defaults.enrichment_model
             ),
         )
 

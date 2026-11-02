@@ -43,6 +43,10 @@ docker compose -f compose.yaml -f compose.test.yaml down -v
 
 `scripts/e2e-live` runs the same suite against the real AI providers, with your own `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`. It stops at a cost cap of $2, which `LIBRAG_LIVE_BUDGET_USD` changes. See [docs/live-run.md](docs/live-run.md).
 
+`scripts/eval-retrieval` measures retrieval on 4 Project Gutenberg books: Recall@5/10/20 and MRR for each search stage. See [docs/evaluation.md](docs/evaluation.md). [docs/enrichment.md](docs/enrichment.md) says how to measure contextual enrichment with it.
+
+`scripts/eval-answers` asks the same questions through chat on each model, serves a local page to grade the answers, and summarizes the grades and the opt-in Ragas scores. See [docs/answer-evaluation.md](docs/answer-evaluation.md).
+
 ## Settings
 
 The api, the worker and `migrate` read these environment variables:
@@ -61,6 +65,8 @@ The api, the worker and `migrate` read these environment variables:
 | `LIBRAG_CHAT_MODELS` | `anthropic/claude-sonnet-5-5=Claude Sonnet 5.5,openai/gpt-6.1-terra=GPT 6.1 Terra` | The LiteLLM models that chat can answer with, as comma-separated `<id>=<name>` entries. In `live` mode each needs its provider's key, such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. |
 | `LIBRAG_CHAT_DEFAULT_MODEL` | the first chat model | The model a chat request gets when it names none. It must be one of `LIBRAG_CHAT_MODELS`. |
 | `LIBRAG_QUERY_REWRITE` | `on` | `on` lets the LLM rewrite a follow-up question into a standalone search query; `off` searches the question as asked. |
+| `LIBRAG_ENRICHMENT` | `off` | `on` makes the worker ask an LLM for a context line per passage, indexed with the passage. See [docs/enrichment.md](docs/enrichment.md). |
+| `LIBRAG_ENRICHMENT_MODEL` | `anthropic/claude-haiku-5-5` | The LiteLLM model that writes the context lines when `LIBRAG_ENRICHMENT` is on. |
 | `LIBRAG_REINDEX_ENABLED` | `off` | `on` adds Reindex to the Library page and turns on `POST /api/books/{id}/reindex` and `POST /api/books/reindex-out-of-date`; `off` hides them, and the routes answer 404. Retry and Delete are always on. |
 
 ## Development

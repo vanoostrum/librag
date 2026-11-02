@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grade answers · {{ report }}</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+  .grading { max-width: 960px; margin: 0 auto; padding: var(--space-5) var(--space-4); }
+  .grading h1 { font-size: 1.6rem; margin: 0 0 var(--space-2); }
+  .grading .lede { color: var(--ink-muted); font-family: var(--sans); margin: 0;
+    overflow-wrap: anywhere; }
+  .card { background: var(--surface); border: 1px solid var(--rule);
+    border-radius: var(--radius); padding: var(--space-4); margin-top: var(--space-4); }
+  .card-head { display: flex; flex-wrap: wrap; gap: var(--space-2);
+    align-items: baseline; font-family: var(--sans); font-size: .85rem;
+    color: var(--ink-muted); }
+  .card-head strong { color: var(--ink); }
+  .card h2 { font-size: 1.15rem; margin: var(--space-2) 0 var(--space-3); }
+  .tag { border: 1px solid var(--rule-strong); border-radius: 999px;
+    padding: 0 var(--space-2); }
+  .state { margin-left: auto; font-weight: 600; }
+  .state--needs { color: var(--danger); }
+  .state--graded { color: var(--ok); }
+  .state--carried { color: var(--busy); }
+  .part { margin: 0 0 var(--space-2); line-height: 1.5; }
+  .part-kind { font-family: var(--sans); font-size: .75rem; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--ink-muted); margin-right: var(--space-2); }
+  .part--synthesis .part-kind { color: var(--synthesis); }
+  .label { font-family: var(--sans); font-size: .8rem; font-weight: 600;
+    color: var(--ink-soft); margin: var(--space-3) 0 var(--space-1); }
+  details { font-family: var(--sans); font-size: .85rem; margin: var(--space-1) 0; }
+  details p { font-family: var(--serif); font-size: .95rem; white-space: pre-wrap;
+    background: var(--paper); padding: var(--space-2); border-radius: 6px; }
+  .checks { font-family: var(--sans); font-size: .85rem; margin: 0;
+    padding-left: var(--space-4); }
+  .pass { color: var(--ok); } .fail { color: var(--danger); }
+  fieldset { border: 0; padding: 0; margin: var(--space-2) 0;
+    font-family: var(--sans); font-size: .9rem; }
+  legend { font-weight: 600; color: var(--ink-soft); padding: 0; }
+  fieldset label { margin-right: var(--space-3); white-space: nowrap; }
+  textarea { width: 100%; min-height: 3em; font: inherit; padding: var(--space-2);
+    border: 1px solid var(--rule-strong); border-radius: 6px; }
+  .saved { font-family: var(--sans); font-size: .8rem; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<main class="grading">
+<h1>Grade answers</h1>
+<p class="lede">{{ report }} · {{ cards|length }} answers ·
+<span id="to-grade">{{ to_grade }}</span> still to grade.
+Grades save at once to {{ grades_file }}.</p>
+{% for card in cards %}
+<article class="card" data-answer="{{ card.index }}">
+  <div class="card-head">
+    <strong>{{ card.question_id }}</strong>
+    <span class="tag">{{ card.type }}</span>
+    <span>{{ card.model }}</span>
+    <span class="state {{ card.state_class }}" data-state>{{ card.state }}</span>
+  </div>
+  <h2>{{ card.question }}</h2>
+  {% for part in card.parts %}
+  <p class="part part--{{ part.kind }}"><span class="part-kind">{{ part.kind }}</span>
+  {{ part.text }}{% for n in part.citations %} [{{ n }}]{% endfor %}</p>
+  {% endfor %}
+  <div class="label">Cited passages</div>
+  {% for c in card.citations %}
+  <details><summary>[{{ c.n }}] {{ c.title }} · {{ c.chapter }}{% if c.section %} · {{ c.section }}{% endif %}</summary>
+  <p>{{ c.text }}</p></details>
+  {% else %}
+  <p class="saved">No passages cited.</p>
+  {% endfor %}
+  <div class="label">Evidence check:
+  {% if card.evidence.passed %}<span class="pass">passed</span>{% else %}<span class="fail">failed</span>{% endif %}</div>
+  <ul class="checks">
+  {% for q in card.evidence.quotes %}
+    <li class="{{ 'pass' if q.cited_in else 'fail' }}">[{{ q.book }}] “{{ q.quote }}”:
+    {% if q.cited_in %}in {% for n in q.cited_in %}[{{ n }}]{% endfor %}{% else %}not cited{% endif %}</li>
+  {% else %}
+    <li>Negative question: {{ card.evidence.book_claims }} book claims.</li>
+  {% endfor %}
+  </ul>
+  {% if card.ragas %}
+  <div class="label">Ragas ({{ card.ragas.judge_model }}): faithfulness
+  {{ card.ragas.faithfulness_text }}, answer relevancy {{ card.ragas.answer_relevancy_text }}</div>
+  {% endif %}
+  <fieldset><legend>Answer quality</legend>
+  {% for q in quality_grades %}
+  <label><input type="radio" name="quality-{{ card.index }}" value="{{ q }}"
+  {% if card.grade.quality == q %}checked{% endif %}> {{ q }}</label>
+  {% endfor %}
+  </fieldset>
+  <fieldset><legend>Citation accuracy</legend>
+  {% for g in citation_grades %}
+  <label><input type="radio" name="citations-{{ card.index }}" value="{{ g }}"
+  {% if card.grade.citations == g %}checked{% endif %}> {{ citation_labels[g] }}</label>
+  {% endfor %}
+  </fieldset>
+  <label class="label" for="notes-{{ card.index }}">Notes</label>
+  <textarea id="notes-{{ card.index }}" name="notes">{{ card.grade.notes or "" }}</textarea>
+  <div class="saved" data-saved></div>
+</article>
+{% endfor %}
+</main>
+<script>
+document.querySelectorAll(".card").forEach((card) => {
+  const save = async (change) => {
+    const saved = card.querySelector("[data-saved]");
+    const response = await fetch(`/api/answers/${card.dataset.answer}/grade`, {
+      method: "PUT",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(change),
+    });
+    const body = await response.json();
+    if (!response.ok) { saved.textContent = `Not saved: ${body.error}`; return; }
+    const state = card.querySelector("[data-state]");
+    state.textContent = body.state;
+    state.className = `state ${body.state_class}`;
+    saved.textContent = "Saved.";
+    document.getElementById("to-grade").textContent = body.to_grade;
+  };
+  card.querySelectorAll("input[type=radio]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const field = input.name.split("-")[0];
+      save({[field]: field === "quality" ? Number(input.value) : input.value});
+    });
+  });
+  const notes = card.querySelector("textarea");
+  notes.addEventListener("change", () => save({notes: notes.value}));
+});
+</script>
+</body>
+</html>

@@ -41,7 +41,7 @@ A book whose ingestion stopped without a result: it is left in parsing or indexi
 _Avoid_: Stuck, hung
 
 **Contextual enrichment**:
-A short context line that an LLM writes for a passage at indexing time, indexed with the passage but kept apart from its original text.
+A short context line that an LLM writes for a passage at indexing time, indexed with the passage but kept apart from its original text. Its text is the passage's *context line*.
 _Avoid_: Augmentation, annotation
 
 ## Questions and answers
@@ -87,6 +87,14 @@ _Avoid_: Trace, debug info
 **Evaluation set**:
 Questions with the passages and facts that a good answer needs, used to measure retrieval and answer quality.
 _Avoid_: Test set, benchmark, golden set
+
+**Evidence quote**:
+A sentence from a book that a good answer to an evaluation question needs. Retrieval finds it when a passage contains it.
+_Avoid_: Gold passage, ground truth
+
+**Grade**:
+Theo's judgement of one answer: its quality from 1 to 5 and its citation accuracy (correct, partly correct, wrong).
+_Avoid_: Rating, score (a score comes from Ragas)
 
 **Live run**:
 A run of the e2e suite against the real AI providers, started by hand, with a cost cap.

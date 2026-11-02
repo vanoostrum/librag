@@ -16,3 +16,6 @@ dist/
 .coverage.*
 # The live run's usage reports (scripts/e2e-live).
 e2e-reports/
+# The retrieval evaluation's books and reports (scripts/eval-retrieval).
+eval/books/
+eval-reports/

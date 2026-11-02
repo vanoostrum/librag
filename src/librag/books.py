@@ -154,7 +154,17 @@ def _json(row: RowMapping) -> dict[str, Any]:
         "error": row["error"],
         "embedding_tokens": row["embedding_tokens"],
         "embedding_cost_usd": row["embedding_cost_usd"],
+        "enrichment_input_tokens": row["enrichment_input_tokens"],
+        "enrichment_output_tokens": row["enrichment_output_tokens"],
+        "enrichment_cost_usd": row["enrichment_cost_usd"],
         "uploaded_at": row["uploaded_at"].replace(tzinfo=UTC).isoformat(),
+        "index_configuration": {
+            "passage_target_tokens": row["passage_target_tokens"],
+            "passage_overlap_tokens": row["passage_overlap_tokens"],
+            "tokenizer": row["tokenizer"],
+            "embedding_model": row["embedding_model"],
+            "enrichment_model": row["enrichment_model"],
+        },
     }
 
 
@@ -168,7 +178,15 @@ _COLUMNS = (
     _ERROR.label("error"),
     books.c.embedding_tokens,
     books.c.embedding_cost_usd,
+    books.c.enrichment_input_tokens,
+    books.c.enrichment_output_tokens,
+    books.c.enrichment_cost_usd,
     books.c.uploaded_at,
+    books.c.passage_target_tokens,
+    books.c.passage_overlap_tokens,
+    books.c.tokenizer,
+    books.c.embedding_model,
+    books.c.enrichment_model,
 )
 
 

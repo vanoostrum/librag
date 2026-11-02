@@ -12,6 +12,9 @@ x-app: &app
     # Passed through from the shell when set. With the live providers, the worker
     # embeds with OpenAI and chat answers with OpenAI or Anthropic.
     LIBRAG_EMBEDDING_MODEL:
+    LIBRAG_ENRICHMENT:
+    LIBRAG_ENRICHMENT_MODEL:
+    LIBRAG_REINDEX_ENABLED:
     OPENAI_API_KEY:
     ANTHROPIC_API_KEY:
   volumes:
