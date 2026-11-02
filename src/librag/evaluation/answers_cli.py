@@ -4,7 +4,7 @@
 `run` asks every question of the evaluation set on each chat model through
 `POST /api/chat`, and writes `eval-reports/answers-<timestamp>.json`. `grade`
 serves the grading page for a report. `summary` prints, per model, the
-grades, the evidence checks and the Ragas scores. See docs/evaluation.md.
+grades, the evidence checks and the Ragas scores. See docs/answer-evaluation.md.
 """
 
 import argparse
@@ -139,7 +139,7 @@ def _check_keys(
             f"set {' and '.join(missing)} in your shell first. The run asks "
             f"{', '.join(models)} with your own keys"
             + (f", and {JUDGE_MODEL} judges for Ragas" if ragas else "")
-            + ". See docs/evaluation.md."
+            + ". See docs/answer-evaluation.md."
         )
         raise EvalError(msg)
 
