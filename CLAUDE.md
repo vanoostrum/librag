@@ -83,7 +83,7 @@ When asked to "work on" a ticket or a feature, run the steps in order from where
 
   Any other human reply is feedback: go back to the step before the gate and use it.
 - **UI feedback at the merge gate.** For a ticket with the `ui` label, the merge gate is one polish pass against the gallery. A polish fix goes back to `factory-build`, which changes the code and the gallery page in the same PR. Feedback that changes the design goes back to `factory-design` in ticket mode, then through the spec gate again.
-- **Writing for humans.** Write every chat message, Linear comment, spec, PR body, and review comment with the `clear-technical-prose` skill. The fixed formats in these rules keep their shape. The prose inside them follows the skill.
+- **Writing for humans.** Write every chat message, Linear comment, spec, PR body, review comment, and doc with the `clear-technical-prose` skill. The fixed formats in these rules keep their shape. The prose inside them follows the skill.
 - **Chat.** Send a chat message only at the end of a step, at a gate, when blocked, or for a grill or design round in `factory-plan`, `factory-spec`, or `factory-design`. The message gives the result, what you need from the human, and a link. The details go to the Linear ticket and the PR. Do not describe tool calls or progress in chat.
 - **Models.** Each step and each subagent runs on the model in `.claude/models.md`:
 
