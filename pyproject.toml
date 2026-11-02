@@ -38,8 +38,10 @@ dev = [
     "types-pyyaml>=6.0.12.20261030",
 ]
 
-# The retrieval evaluation (scripts/eval-retrieval). The app image leaves it out.
+# The retrieval and answer evaluations (scripts/eval-retrieval, scripts/eval-answers).
+# The app image leaves it out.
 eval = [
+    "ragas>=0.4.3",
     "ranx>=0.3.21",
 ]
 
