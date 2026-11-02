@@ -42,6 +42,8 @@ dev = [
 # The app image leaves it out.
 eval = [
     "ragas>=0.4.3",
+    # Ragas 0.4.3 imports langchain_community.chat_models.vertexai, which 0.4 removed.
+    "langchain-community<0.4",
     "ranx>=0.3.21",
 ]
 
