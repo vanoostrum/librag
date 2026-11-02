@@ -116,7 +116,9 @@ def secrets() -> dict[str, str]:
     return {
         name: value
         for name, value in os.environ.items()
-        if SECRET_NAME.search(name) and len(value) >= MIN_SECRET_LENGTH
+        if SECRET_NAME.search(name)
+        and len(value) >= MIN_SECRET_LENGTH
+        and value != PROXY_TOKEN
     }
 
 
@@ -142,8 +144,9 @@ def transcripts(transcript: Path) -> dict[str, Path]:
     found = {"session.jsonl": transcript} if transcript.is_file() else {}
     folder = transcript.with_suffix("")
     if folder.is_dir():
-        for path in sorted(folder.rglob("*.jsonl")):
-            found[str(path.relative_to(folder))] = path
+        for pattern in ("*.jsonl", "*.meta.json"):
+            for path in sorted(folder.rglob(pattern)):
+                found[str(path.relative_to(folder))] = path
     return found
 
 
@@ -216,8 +219,22 @@ class Segment:
     agent_calls: dict[str, str | None] = field(default_factory=dict)
 
 
+def failed_calls(path: Path) -> set[str]:
+    """Return the ids of the tool calls whose result is an error."""
+    return {
+        str(block.get("tool_use_id"))
+        for entry in entries(path)
+        for block in blocks(entry)
+        if block.get("type") == "tool_result" and block.get("is_error") is True
+    }
+
+
 def segment_starts(path: Path, branch_ticket: str | None) -> list[Segment]:
-    """Return the segments of the main transcript, with their `Agent` calls."""
+    """Return the segments of the main transcript, with their `Agent` calls.
+
+    A Skill call that failed, such as an unknown skill, starts no segment.
+    """
+    failed = failed_calls(path)
     segments = [Segment(step=None, ticket=branch_ticket, started_at=None)]
     for entry in entries(path):
         stamp = entry.get("timestamp")
@@ -227,7 +244,7 @@ def segment_starts(path: Path, branch_ticket: str | None) -> list[Segment]:
             tool_input = block.get("input") or {}
             if block.get("name") == "Skill":
                 match = FACTORY_SKILL.match(str(tool_input.get("skill") or ""))
-                if match:
+                if match and str(block.get("id")) not in failed:
                     found = TICKET_KEY.search(str(tool_input.get("args") or ""))
                     ticket = found.group(0) if found else branch_ticket
                     segments.append(Segment(match.group(1), ticket, stamp, stamp))

@@ -113,7 +113,7 @@ def transcript(tmp_path: Path) -> Path:
             {
                 "type": "user",
                 "timestamp": stamp(0),
-                "message": {"content": f"key {SECRET}"},
+                "message": {"content": f"key {SECRET}, token proxy-injected"},
             },
             # One reply written as two lines, each with the same usage.
             reply(1, "m1", SONNET, 100, {"type": "text", "text": "Building."}),
@@ -133,6 +133,7 @@ def transcript(tmp_path: Path) -> Path:
         ],
     )
     write_jsonl(subagents / "agent-a1.jsonl", [reply(3, "s1", SONNET, 40)])
+    (subagents / "agent-a1.meta.json").write_text('{"agentType": "general"}', "utf-8")
     write_jsonl(subagents / "agent-b2.jsonl", [reply(12, "s2", OPUS, 50)])
     return main
 
@@ -238,6 +239,9 @@ def test_uploads_the_session_transcripts(
 
     assert "key [redacted:OPENAI_API_KEY]" in main
     assert SECRET not in main
+    assert "token proxy-injected" in main
+    meta = folder / "subagents" / "agent-a1.meta.json.gz"
+    assert gzip.decompress(meta.read_bytes()) == b'{"agentType": "general"}'
     assert (
         subagent
         == (transcript.parent / SESSION / "subagents" / "agent-a1.jsonl").read_bytes()
@@ -291,6 +295,32 @@ def test_assigns_subagents_to_their_step(
     assert review["subagents"][0]["role"] is None
     assert review["subagents"][0]["tokens"] == tokens(OPUS, 50, 1)
     assert merge["subagents"] == []
+
+
+def test_failed_skill_call_starts_no_segment(tmp_path: Path, project: Path) -> None:
+    """A Skill call that returns an error, such as an unknown skill, is no step."""
+    session = tmp_path / "failed.jsonl"
+    call = skill("factory-next")
+    error = {
+        "type": "user",
+        "timestamp": stamp(2),
+        "message": {
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": call["id"],
+                    "is_error": True,
+                    "content": "Unknown skill: factory-next",
+                }
+            ]
+        },
+    }
+    write_jsonl(session, [reply(1, "m1", OPUS, 9, call), error])
+    run_hook(configured_env(tmp_path), session, project)
+    wait_for_uploads(tmp_path, 1)
+
+    steps = [s["step"] for s in metadata(tmp_path)["segments"]]
+    assert steps == [None]
 
 
 def test_session_without_a_ticket(tmp_path: Path, project: Path) -> None:
