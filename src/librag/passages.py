@@ -31,6 +31,12 @@ def count_tokens(text: str) -> int:
     return len(_encoding().encode(text, disallowed_special=()))
 
 
+def truncate_tokens(text: str, limit: int) -> str:
+    """Return `text` cut to its first `limit` `cl100k_base` tokens."""
+    tokens = _encoding().encode(text, disallowed_special=())
+    return text if len(tokens) <= limit else _encoding().decode(tokens[:limit])
+
+
 def passage_id(book_id: str, position: int) -> str:
     """Return the ID of the passage at `position` in the book `book_id`."""
     return str(uuid.uuid5(PASSAGE_ID_NAMESPACE, f"{book_id}/{position}"))

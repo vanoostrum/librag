@@ -103,6 +103,7 @@ def test_best_passage_is_first(client: TestClient, index: Callable[..., None]) -
         "chapter": "Part 1",
         "section": None,
         "text": "The lighthouse keeper polished the brass lamp every evening.",
+        "context": None,
         "score": first["score"],
         "fusion_score": first["fusion_score"],
         "rerank_score": first["rerank_score"],
@@ -521,6 +522,7 @@ def test_candidates_hold_the_text_of_every_staged_passage(
         "chapter": "Part 2",
         "section": None,
         "text": "The lighthouse beam swept across the harbour fog.",
+        "context": None,
     }
     # Fusion keeps one passage; the others come from dense and BM25 only.
     assert len(stage_ids(body, "fusion")) == 1

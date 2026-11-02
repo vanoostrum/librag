@@ -65,12 +65,16 @@ def book_json(response_book: dict[str, Any], **expected: object) -> dict[str, An
         "error": None,
         "embedding_tokens": 0,
         "embedding_cost_usd": 0.0,
+        "enrichment_input_tokens": 0,
+        "enrichment_output_tokens": 0,
+        "enrichment_cost_usd": 0.0,
         "uploaded_at": response_book["uploaded_at"],
         "index_configuration": {
             "passage_target_tokens": 350,
             "passage_overlap_tokens": 50,
             "tokenizer": "cl100k_base",
             "embedding_model": None,
+            "enrichment_model": None,
         },
         **expected,
     }
@@ -112,6 +116,7 @@ def test_worker_indexes_the_book(
             "passage_overlap_tokens": 50,
             "tokenizer": "cl100k_base",
             "embedding_model": "fake",
+            "enrichment_model": None,
         },
     )
     assert count(engine, passages) == 2  # noqa: PLR2004

@@ -16,6 +16,7 @@ from sqlalchemy import Engine, create_engine, delete, insert, select, update
 from librag.books import book_path
 from librag.db import books, ingestion_jobs, passages, to_db_time, worker_heartbeats
 from librag.embeddings import Embedder, Embeddings, make_embedder
+from librag.enrichment import Enricher, chapter_texts, make_enricher
 from librag.epub import EpubError, read_chapters
 from librag.index import (
     BM25_METHOD,
@@ -42,11 +43,15 @@ Sleep = Callable[[float], None]
 
 @dataclass(frozen=True)
 class Indexing:
-    """How a job indexes: its embedder, and the waits before it retries a batch."""
+    """How a job indexes: its embedder and enricher, and the waits before a retry.
+
+    Without an enricher, the job indexes without contextual enrichment.
+    """
 
     embedder: Embedder
     retry_delays: Sequence[float] = RETRY_DELAYS_SECONDS
     sleep: Sleep = time.sleep
+    enricher: Enricher | None = None
 
     def with_retries[T](self, action: Callable[[], T]) -> T:
         """Return what `action` returns, trying again after each delay if it raises."""
@@ -55,7 +60,7 @@ class Indexing:
                 return action()
             except Exception:
                 logger.warning(
-                    "indexing batch failed, retrying in %s s", delay, exc_info=True
+                    "indexing call failed, retrying in %s s", delay, exc_info=True
                 )
                 self.sleep(delay)
         return action()
@@ -149,30 +154,127 @@ def _finish(engine: Engine, job_id: int, book: dict[str, object]) -> None:
         )
 
 
-def _index(
+def _add_cost(total: float | None, cost: float | None) -> float | None:
+    """Return the sum of two costs, or None when either one is unknown."""
+    return None if total is None or cost is None else total + cost
+
+
+@dataclass
+class _Enriching:
+    """Writes the context lines of a book's passages, and adds up what they cost."""
+
+    engine: Engine
+    indexing: Indexing
+    enricher: Enricher
+    book_id: str
+    chapters: dict[int, str]
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost: float | None = 0.0
+
+    def enrich(self, batch: list[Passage]) -> list[str]:
+        """Return the context lines of `batch`, stored with the passages."""
+        contexts: list[str] = []
+        for passage in batch:
+            chapter = self.chapters[passage.spine_index]
+            enrichment = self.indexing.with_retries(
+                lambda passage=passage, chapter=chapter: self.enricher.enrich(
+                    chapter, passage
+                )
+            )
+            contexts.append(enrichment.context)
+            self.input_tokens += enrichment.input_tokens
+            self.output_tokens += enrichment.output_tokens
+            self.cost = _add_cost(self.cost, enrichment.cost_usd)
+        with self.engine.begin() as connection:
+            for passage, context in zip(batch, contexts, strict=True):
+                connection.execute(
+                    update(passages)
+                    .where(passages.c.id == passage_id(self.book_id, passage.position))
+                    .values(context=context)
+                )
+            connection.execute(
+                update(books)
+                .where(books.c.id == self.book_id)
+                .values(
+                    enrichment_input_tokens=self.input_tokens,
+                    enrichment_output_tokens=self.output_tokens,
+                    enrichment_cost_usd=self.cost,
+                )
+            )
+        return contexts
+
+
+def _indexed_text(title: str, passage: Passage, context: str | None) -> str:
+    """Return the text that dense and BM25 search index for the passage.
+
+    It is the book title, chapter heading, context line if any, and passage text.
+    """
+    lines = (title, passage.chapter_title, context, passage.text)
+    return "\n".join(line for line in lines if line is not None)
+
+
+def _payload(
+    book_id: str, title: str, author: str | None, passage: Passage, context: str | None
+) -> dict[str, object]:
+    """Return what Qdrant stores with the passage's point.
+
+    It holds the context line only when the book is enriched.
+    """
+    payload: dict[str, object] = {
+        "book_id": book_id,
+        "title": title,
+        "author": author,
+        "text": passage.text,
+        "position": passage.position,
+        "chapter_title": passage.chapter_title,
+        "section_title": passage.section_title,
+        "spine_index": passage.spine_index,
+        "first_paragraph": passage.first_paragraph,
+        "last_paragraph": passage.last_paragraph,
+    }
+    if context is not None:
+        payload["context"] = context
+    return payload
+
+
+def _index(  # noqa: PLR0913 - the job's parts, each needed here
     engine: Engine,
     settings: Settings,
     indexing: Indexing,
     book_id: str,
     built: list[Passage],
+    *,
+    contexts: list[str | None],
 ) -> str | None:
-    """Embed and upsert the passages in batches. Return the error, if any.
+    """Enrich, embed and upsert the passages in batches. Return the error, if any.
 
-    The book's progress, embedding tokens and cost move on after each batch.
+    `contexts` holds a stored context line per passage, or None for each one
+    that the enricher, if any, must write. The book's progress, tokens and
+    costs move on after each batch.
     """
     with engine.connect() as connection:
         title, author = connection.execute(
             select(books.c.title, books.c.author).where(books.c.id == book_id)
         ).one()
     embedder = indexing.embedder
+    enriching = (
+        None
+        if indexing.enricher is None or all(contexts)
+        else _Enriching(
+            engine, indexing, indexing.enricher, book_id, chapter_texts(built)
+        )
+    )
     name = collection_name(settings.qdrant_collection_prefix, embedder.model)
     client = qdrant_client(settings.qdrant_url)
     tokens, cost = 0, 0.0
 
-    def index_batch(batch: list[Passage]) -> Embeddings:
-        # The indexed text is the book title, chapter heading and passage text.
+    def index_batch(
+        batch: list[Passage], batch_contexts: Sequence[str | None]
+    ) -> Embeddings:
         texts = [
-            f"{title}\n{passage.chapter_title}\n{passage.text}" for passage in batch
+            _indexed_text(title, passage, context)
+            for passage, context in zip(batch, batch_contexts, strict=True)
         ]
         embeddings = embedder.embed(texts)
         ensure_collection(client, name, len(embeddings.vectors[0]))
@@ -184,21 +286,10 @@ def _index(
                     id=passage_id(book_id, passage.position),
                     text=text,
                     vector=vector,
-                    payload={
-                        "book_id": book_id,
-                        "title": title,
-                        "author": author,
-                        "text": passage.text,
-                        "position": passage.position,
-                        "chapter_title": passage.chapter_title,
-                        "section_title": passage.section_title,
-                        "spine_index": passage.spine_index,
-                        "first_paragraph": passage.first_paragraph,
-                        "last_paragraph": passage.last_paragraph,
-                    },
+                    payload=_payload(book_id, title, author, passage, context),
                 )
-                for passage, text, vector in zip(
-                    batch, texts, embeddings.vectors, strict=True
+                for passage, context, text, vector in zip(
+                    batch, batch_contexts, texts, embeddings.vectors, strict=True
                 )
             ],
         )
@@ -207,19 +298,24 @@ def _index(
     try:
         for start in range(0, len(built), EMBEDDING_BATCH_SIZE):
             batch = built[start : start + EMBEDDING_BATCH_SIZE]
+            batch_contexts = contexts[start : start + EMBEDDING_BATCH_SIZE]
+            if enriching is not None:
+                try:
+                    batch_contexts = enriching.enrich(batch)
+                except Exception as error:
+                    logger.exception("enriching book %s failed", book_id)
+                    return f"Enrichment failed: {error}"
             try:
                 embeddings = indexing.with_retries(
-                    lambda batch=batch: index_batch(batch)
+                    lambda batch=batch, batch_contexts=batch_contexts: index_batch(
+                        batch, batch_contexts
+                    )
                 )
             except Exception as error:
                 logger.exception("indexing book %s failed", book_id)
                 return f"Indexing failed: {error}"
             tokens += embeddings.tokens
-            cost = (
-                None
-                if cost is None or embeddings.cost_usd is None
-                else cost + embeddings.cost_usd
-            )
+            cost = _add_cost(cost, embeddings.cost_usd)
             with engine.begin() as connection:
                 connection.execute(
                     update(books)
@@ -236,8 +332,13 @@ def _index(
     return None
 
 
-def _stored_passages(engine: Engine, book_id: str) -> list[Passage]:
-    """Return the passages of the book as the last parse stored them."""
+def _stored_passages(
+    engine: Engine, book_id: str
+) -> tuple[list[Passage], list[str | None]]:
+    """Return the passages of the book as the last parse stored them.
+
+    Return their context lines too, None for a passage without one.
+    """
     with engine.connect() as connection:
         rows = connection.execute(
             select(
@@ -248,11 +349,12 @@ def _stored_passages(engine: Engine, book_id: str) -> list[Passage]:
                 passages.c.spine_index,
                 passages.c.first_paragraph,
                 passages.c.last_paragraph,
+                passages.c.context,
             )
             .where(passages.c.book_id == book_id)
             .order_by(passages.c.position)
         ).all()
-    return [Passage(*row) for row in rows]
+    return [Passage(*row[:-1]) for row in rows], [row.context for row in rows]
 
 
 def _parse(engine: Engine, settings: Settings, book_id: str) -> list[Passage] | str:
@@ -303,23 +405,57 @@ def run_one_job(
 ) -> bool:
     """Run the oldest queued job: parse the book into passages, and index them.
 
-    A `reembed` job indexes the stored passages without a new parse. The book
-    ends in `indexed`, or in `failed` with an error. Without `indexing`, the job
-    uses the embedder that `settings` picks, and the standard retries. Returns
-    False when no job was queued.
+    A `reembed` job indexes the stored passages without a new parse. It reuses
+    their stored context lines when the book was enriched with the current
+    enricher, and writes them anew otherwise. The book ends in `indexed`, or in
+    `failed` with an error. Without `indexing`, the job uses the embedder and
+    enricher that `settings` pick, and the standard retries. Returns False when
+    no job was queued.
     """
     claimed = _claim(engine)
     if claimed is None:
         return False
     job_id, book_id, kind = claimed
-    stored = _stored_passages(engine, book_id) if kind == "reembed" else []
+    stored, contexts = (
+        _stored_passages(engine, book_id) if kind == "reembed" else ([], [])
+    )
     # A re-embed of a book without stored passages parses it after all.
     built = stored or _parse(engine, settings, book_id)
     if isinstance(built, str):
         _finish(engine, job_id, {"id": book_id, "status": "failed", "error": built})
         return True
-    indexing = indexing or Indexing(make_embedder(settings))
+    indexing = indexing or Indexing(
+        make_embedder(settings), enricher=make_enricher(settings)
+    )
+    enricher = indexing.enricher
+    with engine.connect() as connection:
+        enriched_with = connection.scalar(
+            select(books.c.enrichment_model).where(books.c.id == book_id)
+        )
+    reuse = (
+        enricher is not None
+        and bool(stored)
+        and enriched_with == enricher.model
+        and all(contexts)
+    )
+    if not reuse:
+        contexts = [None] * len(built)
     with engine.begin() as connection:
+        if not reuse:
+            connection.execute(
+                update(passages)
+                .where(passages.c.book_id == book_id)
+                .values(context=None)
+            )
+            connection.execute(
+                update(books)
+                .where(books.c.id == book_id)
+                .values(
+                    enrichment_input_tokens=0,
+                    enrichment_output_tokens=0,
+                    enrichment_cost_usd=0.0,
+                )
+            )
         connection.execute(
             update(books)
             .where(books.c.id == book_id)
@@ -333,9 +469,10 @@ def run_one_job(
                 bm25_method=BM25_METHOD,
                 embedding_tokens=0,
                 embedding_cost_usd=0.0,
+                enrichment_model=None if enricher is None else enricher.model,
             )
         )
-    error = _index(engine, settings, indexing, book_id, built)
+    error = _index(engine, settings, indexing, book_id, built, contexts=contexts)
     _finish(
         engine,
         job_id,

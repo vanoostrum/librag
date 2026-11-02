@@ -31,13 +31,19 @@ from librag.books import (
 from librag.chat import ChatError, ChatRequest, Event, chat, chat_stream
 from librag.chat_page import chat_context
 from librag.embeddings import make_embedder
+from librag.enrichment import make_enricher
 from librag.epub import EpubError
 from librag.health import check_database, check_qdrant, check_worker
 from librag.index import qdrant_client
 from librag.library import STATIC_DIR, TEMPLATES, library_context
 from librag.llm import make_llm
 from librag.prompts import Turn
-from librag.reindex import out_of_date_books, reindex_book, reindex_out_of_date
+from librag.reindex import (
+    Models,
+    out_of_date_books,
+    reindex_book,
+    reindex_out_of_date,
+)
 from librag.rerank import make_reranker
 from librag.search import Searcher, SearchRequest, retrieve
 from librag.settings import MAX_SEARCH_K, MAX_TOKEN_BUDGET, MIN_TOKEN_BUDGET, Settings
@@ -154,6 +160,13 @@ def retry(book_id: str, request: Request) -> JSONResponse:
     return JSONResponse(book, status_code=HTTPStatus.ACCEPTED)
 
 
+def _models(request: Request) -> Models:
+    """Return the models that index passages now."""
+    state = request.app.state
+    enricher = make_enricher(state.settings)
+    return Models(state.embedder.model, None if enricher is None else enricher.model)
+
+
 def reindex(book_id: str, request: Request) -> JSONResponse:
     """Rebuild an indexed book; only when LIBRAG_REINDEX_ENABLED is on."""
     state = request.app.state
@@ -161,7 +174,7 @@ def reindex(book_id: str, request: Request) -> JSONResponse:
         return _not_found(REINDEX_OFF)
     try:
         book = reindex_book(
-            state.engine, state.settings, state.qdrant, book_id, state.embedder.model
+            state.engine, state.settings, state.qdrant, book_id, _models(request)
         )
     except BookNotFoundError:
         return _not_found()
@@ -176,7 +189,7 @@ def reindex_all(request: Request) -> JSONResponse:
     if not state.settings.reindex_enabled:
         return _not_found(REINDEX_OFF)
     book_ids = reindex_out_of_date(
-        state.engine, state.settings, state.qdrant, state.embedder.model
+        state.engine, state.settings, state.qdrant, _models(request)
     )
     return JSONResponse({"book_ids": book_ids}, status_code=HTTPStatus.ACCEPTED)
 
@@ -295,7 +308,7 @@ def _library_context(request: Request) -> dict[str, Any]:
     """Return what the library templates need: the books, and the out-of-date ones."""
     state = request.app.state
     out_of_date = (
-        out_of_date_books(state.engine, state.settings, state.embedder.model)
+        out_of_date_books(state.engine, state.settings, _models(request))
         if state.settings.reindex_enabled
         else None
     )
@@ -379,10 +392,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def search_passages(body: SearchBody, request: Request) -> dict[str, Any]:
         """Return the context that retrieval and reranking select, without the LLM.
 
-        `candidates` gives the book and text of every passage in any stage.
+        `candidates` gives the book and text of every passage in any stage. Each
+        result and candidate has its context line, or None without enrichment.
         """
         retrieval = retrieve(_searcher(request), SearchRequest(**body.model_dump()))
-        return {**retrieval.body, "candidates": retrieval.candidates()}
+        return {
+            **retrieval.body,
+            "candidates": retrieval.candidates(with_context=True),
+        }
 
     app.post("/api/books/reindex-out-of-date")(reindex_all)
     app.delete("/api/books/{book_id}", response_model=None)(remove_book)

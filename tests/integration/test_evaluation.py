@@ -251,6 +251,7 @@ def test_run_reports_each_stage_and_deletes_the_books(
         "passage_overlap_tokens": 50,
         "tokenizer": "cl100k_base",
         "embedding_model": "fake",
+        "enrichment_model": None,
     }
 
     searches = [

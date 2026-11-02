@@ -118,7 +118,7 @@ class LiteLlm:
             text=response.choices[0].message.content or "",
             input_tokens=usage.prompt_tokens,
             output_tokens=usage.completion_tokens,
-            cost_usd=_cost(litellm, model, response),
+            cost_usd=cost(litellm, model, response),
         )
 
     def stream(self, model: str, prompt: Prompt) -> Iterator[str | Completion]:
@@ -147,11 +147,11 @@ class LiteLlm:
             text=whole.choices[0].message.content or "",
             input_tokens=whole.usage.prompt_tokens,
             output_tokens=whole.usage.completion_tokens,
-            cost_usd=_cost(litellm, model, whole),
+            cost_usd=cost(litellm, model, whole),
         )
 
 
-def _cost(litellm: Any, model: str, response: object) -> float | None:  # noqa: ANN401
+def cost(litellm: Any, model: str, response: object) -> float | None:  # noqa: ANN401
     """Return LiteLLM's cost of `response`, or None when it has no price.
 
     For a model missing from its price table, LiteLLM can return 0 instead of
