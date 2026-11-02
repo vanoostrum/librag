@@ -138,6 +138,10 @@ def _number(value: float | None, digits: int = 2) -> str:
     return "none" if value is None else f"{value:.{digits}f}"
 
 
+def _mean_text(value: float | None) -> str:
+    return "not run" if value is None else f"{value:.2f} mean"
+
+
 def _share(value: float | None) -> str:
     return "none" if value is None else f"{value:.0%}"
 
@@ -164,8 +168,8 @@ def text(name: str, summaries: Mapping[str, Mapping[str, Any]]) -> str:
             ),
             f"  citations            {shares} over {s['citations_graded']} graded",
             f"  evidence check       {_share(s['evidence_pass_rate'])} passed",
-            f"  Ragas faithfulness   {_number(s['faithfulness_mean'])} mean",
-            f"  Ragas relevancy      {_number(s['answer_relevancy_mean'])} mean",
+            f"  Ragas faithfulness   {_mean_text(s['faithfulness_mean'])}",
+            f"  Ragas relevancy      {_mean_text(s['answer_relevancy_mean'])}",
             (
                 "  Ragas agreement      faithfulness ~ citations "
                 f"{_number(agreement['faithfulness_vs_citations'])} "

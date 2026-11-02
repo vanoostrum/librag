@@ -655,3 +655,13 @@ def test_summary_prints_grades_checks_and_ragas_per_model(
     assert "  answers              5 (5 still to grade, 0 carried over)" in second
     assert "  quality, mean (1-5)  none over 0 graded" in second
     assert any(line.startswith("  evidence check       ") for line in second)
+
+
+def test_summary_without_ragas_says_it_was_not_run(run: Run) -> None:
+    """Without --ragas and grades, the summary says what is missing, not zero."""
+    assert run("run")[0] == 0
+    code, out, _ = run("summary")
+    assert code == 0
+    assert "  Ragas faithfulness   not run" in out
+    assert "  quality, mean (1-5)  none over 0 graded" in out
+    assert "  answers              5 (5 still to grade, 0 carried over)" in out
