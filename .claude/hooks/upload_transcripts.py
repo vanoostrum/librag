@@ -1,9 +1,16 @@
 # Copyright (C) 2026 Theo van Oostrum
 """Stop, SubagentStop, and SessionEnd hook: copy transcripts to Google Cloud Storage.
 
-Proof of concept for the factory dashboard. The hook does nothing unless
-`FACTORY_GCS_BUCKET` and `FACTORY_GCS_KEY` are set. `FACTORY_GCS_KEY` holds a
-service account key, as JSON or base64 JSON.
+Proof of concept for the factory dashboard. `FACTORY_GCS_BUCKET` names the
+bucket. The hook signs in to Google Cloud in one of two ways, and does nothing
+when neither is there:
+
+- In a cloud session, a "GCP access token" network secret for
+  `storage.googleapis.com` lets the proxy add the access token. The sandbox
+  marks this with `CLOUDSDK_AUTH_ACCESS_TOKEN=proxy-injected`. The key never
+  enters the container.
+- Elsewhere, `FACTORY_GCS_KEY` holds a service account key, as JSON or base64
+  JSON.
 
 The hook returns at once and uploads in a background process, so a turn does
 not wait for Google Cloud. Each upload writes the whole session to the same
@@ -34,10 +41,7 @@ Secret environment values are replaced before upload. The background process
 logs each upload, or its error, to `factory-transcripts/upload.log` in the
 temp folder.
 
-Setup for cloud sessions: allow `storage.googleapis.com` and
-`oauth2.googleapis.com` in the environment's network access, and set both
-variables in the environment. The key needs only the Storage Object User role
-on the bucket.
+The service account needs only the Storage Object User role on the bucket.
 """
 
 import base64
@@ -60,6 +64,8 @@ from typing import Any
 
 BUCKET_ENV = "FACTORY_GCS_BUCKET"
 KEY_ENV = "FACTORY_GCS_KEY"
+TOKEN_ENV = "CLOUDSDK_AUTH_ACCESS_TOKEN"  # noqa: S105 - a variable name.
+PROXY_TOKEN = "proxy-injected"  # noqa: S105 - a marker, not a secret.
 INTERVAL_ENV = "FACTORY_GCS_STOP_INTERVAL"
 DEFAULT_STOP_INTERVAL = 300.0
 UPLOAD_FLAG = "--upload"
@@ -335,16 +341,21 @@ def stage(event: dict[str, Any], out: Path) -> str:
     return f"{repo}/sessions/{session}"
 
 
-def gcloud(config: Path, *args: str) -> None:
-    """Run gcloud as the service account, with its own config folder.
+def proxy_auth() -> bool:
+    """Return whether the cloud sandbox's proxy adds the Google access token."""
+    return os.environ.get(TOKEN_ENV, "") == PROXY_TOKEN
 
-    The own folder keeps the user's gcloud login as it is. The cloud sandbox
-    sets `CLOUDSDK_AUTH_ACCESS_TOKEN`, which would override the service account.
+
+def gcloud(config: Path, *args: str, keep_token: bool) -> None:
+    """Run gcloud with its own config folder, so the user's login stays as it is.
+
+    With a service account key, the sandbox's `CLOUDSDK_AUTH_ACCESS_TOKEN` is
+    dropped, because it would override the key.
     """
     env = {
         name: value
         for name, value in os.environ.items()
-        if name != "CLOUDSDK_AUTH_ACCESS_TOKEN"
+        if keep_token or name != TOKEN_ENV
     }
     env["CLOUDSDK_CONFIG"] = str(config)
     subprocess.run(  # noqa: S603
@@ -360,14 +371,22 @@ def upload(event: dict[str, Any]) -> None:
     bucket = os.environ[BUCKET_ENV]
     with tempfile.TemporaryDirectory(prefix="factory-transcripts-") as tmp:
         work = Path(tmp)
-        key = work / "key.json"
-        key.write_text(key_json(os.environ[KEY_ENV]), encoding="utf-8")
-        key.chmod(0o600)
         out = work / "out"
         out.mkdir()
         prefix = stage(event, out)
         config = work / "gcloud"
-        gcloud(config, "auth", "activate-service-account", f"--key-file={key}")
+        raw_key = os.environ.get(KEY_ENV, "")
+        if raw_key:
+            key = work / "key.json"
+            key.write_text(key_json(raw_key), encoding="utf-8")
+            key.chmod(0o600)
+            gcloud(
+                config,
+                "auth",
+                "activate-service-account",
+                f"--key-file={key}",
+                keep_token=False,
+            )
         gcloud(
             config,
             "storage",
@@ -375,6 +394,7 @@ def upload(event: dict[str, Any]) -> None:
             str(out),
             f"gs://{bucket}/{prefix}",
             "--recursive",
+            keep_token=not raw_key,
         )
 
 
@@ -420,7 +440,9 @@ def upload_locked(event: dict[str, Any]) -> None:
 
 def main() -> None:
     """Start a background upload, or run it when called with the upload flag."""
-    if not (os.environ.get(BUCKET_ENV, "") and os.environ.get(KEY_ENV, "")):
+    if not os.environ.get(BUCKET_ENV, ""):
+        return
+    if not (os.environ.get(KEY_ENV, "") or proxy_auth()):
         return
     if sys.argv[1:2] == [UPLOAD_FLAG]:
         upload_locked(json.loads(sys.argv[2]))
