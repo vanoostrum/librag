@@ -107,7 +107,7 @@ class AnswerRun:
         try:
             for question in self.evalset.questions:
                 for model in self.models:
-                    self.answers.append(self._ask(question, model))
+                    self._ask(question, model)
         except BudgetReachedError as error:
             return str(error)
         except EvalError as error:
@@ -124,7 +124,12 @@ class AnswerRun:
             "authors": list(question.authors),
         }
 
-    def _ask(self, question: Question, model: str) -> dict[str, Any]:
+    def _ask(self, question: Question, model: str) -> None:
+        """Ask `question` on `model`, and save the answer before judging it.
+
+        The answer is saved first, so a judge that fails or reaches the cap
+        still leaves the paid answer in the report, without scores.
+        """
         self.usage.check_budget(self.budget)
         self.log(f"{question.id} on {model}")
         body = self.stack.chat(self._chat_body(question, model))
@@ -163,16 +168,20 @@ class AnswerRun:
             "usage": usage,
             "ragas": None,
         }
+        self.answers.append(answer)
         if self.judge is not None:
             answer["ragas"] = self._judge(question, body)
-        return answer
 
     def _judge(self, question: Question, body: Mapping[str, Any]) -> dict[str, Any]:
         assert self.judge is not None  # noqa: S101 - only called with a judge
         self.usage.check_budget(self.budget)
-        judgement = self.judge.judge(
-            question.question, _answer_text(body["parts"]), _context_texts(body)
-        )
+        try:
+            judgement = self.judge.judge(
+                question.question, _answer_text(body["parts"]), _context_texts(body)
+            )
+        except Exception as error:  # Ragas and OpenAI raise many kinds of errors
+            msg = f"the Ragas judge failed on {question.id}: {error}"
+            raise EvalError(msg) from error
         self.usage.add_chat(
             ChatRecord(
                 model=f"{self.judge.model} (Ragas judge)",

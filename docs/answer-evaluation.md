@@ -43,7 +43,7 @@ The run checks the cap before each chat request and before each Ragas judgement.
 
 A cost is unknown when LiteLLM has no price for the model. The table then shows "unknown", and the cap does not count that cost.
 
-A failed chat request also stops the run. The report keeps the answers before it, and the command exits with 1.
+A failed chat request or a failed Ragas judgement also stops the run, and the command exits with 1. The report keeps every answer that chat returned. An answer whose judgement failed or would pass the cap has no Ragas scores.
 
 ## The report
 

@@ -43,14 +43,20 @@ class FakeJudge:
 
     model = "openai/gpt-6.1-terra"
 
-    def __init__(self, cost_usd: float | None = 0.01) -> None:
-        """Charge `cost_usd` per answer."""
+    def __init__(
+        self, cost_usd: float | None = 0.01, fail_on: int | None = None
+    ) -> None:
+        """Charge `cost_usd` per answer; raise on call number `fail_on`."""
         self.cost_usd = cost_usd
+        self.fail_on = fail_on
         self.calls: list[tuple[str, str, list[str]]] = []
 
     def judge(self, question: str, answer: str, contexts: Sequence[str]) -> Judgement:
         """Record the call and return fixed scores."""
         self.calls.append((question, answer, list(contexts)))
+        if len(self.calls) == self.fail_on:
+            msg = "Error code: 500 - the judge is down"
+            raise RuntimeError(msg)
         return Judgement(
             faithfulness=0.8,
             answer_relevancy=0.6,
@@ -376,36 +382,96 @@ def test_invalid_budget_is_refused(run: Run) -> None:
     assert "LIBRAG_LIVE_BUDGET_USD must be an amount in dollars" in err
 
 
-def test_failed_chat_stops_the_run_and_saves_what_it_has(
-    client: TestClient, run: Run, eval_dir: Path
-) -> None:
-    """A chat request that fails stops the run; the answers so far are saved."""
+def _proxy(
+    client: TestClient, change: Callable[[int, httpx2.Response], httpx2.Response]
+) -> httpx2.Client:
+    """Return a client that passes requests to the test app.
+
+    `change` gets each chat response with its number from 1, and returns the
+    response the run sees.
+    """
     calls = {"chat": 0}
 
-    def fail_third(request: httpx2.Request) -> httpx2.Response:
-        if request.url.path == "/api/chat":
-            calls["chat"] += 1
-            if calls["chat"] == 3:  # noqa: PLR2004
-                return httpx2.Response(
-                    HTTPStatus.BAD_GATEWAY, json={"error": "The provider failed"}
-                )
+    def send(request: httpx2.Request) -> httpx2.Response:
         response = client.request(
             request.method,
             request.url.path,
             content=request.content,
             headers=request.headers,
         )
-        return httpx2.Response(
+        passed = httpx2.Response(
             response.status_code, content=response.content, headers=response.headers
         )
+        if request.url.path != "/api/chat":
+            return passed
+        calls["chat"] += 1
+        return change(calls["chat"], passed)
 
-    http = httpx2.Client(
-        base_url="http://testserver", transport=httpx2.MockTransport(fail_third)
+    return httpx2.Client(
+        base_url="http://testserver", transport=httpx2.MockTransport(send)
     )
-    code, _, err = run("run", http=http)
+
+
+def test_failed_chat_stops_the_run_and_saves_what_it_has(
+    client: TestClient, run: Run, eval_dir: Path
+) -> None:
+    """A chat request that fails stops the run; the answers so far are saved."""
+
+    def fail_third(number: int, response: httpx2.Response) -> httpx2.Response:
+        if number == 3:  # noqa: PLR2004
+            return httpx2.Response(
+                HTTPStatus.BAD_GATEWAY, json={"error": "The provider failed"}
+            )
+        return response
+
+    code, _, err = run("run", http=_proxy(client, fail_third))
     assert code == 1
     assert "saved 2 answers: POST /api/chat failed with 502" in err
     assert len(report(eval_dir)["answers"]) == 2  # noqa: PLR2004
+    assert library(client) == {}
+
+
+def test_answer_that_reaches_the_cap_is_saved_without_scores(
+    client: TestClient, run: Run, eval_dir: Path
+) -> None:
+    """When a chat's own cost reaches the cap, its answer is kept, unjudged."""
+
+    def cost(_number: int, response: httpx2.Response) -> httpx2.Response:
+        body = response.json()
+        body["usage"]["cost_usd"] = 0.02
+        return httpx2.Response(response.status_code, json=body)
+
+    judge = FakeJudge()
+    code, out, err = run(
+        "run",
+        "--ragas",
+        http=_proxy(client, cost),
+        environ={**KEYS, "LIBRAG_LIVE_BUDGET_USD": "0.01"},
+        judge=judge,
+    )
+    assert code == 1
+    assert "saved 1 answers: budget reached" in err
+    [answer] = report(eval_dir)["answers"]
+    assert answer["question_id"] == "f1"
+    assert answer["ragas"] is None
+    assert report(eval_dir)["usage"]["models"][0]["requests"] == 1
+    assert judge.calls == []
+    assert "known cost $0.0200 of the $0.01 cap" in out
+
+
+def test_failed_judge_stops_the_run_and_keeps_the_answers(
+    client: TestClient, run: Run, eval_dir: Path
+) -> None:
+    """A Ragas error stops the run; the answers so far are saved, one unscored."""
+    code, _, err = run("run", "--ragas", judge=FakeJudge(fail_on=2))
+    assert code == 1
+    assert (
+        "saved 2 answers: the Ragas judge failed on f1: "
+        "Error code: 500 - the judge is down"
+    ) in err
+    first, second = report(eval_dir)["answers"]
+    assert first["ragas"]["faithfulness"] == 0.8  # noqa: PLR2004
+    assert second["ragas"] is None
     assert library(client) == {}
 
 
