@@ -18,7 +18,7 @@ None, or a Linear project. Without a project, use every open ticket in the Linea
 
 | Lane | Takes a ticket when | Limit | Runs |
 |---|---|---|---|
-| Spec | It is in **Todo**, and each ticket that blocks it is in **Ready to build**, **Building**, **In Review**, or **Done**. | One ticket in **Specifying**, and at most 4 tickets in **Ready to build**. | `factory-spec`, in this session. |
+| Spec | It is in **Todo**, and each ticket that blocks it is in **Ready to build**, **Building**, **In Review**, or **Done**. | One ticket in **Specifying**, and at most 4 tickets in **Ready to build**. | `factory-spec`, in a new session for each ticket. |
 | Build | It is in **Ready to build**, and each ticket that blocks it is **Done**. | One ticket in **Building**. A ticket in **In Review** does not count. | `factory-build`, then `factory-review`, in a new session. |
 
 "Blocks" means a Linear "blocked by" relation. A blocked ticket is never picked. A ticket can be grilled before its blockers are built, because the grill needs their decisions, not their code.
@@ -27,8 +27,11 @@ None, or a Linear project. Without a project, use every open ticket in the Linea
 
 1. **Read the board.** List the open tickets with their state, priority, and blocking relations. Skip tickets in **Needs human** and plan tickets.
 2. **Sort** the candidates of each lane by Linear priority, then by the build order in the plan ticket's `## Plan` table.
-3. **Build lane.** If the lane has room and a ticket is ready, start a new Claude Code session for it with this prompt: `Run factory-build on <key>, then factory-review. Stop at the merge gate.` Use what the environment offers. In a claude.ai project, ask the coordinator for a new thread. In a terminal, run `claude -p "<prompt>"` in a background shell. A build must not run in this session, because the grill in this session waits on the human.
-4. **Spec lane.** If the lane has room and a ticket is ready, tell the human in chat in one line that a grill is waiting, with the ticket link. Then run `factory-spec` on it in this session.
+3. **Build lane.** If the lane has room and a ticket is ready, start a new Claude Code session for it with this prompt: `Run factory-build on <key>, then factory-review. Stop at the merge gate.` Use what the environment offers. In a claude.ai project, ask the coordinator for a new thread. In a terminal, run `claude -p "<prompt>"` in a background shell. A build must not run in a spec session, because the grill there waits on the human.
+4. **Spec lane.** If the lane has room and a ticket is ready, start a new Claude Code session for it, so that each grill starts with a fresh context. The new session reads `GLOSSARY.md` and `docs/adr/` for the shared conventions and decisions. It gets one more thing from this session: a brief of the tickets that this ticket depends on.
+   - **Write the brief.** For each ticket that blocks this ticket, read its `## Spec` and write two to four lines: the key and title, the goal, and the decisions and domain docs that this ticket builds on. Leave out the rest. If no ticket blocks it, the brief is `none`.
+   - **Start the session** with this prompt: `Run factory-spec on <key>. Brief: <brief>` In a claude.ai project, ask the coordinator for a new thread. In a terminal, a background shell cannot grill, so give the human the command `claude "<prompt>"` to run in a new terminal.
+   - Tell the human in chat in one line that a grill is waiting, with the ticket link and where it runs.
 5. **Nothing to pick.** If neither lane can take a ticket, say why in one line: what each lane waits on.
 
 ## Replan check
