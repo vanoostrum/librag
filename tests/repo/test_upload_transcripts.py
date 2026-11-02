@@ -395,3 +395,10 @@ def test_settings_run_the_hook(event: str) -> None:
         hook["command"] for group in settings["hooks"][event] for hook in group["hooks"]
     ]
     assert any("upload_transcripts.py" in command for command in commands)
+
+
+def test_settings_name_the_bucket() -> None:
+    """Every session gets the bucket name; only the key stays in the environment."""
+    settings = json.loads(SETTINGS.read_text(encoding="utf-8"))
+    assert settings["env"]["FACTORY_GCS_BUCKET"] == "sous-factory-transcripts"
+    assert "FACTORY_GCS_KEY" not in settings["env"]
