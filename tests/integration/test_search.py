@@ -502,3 +502,32 @@ def test_query_without_words_scores_zero(
     body = search(client, "?!")
     assert all(item["score"] == 0.0 for item in body["stages"]["rerank"]["passages"])
     assert result_ids(body) == stage_ids(body, "fusion")
+
+
+def test_candidates_hold_the_text_of_every_staged_passage(
+    client: TestClient, index: Callable[..., None]
+) -> None:
+    """`candidates` lists each passage of any stage once, with its book and text."""
+    index(SEA, HARBOUR)
+    body = search(client, "lighthouse", fusion_k=1)
+    staged = [stage_ids(body, stage) for stage in ("fusion", "dense", "bm25")]
+    ids = list(dict.fromkeys(pid for stage in staged for pid in stage))
+    assert len(ids) == len(PASSAGE_BOOKS)
+    assert [candidate["passage_id"] for candidate in body["candidates"]] == ids
+    assert {c["passage_id"]: c for c in body["candidates"]}[BEAM] == {
+        "passage_id": BEAM,
+        "book_id": HARBOUR_ID,
+        "title": "Harbour Tales",
+        "chapter": "Part 2",
+        "section": None,
+        "text": "The lighthouse beam swept across the harbour fog.",
+    }
+    # Fusion keeps one passage; the others come from dense and BM25 only.
+    assert len(stage_ids(body, "fusion")) == 1
+
+
+def test_candidates_are_the_only_new_field(client: TestClient) -> None:
+    """The response keeps its fields and adds `candidates`, empty with no books."""
+    body = search(client, "lighthouse")
+    assert set(body) == {"query", "results", "stages", "settings", "candidates"}
+    assert body["candidates"] == []

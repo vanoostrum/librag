@@ -88,6 +88,10 @@ _Avoid_: Trace, debug info
 Questions with the passages and facts that a good answer needs, used to measure retrieval and answer quality.
 _Avoid_: Test set, benchmark, golden set
 
+**Evidence quote**:
+A sentence from a book that a good answer to an evaluation question needs. Retrieval finds it when a passage contains it.
+_Avoid_: Gold passage, ground truth
+
 **Live run**:
 A run of the e2e suite against the real AI providers, started by hand, with a cost cap.
 _Avoid_: Live test, integration run

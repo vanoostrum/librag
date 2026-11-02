@@ -39,7 +39,7 @@ from librag.llm import make_llm
 from librag.prompts import Turn
 from librag.reindex import out_of_date_books, reindex_book, reindex_out_of_date
 from librag.rerank import make_reranker
-from librag.search import Searcher, SearchRequest, search
+from librag.search import Searcher, SearchRequest, retrieve
 from librag.settings import MAX_SEARCH_K, MAX_TOKEN_BUDGET, MIN_TOKEN_BUDGET, Settings
 
 MEGABYTE = 1024 * 1024
@@ -377,8 +377,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/rag/search")
     def search_passages(body: SearchBody, request: Request) -> dict[str, Any]:
-        """Return the context that retrieval and reranking select, without the LLM."""
-        return search(_searcher(request), SearchRequest(**body.model_dump()))
+        """Return the context that retrieval and reranking select, without the LLM.
+
+        `candidates` gives the book and text of every passage in any stage.
+        """
+        retrieval = retrieve(_searcher(request), SearchRequest(**body.model_dump()))
+        return {**retrieval.body, "candidates": retrieval.candidates()}
 
     app.post("/api/books/reindex-out-of-date")(reindex_all)
     app.delete("/api/books/{book_id}", response_model=None)(remove_book)

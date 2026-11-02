@@ -38,6 +38,11 @@ dev = [
     "types-pyyaml>=6.0.12.20261030",
 ]
 
+# The retrieval evaluation (scripts/eval-retrieval). The app image leaves it out.
+eval = [
+    "ranx>=0.3.21",
+]
+
 [tool.uv.sources]
 # CPU-only PyTorch: the CUDA wheels on PyPI add gigabytes the image never uses.
 torch = [{ index = "pytorch-cpu" }]

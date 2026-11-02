@@ -4,7 +4,8 @@ A client sends a search query with `POST /api/rag/search` and gets the context, 
 
 ## Sub-features
 
-- `search-results` returns 200 with `{"query", "results", "stages", "settings"}`. Each result has `rank`, `passage_id`, `book_id`, `title`, `author`, `chapter`, `section`, `text`, `score`, `fusion_score` and `rerank_score`. `score` is the rerank score, or the fusion score when reranking is off. The passage that holds the most query words is first.
+- `search-results` returns 200 with `{"query", "results", "stages", "settings", "candidates"}`. Each result has `rank`, `passage_id`, `book_id`, `title`, `author`, `chapter`, `section`, `text`, `score`, `fusion_score` and `rerank_score`. `score` is the rerank score, or the fusion score when reranking is off. The passage that holds the most query words is first.
+- `search-candidates` has `candidates`: every passage in any stage, once, with `passage_id`, `book_id`, `title`, `chapter`, `section` and `text`. The fused passages come first, in fusion order, then the passages that only dense or BM25 found. It is empty when nothing was found.
 - `search-stages` has `stages.dense`, `stages.bm25`, `stages.fusion` and `stages.rerank`, each `{"passages": [{"passage_id", "rank", "score"}], "time_ms"}`. BM25 lists only passages that share a word with the query. The rerank stage lists every fused candidate. `results` follow the rerank order.
 - `search-rerank-off` with `"rerank": false`: `results` follow the fusion order, every `rerank_score` is null, and `stages.rerank` is `{"passages": [], "time_ms": 0.0}`.
 - `search-budget` skips a passage that does not fit the remaining `token_budget`, and still adds a later one that fits.

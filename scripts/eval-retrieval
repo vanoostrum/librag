@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Measure retrieval: run the evaluation set through search on the running stack.
+# Usage: scripts/eval-retrieval [--keep-books]
+#
+# It fetches and indexes a missing book first, prints Recall@5/10/20 and MRR per
+# stage, and writes eval-reports/retrieval-<timestamp>.json. Then it deletes the
+# books it uploaded, unless --keep-books is given. LIBRAG_EVAL_URL is the stack
+# (default http://localhost:8000). See docs/evaluation.md.
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+exec uv run --group eval python -m librag.evaluation run "$@"

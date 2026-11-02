@@ -155,6 +155,12 @@ def _json(row: RowMapping) -> dict[str, Any]:
         "embedding_tokens": row["embedding_tokens"],
         "embedding_cost_usd": row["embedding_cost_usd"],
         "uploaded_at": row["uploaded_at"].replace(tzinfo=UTC).isoformat(),
+        "index_configuration": {
+            "passage_target_tokens": row["passage_target_tokens"],
+            "passage_overlap_tokens": row["passage_overlap_tokens"],
+            "tokenizer": row["tokenizer"],
+            "embedding_model": row["embedding_model"],
+        },
     }
 
 
@@ -169,6 +175,10 @@ _COLUMNS = (
     books.c.embedding_tokens,
     books.c.embedding_cost_usd,
     books.c.uploaded_at,
+    books.c.passage_target_tokens,
+    books.c.passage_overlap_tokens,
+    books.c.tokenizer,
+    books.c.embedding_model,
 )
 
 

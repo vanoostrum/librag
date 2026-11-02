@@ -43,6 +43,8 @@ docker compose -f compose.yaml -f compose.test.yaml down -v
 
 `scripts/e2e-live` runs the same suite against the real AI providers, with your own `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`. It stops at a cost cap of $2, which `LIBRAG_LIVE_BUDGET_USD` changes. See [docs/live-run.md](docs/live-run.md).
 
+`scripts/eval-retrieval` measures retrieval on 4 Project Gutenberg books: Recall@5/10/20 and MRR for each search stage. See [docs/evaluation.md](docs/evaluation.md).
+
 ## Settings
 
 The api, the worker and `migrate` read these environment variables:
