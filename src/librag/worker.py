@@ -260,7 +260,7 @@ def _index(  # noqa: PLR0913 - the job's parts, each needed here
     embedder = indexing.embedder
     enriching = (
         None
-        if indexing.enricher is None or all(contexts)
+        if indexing.enricher is None or None not in contexts
         else _Enriching(
             engine, indexing, indexing.enricher, book_id, chapter_texts(built)
         )
@@ -436,7 +436,7 @@ def run_one_job(
         enricher is not None
         and bool(stored)
         and enriched_with == enricher.model
-        and all(contexts)
+        and None not in contexts
     )
     if not reuse:
         contexts = [None] * len(built)

@@ -442,3 +442,38 @@ def test_failing_enrichment_fails_the_job_and_retry_runs_it_again(
     book = listed(enriched)
     assert (book["status"], book["error"]) == ("indexed", None)
     assert stores.contexts() == list(FAKE_LINES.values())
+
+
+class Blank(FakeEnricher):
+    """An enricher whose model replies with nothing, and counts its calls."""
+
+    def __init__(self) -> None:
+        """Start with no calls."""
+        self.calls = 0
+
+    @override
+    def enrich(self, chapter: str, passage: Passage) -> Enrichment:
+        """Return an empty line."""
+        self.calls += 1
+        return Enrichment("", 4, 0, 0.01)
+
+
+def test_blank_context_lines_are_reused_after_an_embedding_model_change(
+    plain: TestClient, stores: Stores, settings: Settings
+) -> None:
+    """An empty line counts as written: a model change makes no LLM calls."""
+    upload(plain)
+    blank = Blank()
+    indexing = Indexing(FakeEmbedder(), enricher=blank)
+    assert run_one_job(stores.engine, settings, indexing)
+    assert (blank.calls, stores.contexts()) == (2, ["", ""])
+    with stores.engine.begin() as connection:
+        connection.execute(update(books).values(embedding_model=OLD_MODEL))
+
+    reindexed = plain.post(f"/api/books/{SEA_ID}/reindex")
+    assert reindexed.status_code == HTTPStatus.ACCEPTED
+    assert run_one_job(stores.engine, settings, indexing)
+    assert (blank.calls, stores.contexts()) == (2, ["", ""])
+    book = listed(plain)
+    assert book["status"] == "indexed"
+    assert book["enrichment_cost_usd"] == pytest.approx(0.02)

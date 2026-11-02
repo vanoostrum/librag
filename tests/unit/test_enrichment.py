@@ -12,7 +12,6 @@ import pytest
 
 from librag.enrichment import (
     MAX_CONTEXT_TOKENS,
-    FakeEnricher,
     LiteLlmEnricher,
     chapter_texts,
     make_enricher,
@@ -113,20 +112,12 @@ def test_live_enricher_cuts_a_long_line_to_80_tokens(
     assert long.startswith(context)
 
 
-def test_fake_enricher_names_the_chapter_and_the_first_five_words() -> None:
-    """The fake line is `About <chapter heading>: <first five words>`."""
-    enrichment = FakeEnricher().enrich(CHAPTER, PASSAGE)
-    assert enrichment.context == "About The Light: The keeper lit the lamp"
-    assert (enrichment.input_tokens, enrichment.output_tokens) == (9 + 5, 8)
-    assert enrichment.cost_usd == 0.0
+def test_make_enricher_with_live_providers() -> None:
+    """With the live providers: no enricher when off, LiteLLM's on the model when on.
 
-
-def test_make_enricher_follows_the_switch_and_the_providers() -> None:
-    """No enricher with the switch off; else the fake, or LiteLLM's on the model."""
+    The route tests cover the fake providers.
+    """
     assert make_enricher(Settings(ai_providers="live")) is None
-    assert make_enricher(Settings(ai_providers="fake")) is None
-    fake = make_enricher(Settings(enrichment=True, ai_providers="fake"))
-    assert isinstance(fake, FakeEnricher)
     assert make_enricher(Settings(enrichment=True)) == LiteLlmEnricher(MODEL)
 
 
