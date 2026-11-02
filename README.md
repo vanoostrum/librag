@@ -21,7 +21,7 @@ The metadata database (SQLite) and the file store share the `librag-data` volume
 
 Stop the stack with `docker compose down`. Add `-v` to also delete the data.
 
-Set `LIBRAG_PORT` or `LIBRAG_QDRANT_PORT` to publish on other ports.
+Set `LIBRAG_PORT` or `LIBRAG_QDRANT_PORT` to publish on other ports. The live providers need API keys in `.env`; see [Manual testing and settings](#manual-testing-and-settings).
 
 ### Prerequisites
 
@@ -47,28 +47,16 @@ docker compose -f compose.yaml -f compose.test.yaml down -v
 
 `scripts/eval-answers` asks the same questions through chat on each model, serves a local page to grade the answers, and summarizes the grades and the opt-in Ragas scores. See [docs/answer-evaluation.md](docs/answer-evaluation.md).
 
-## Settings
+## Manual testing and settings
 
-The api, the worker and `migrate` read these environment variables:
+[docs/manual-testing.md](docs/manual-testing.md) says how to try the app by hand, what each script measures and costs, and every setting: the feature switches (`LIBRAG_REINDEX_ENABLED`, `LIBRAG_QUERY_REWRITE`, `LIBRAG_DECOMPOSE`, `LIBRAG_ENRICHMENT`), the models, and the indexing and retrieval values to tune.
 
-| Variable | Default | What |
-|---|---|---|
-| `LIBRAG_QDRANT_URL` | `http://localhost:6333` | Qdrant HTTP URL. |
-| `LIBRAG_DATABASE_URL` | `sqlite:///data/librag.db` | SQLAlchemy URL of the metadata database. |
-| `LIBRAG_FILE_STORE_DIR` | `data/files` | Folder for uploaded EPUB files. |
-| `LIBRAG_AI_PROVIDERS` | `live` | `live` uses the real AI APIs. `fake` uses deterministic fakes. Any other value stops the app at startup. |
-| `LIBRAG_EMBEDDING_MODEL` | `openai/text-embedding-3-small` | The LiteLLM model that embeds passages in `live` mode. It also needs that provider's key, such as `OPENAI_API_KEY`. |
-| `LIBRAG_QDRANT_COLLECTION_PREFIX` | `passages` | Each embedding model gets the Qdrant collection `<prefix>_<model>`, such as `passages_openai_text-embedding-3-small` or `passages_fake`. |
-| `LIBRAG_RERANKER_MODEL` | `cross-encoder/ms-marco-MiniLM-L-6-v2` | The sentence-transformers CrossEncoder that reranks search results in `live` mode. The Docker image has this model baked in. |
-| `LIBRAG_SEARCH_TOP_K`, `LIBRAG_DENSE_TOP_K`, `LIBRAG_BM25_TOP_K`, `LIBRAG_FUSION_TOP_K` | `10`, `30`, `30`, `30` | How many passages search returns, and how many the dense, BM25 and fusion stages keep. Each is 1 to 100. |
-| `LIBRAG_CONTEXT_TOKEN_BUDGET` | `4000` | The most tokens that search's results hold together, from 100 to 32000. |
-| `LIBRAG_CHAT_MODELS` | `anthropic/claude-sonnet-5-5=Claude Sonnet 5.5,openai/gpt-6.1-terra=GPT 6.1 Terra` | The LiteLLM models that chat can answer with, as comma-separated `<id>=<name>` entries. In `live` mode each needs its provider's key, such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. |
-| `LIBRAG_CHAT_DEFAULT_MODEL` | the first chat model | The model a chat request gets when it names none. It must be one of `LIBRAG_CHAT_MODELS`. |
-| `LIBRAG_QUERY_REWRITE` | `on` | `on` lets the LLM rewrite a follow-up question into a standalone search query; `off` searches the question as asked. |
-| `LIBRAG_DECOMPOSE` | `off` | `on` lets the LLM split a complex search query into up to 4 sub-questions, each searched on its own. See [docs/decomposition.md](docs/decomposition.md). |
-| `LIBRAG_ENRICHMENT` | `off` | `on` makes the worker ask an LLM for a context line per passage, indexed with the passage. See [docs/enrichment.md](docs/enrichment.md). |
-| `LIBRAG_ENRICHMENT_MODEL` | `anthropic/claude-haiku-5-5` | The LiteLLM model that writes the context lines when `LIBRAG_ENRICHMENT` is on. |
-| `LIBRAG_REINDEX_ENABLED` | `off` | `on` adds Reindex to the Library page and turns on `POST /api/books/{id}/reindex` and `POST /api/books/reindex-out-of-date`; `off` hides them, and the routes answer 404. Retry and Delete are always on. |
+Put your API keys and settings in `.env` in the repo root, which git ignores. Compose passes them to the stack:
+
+```bash
+cp .env.example .env   # then fill in OPENAI_API_KEY and ANTHROPIC_API_KEY
+docker compose up -d --build --wait
+```
 
 ## Development
 

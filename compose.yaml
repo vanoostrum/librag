@@ -9,15 +9,32 @@ x-app: &app
     LIBRAG_QDRANT_URL: http://qdrant:6333
     LIBRAG_DATABASE_URL: sqlite:////data/librag.db
     LIBRAG_FILE_STORE_DIR: /data/files
-    # Passed through from the shell when set. With the live providers, the worker
-    # embeds with OpenAI and chat answers with OpenAI or Anthropic.
+    # Passed through from the shell or the repo-root .env when set; the app's
+    # default applies otherwise. docs/manual-testing.md lists them all. With the
+    # live providers, the worker embeds with OpenAI and chat answers with OpenAI
+    # or Anthropic.
     LIBRAG_EMBEDDING_MODEL:
+    LIBRAG_QDRANT_COLLECTION_PREFIX:
+    LIBRAG_PASSAGE_TARGET_TOKENS:
+    LIBRAG_PASSAGE_OVERLAP_TOKENS:
+    LIBRAG_MAX_UPLOAD_MB:
+    LIBRAG_SEARCH_TOP_K:
+    LIBRAG_DENSE_TOP_K:
+    LIBRAG_BM25_TOP_K:
+    LIBRAG_FUSION_TOP_K:
+    LIBRAG_CONTEXT_TOKEN_BUDGET:
+    LIBRAG_RERANKER_MODEL:
+    LIBRAG_CHAT_MODELS:
+    LIBRAG_CHAT_DEFAULT_MODEL:
+    LIBRAG_QUERY_REWRITE:
     LIBRAG_DECOMPOSE:
     LIBRAG_ENRICHMENT:
     LIBRAG_ENRICHMENT_MODEL:
     LIBRAG_REINDEX_ENABLED:
     OPENAI_API_KEY:
     ANTHROPIC_API_KEY:
+    GEMINI_API_KEY:
+    XAI_API_KEY:
   volumes:
     - librag-data:/data
 
