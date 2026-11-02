@@ -218,7 +218,13 @@ def test_done_carries_the_answer_details_and_the_stream_is_logged(
     assert done["search_query"] == "brass lamp"
     assert done["model"] == "openai/gpt-6.1-terra"
     assert done["citations"] == []
-    assert set(done["retrieval"]) == {"stages", "settings", "candidates", "context"}
+    assert set(done["retrieval"]) == {
+        "queries",
+        "stages",
+        "settings",
+        "candidates",
+        "context",
+    }
     assert {k: done["usage"][k] for k in ("input_tokens", "output_tokens")} == {
         "input_tokens": 200,
         "output_tokens": 20,

@@ -54,6 +54,10 @@ _Avoid_: Prompt, query (for the user's text)
 The text that retrieval searches with: the question itself, or a standalone rewrite of it that needs no earlier turns.
 _Avoid_: Rewritten prompt
 
+**Sub-question**:
+One of up to 4 search queries that a complex question is split into, each searched on its own before the results are fused.
+_Avoid_: Sub-query, decomposed query
+
 **Retrieval**:
 Finding and ranking the passages for a search query, without the LLM.
 _Avoid_: Search (as a noun for the pipeline)

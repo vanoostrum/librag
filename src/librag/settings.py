@@ -68,6 +68,8 @@ class Settings:
     chat_default_model: str = DEFAULT_CHAT_MODELS[0].id
     # Rewrite a follow-up question into a standalone search query.
     query_rewrite: bool = True
+    # Split a complex search query into sub-questions, each searched on its own.
+    decompose: bool = False
     # Reindexing is for retrieval experiments, so it is off unless asked for.
     reindex_enabled: bool = False
     # Contextual enrichment: an LLM writes a context line for each passage.
@@ -135,6 +137,7 @@ class Settings:
             chat_models=chat_models,
             chat_default_model=chat_default_model,
             query_rewrite=_switch(env, "LIBRAG_QUERY_REWRITE", defaults.query_rewrite),
+            decompose=_switch(env, "LIBRAG_DECOMPOSE", defaults.decompose),
             reindex_enabled=_switch(
                 env, "LIBRAG_REINDEX_ENABLED", defaults.reindex_enabled
             ),

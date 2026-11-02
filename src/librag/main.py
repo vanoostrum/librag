@@ -30,6 +30,7 @@ from librag.books import (
 )
 from librag.chat import ChatError, ChatRequest, Event, chat, chat_stream
 from librag.chat_page import chat_context
+from librag.decompose import decompose
 from librag.embeddings import make_embedder
 from librag.enrichment import make_enricher
 from librag.epub import EpubError
@@ -68,6 +69,9 @@ class SearchBody(BaseModel):
     rerank: StrictBool = True
     book_ids: list[str] = []
     authors: list[str] = []
+    # Split the query into sub-questions with this chat model, or the default.
+    decompose: StrictBool = False
+    model: str | None = None
 
 
 NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
@@ -206,15 +210,23 @@ async def refuse_invalid_request(_request: Request, error: Exception) -> JSONRes
     )
 
 
-def _chat_request(body: ChatBody, request: Request) -> ChatRequest | JSONResponse:
-    """Return the chat request of `body`, or a 422 response for an unknown model."""
+def _chat_model(model: str | None, request: Request) -> str | JSONResponse:
+    """Return `model` or the default chat model, or a 422 response for another."""
     settings = request.app.state.settings
-    model = body.model or settings.chat_default_model
-    if model not in {chat_model.id for chat_model in settings.chat_models}:
+    chosen = model or settings.chat_default_model
+    if chosen not in {chat_model.id for chat_model in settings.chat_models}:
         return JSONResponse(
-            {"error": f"model: {model!r} is not one of the chat models"},
+            {"error": f"model: {chosen!r} is not one of the chat models"},
             status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
         )
+    return str(chosen)
+
+
+def _chat_request(body: ChatBody, request: Request) -> ChatRequest | JSONResponse:
+    """Return the chat request of `body`, or a 422 response for an unknown model."""
+    model = _chat_model(body.model, request)
+    if isinstance(model, JSONResponse):
+        return model
     return ChatRequest(
         question=body.question,
         model=model,
@@ -290,6 +302,31 @@ def list_chat_models(request: Request) -> dict[str, list[dict[str, object]]]:
             }
             for model in settings.chat_models
         ]
+    }
+
+
+def search_passages(
+    body: SearchBody, request: Request
+) -> dict[str, Any] | JSONResponse:
+    """Return the context that retrieval and reranking select.
+
+    Only `decompose` uses the LLM, to split the query into sub-questions.
+    `candidates` gives the book and text of every passage in any stage. Each
+    result and candidate has its context line, or None without enrichment.
+    """
+    fields = body.model_dump(exclude={"decompose", "model"})
+    queries = [body.query]
+    if body.decompose:
+        model = _chat_model(body.model, request)
+        if isinstance(model, JSONResponse):
+            return model
+        llm = request.app.state.llm
+        queries = decompose(lambda prompt: llm.complete(model, prompt), body.query)
+    searcher = _searcher(request)
+    retrieval = retrieve(searcher, SearchRequest(**fields, queries=queries))
+    return {
+        **retrieval.body,
+        "candidates": retrieval.candidates(with_context=True),
     }
 
 
@@ -388,23 +425,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """List the books in the library, newest first."""
         return {"books": list_books(request.app.state.engine)}
 
-    @app.post("/api/rag/search")
-    def search_passages(body: SearchBody, request: Request) -> dict[str, Any]:
-        """Return the context that retrieval and reranking select, without the LLM.
-
-        `candidates` gives the book and text of every passage in any stage. Each
-        result and candidate has its context line, or None without enrichment.
-        """
-        retrieval = retrieve(_searcher(request), SearchRequest(**body.model_dump()))
-        return {
-            **retrieval.body,
-            "candidates": retrieval.candidates(with_context=True),
-        }
-
     app.post("/api/books/reindex-out-of-date")(reindex_all)
     app.delete("/api/books/{book_id}", response_model=None)(remove_book)
     app.post("/api/books/{book_id}/retry")(retry)
     app.post("/api/books/{book_id}/reindex")(reindex)
+    app.post("/api/rag/search", response_model=None)(search_passages)
     app.post("/api/chat")(answer_question)
     app.post("/api/chat/stream", response_model=None)(stream_answer)
     app.get("/api/config/models")(list_chat_models)

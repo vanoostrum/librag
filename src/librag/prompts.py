@@ -1,5 +1,5 @@
 # Copyright (C) 2026 Theo van Oostrum
-"""The prompts that chat sends to the LLM: rewrite a follow-up, and answer."""
+"""The prompts that chat sends to the LLM: rewrite, split into sub-questions, answer."""
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -30,6 +30,20 @@ REWRITE_INSTRUCTIONS = """\
 Rewrite the user's last question as a standalone search query for passages in \
 their books. Use the conversation to fill in what the question refers to. Reply \
 with only the query.
+"""
+
+MAX_SUBQUESTIONS = 4
+
+DECOMPOSE_INSTRUCTIONS = f"""\
+You prepare a search for passages in the user's books. Decide whether the \
+user's search query asks about several things that are best searched for \
+apart, such as two people, two books, or a comparison.
+
+If it does, split it into 2 to {MAX_SUBQUESTIONS} standalone search queries, \
+one per thing. If it does not, return the query unchanged as the only one.
+
+Reply with only a JSON object, with no other text, in this shape:
+{{"queries": ["...", "..."]}}
 """
 
 Message = dict[str, str]
@@ -82,6 +96,20 @@ class RewritePrompt:
 
 
 @dataclass(frozen=True)
+class DecomposePrompt:
+    """Asks whether to split a search query into sub-questions, and for them."""
+
+    query: str
+
+    def messages(self) -> list[Message]:
+        """Return the chat messages for the LLM."""
+        return [
+            {"role": "system", "content": DECOMPOSE_INSTRUCTIONS},
+            {"role": "user", "content": self.query},
+        ]
+
+
+@dataclass(frozen=True)
 class AnswerPrompt:
     """Asks for an answer in parts, citing the context passages by number.
 
@@ -105,4 +133,4 @@ class AnswerPrompt:
         ]
 
 
-Prompt = RewritePrompt | AnswerPrompt
+Prompt = RewritePrompt | DecomposePrompt | AnswerPrompt

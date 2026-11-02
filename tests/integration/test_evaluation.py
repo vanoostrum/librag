@@ -246,6 +246,8 @@ def test_run_reports_each_stage_and_deletes_the_books(
     assert body["search_settings"]["dense_k"] == 100  # noqa: PLR2004
     assert body["search_settings"]["embedding_model"] == "fake"
     assert body["library_books"] == 3  # noqa: PLR2004
+    assert body["decompose"] is False
+    assert "sub_questions" not in body
     assert body["books"]["sea"]["index_configuration"] == {
         "passage_target_tokens": 350,
         "passage_overlap_tokens": 50,
@@ -260,10 +262,32 @@ def test_run_reports_each_stage_and_deletes_the_books(
     assert len(searches) == 5  # noqa: PLR2004
     for search in searches:
         assert set(search["book_ids"]) <= {SEA_ID, HARBOUR_ID}
+        assert "decompose" not in search
     c1 = next(s for s in searches if s["query"].startswith("What did"))
     assert c1["book_ids"] == [HARBOUR_ID]
     assert c1["authors"] == ["Ben Author"]
     assert library(client) == {OWN_ID: "indexed"}
+
+
+def test_decompose_splits_each_question_and_records_it(
+    run: Callable[..., tuple[int, str, str]],
+    requests: list[httpx2.Request],
+    eval_dir: Path,
+) -> None:
+    """--decompose asks search to split each question; the report has the queries."""
+    code, _, err = run("run", "--decompose", "--model", "openai/gpt-6.1-terra")
+    assert (code, err) == (0, ""), err
+    searches = [
+        json.loads(r.content) for r in requests if r.url.path == "/api/rag/search"
+    ]
+    assert {(s["decompose"], s["model"]) for s in searches} == {
+        (True, "openai/gpt-6.1-terra")
+    }
+    body = report(eval_dir)
+    assert body["decompose"] is True
+    # The fake LLM splits only on " and ", which no question of the set has.
+    assert body["sub_questions"]["f1"] == ["Who polished the brass lamp?"]
+    assert len(body["sub_questions"]) == len(body["questions"])
 
 
 def test_keep_books_leaves_them_for_the_next_run(

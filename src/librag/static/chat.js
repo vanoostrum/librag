@@ -232,15 +232,33 @@
     return `${label} ${stage.passages.length} in ${duration(stage.time_ms)}`;
   }
 
+  // The sub-questions of a split search query: "split into N" and a numbered list.
+  function subQuestions(queries) {
+    const list = element("ol", "diag-subqs");
+    list.append(
+      ...queries.map((query) => {
+        const item = element("li");
+        item.append(element("span", "diag-subq", query.id), query.text);
+        return item;
+      }),
+    );
+    return [element("span", "diag-tag diag-tag--first", `split into ${queries.length}`), list];
+  }
+
   function diagSummary(done) {
-    const { stages, settings, context } = done.retrieval;
+    const { queries, stages, settings, context } = done.retrieval;
     const usage = done.usage;
+    const split = queries.length > 1;
     const query = [done.search_query];
     if (done.search_query !== done.question) {
       query.push(" ", element("span", "diag-tag", "rewritten"));
     }
     const sent = context.passage_ids.length;
+    const searches = settings.rerank
+      ? `${queries.length} searches, fused, then reranked against the question`
+      : `${queries.length} searches, fused`;
     const retrieval = [
+      ...(split ? [searches] : []),
       stageText("dense", stages.dense),
       stageText("BM25", stages.bm25),
       stageText("fusion", stages.fusion),
@@ -250,7 +268,9 @@
     const list = element("dl", "diag-summary");
     list.append(
       summaryRow("Question", done.question),
-      summaryRow("Search query", ...query),
+      split
+        ? summaryRow("Search queries", ...subQuestions(queries))
+        : summaryRow("Search query", ...query),
       summaryRow(
         "Model",
         [
@@ -279,9 +299,11 @@
     const fusion = byPassage(stages.fusion);
     const rerank = byPassage(stages.rerank);
     const sent = new Set(retrieval.context.passage_ids);
+    const split = retrieval.queries.length > 1;
     return order.passages.map((p, index) => ({
       rank: index + 1,
       candidate: candidates.get(p.passage_id),
+      foundBy: split ? candidates.get(p.passage_id).found_by : null,
       dense: dense.get(p.passage_id),
       bm25: bm25.get(p.passage_id),
       fusion: fusion.get(p.passage_id),
@@ -309,6 +331,7 @@
     const full = element("details");
     full.append(element("summary", "diag-words", `“${words}”`), element("p", "diag-text", `“${text}”`));
     const chips = element("div", "diag-chips");
+    if (item.foundBy) chips.append(chip("Found by", item.foundBy.join(", ")));
     chips.append(
       chip("Dense", item.dense && `#${item.dense.rank}`),
       chip("BM25", item.bm25 && `#${item.bm25.rank}`),

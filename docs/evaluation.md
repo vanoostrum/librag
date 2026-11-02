@@ -26,6 +26,7 @@ Each search covers only the 4 evaluation books, so your own books never show up 
 
 | Command or variable | Effect |
 |---|---|
+| `scripts/eval-retrieval --decompose` | Asks search to split each question into sub-questions, with one LLM call per question. `--model <id>` picks the chat model that splits; the default is the stack's default chat model. See [Question decomposition](decomposition.md#measure-it). |
 | `scripts/eval-retrieval --keep-books` | Keeps the evaluation books in the library after the run. The next run then uploads nothing and reports the books as present. |
 | `scripts/eval-fetch-books` | Only steps 2 and 3: downloads and indexes the books. |
 | `LIBRAG_EVAL_URL` | The stack to evaluate. The default is `http://localhost:8000`. |
@@ -50,6 +51,10 @@ The JSON report holds the same metrics, and for each question the first relevant
 ## Measure contextual enrichment
 
 [Contextual enrichment](enrichment.md#measure-it) is measured with two runs, one with `LIBRAG_ENRICHMENT` off and one with it on.
+
+## Measure question decomposition
+
+[Question decomposition](decomposition.md#measure-it) is measured with two runs, one without and one with `--decompose`.
 
 ## The evaluation set
 

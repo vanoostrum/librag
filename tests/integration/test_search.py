@@ -515,7 +515,8 @@ def test_candidates_hold_the_text_of_every_staged_passage(
     ids = list(dict.fromkeys(pid for stage in staged for pid in stage))
     assert len(ids) == len(PASSAGE_BOOKS)
     assert [candidate["passage_id"] for candidate in body["candidates"]] == ids
-    assert {c["passage_id"]: c for c in body["candidates"]}[BEAM] == {
+    beam = {c["passage_id"]: c for c in body["candidates"]}[BEAM]
+    assert {key: value for key, value in beam.items() if key != "found_by"} == {
         "passage_id": BEAM,
         "book_id": HARBOUR_ID,
         "title": "Harbour Tales",
@@ -525,11 +526,29 @@ def test_candidates_hold_the_text_of_every_staged_passage(
         "context": None,
     }
     # Fusion keeps one passage; the others come from dense and BM25 only.
-    assert len(stage_ids(body, "fusion")) == 1
+    fused = stage_ids(body, "fusion")
+    assert len(fused) == 1
+    assert [c["found_by"] for c in body["candidates"]] == [
+        ["Q1"] if c["passage_id"] in fused else [] for c in body["candidates"]
+    ]
 
 
-def test_candidates_are_the_only_new_field(client: TestClient) -> None:
-    """The response keeps its fields and adds `candidates`, empty with no books."""
+def test_candidates_and_queries_are_the_only_new_fields(client: TestClient) -> None:
+    """The response adds `candidates`, empty with no books, and the one query."""
     body = search(client, "lighthouse")
-    assert set(body) == {"query", "results", "stages", "settings", "candidates"}
+    assert set(body) == {
+        "query",
+        "queries",
+        "results",
+        "stages",
+        "settings",
+        "candidates",
+    }
     assert body["candidates"] == []
+    assert body["queries"] == [
+        {
+            "id": "Q1",
+            "text": "lighthouse",
+            "stages": {stage: body["stages"][stage] for stage in STAGES[:3]},
+        }
+    ]

@@ -9,6 +9,8 @@
 //             new conversation, a failed answer and "Try again", model memory
 //   diagnostics  "How this answer was found": the open panel, "Show all", a
 //             rewritten follow-up, rerank off, and a failed turn without it
+//   decomposed  the diagnostics of a question split into sub-questions, and of
+//             one that is not split; needs a stack with LIBRAG_DECOMPOSE=on
 // <platform> is desktop (1280x800) or mobile (390x844).
 //
 // The fake LLM answers at once, so the page's fetch is wrapped: it passes the
@@ -118,7 +120,7 @@ async function panel(page, turnIndex) {
 async function main() {
   const [url, out, action, platform] = process.argv.slice(2);
   if (!url || !out || !action || !WINDOWS[platform]) {
-    throw new Error("usage: chat-browser.js <url> <evidence dir> <no-books|chat|diagnostics> <desktop|mobile>");
+    throw new Error("usage: chat-browser.js <url> <evidence dir> <no-books|chat|diagnostics|decomposed> <desktop|mobile>");
   }
   fs.mkdirSync(out, { recursive: true });
   const log = [];
@@ -281,6 +283,37 @@ async function main() {
     await ask("Which of the books mentions the harbour?");
     await answered(4);
     note(`failed turn: ${JSON.stringify(await panel(page, 3))}`);
+  } else if (action === "decomposed") {
+    // Needs a stack with LIBRAG_DECOMPOSE=on. The fake LLM splits on " and ".
+    const brief = (p) => ({ ...p, cards: `${p.cards?.length} cards`, first: p.cards?.slice(0, 3) });
+    await ask("What did the keeper polish and what did the keeper log and where did strawberries grow?");
+    await answered(1);
+    await page.click(".diagnostics > summary");
+    const split = await panel(page, 0);
+    note(`split: ${JSON.stringify(brief(split))}`);
+    note(`split: found-by chips ${JSON.stringify(split.cards.map((card) => card.chips[0]))}`);
+    note(`split: sub-questions ${JSON.stringify(await page.$$eval(".diag-subqs li", (items) => items.map((li) => li.textContent)))}`);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await shot("decomposed");
+    const toPanel = () => document.querySelector(".diagnostics").scrollIntoView({ block: "start" });
+    await page.evaluate(toPanel);
+    await shot("decomposed_cards");
+    const gallery = await context.newPage();
+    await gallery.goto(`file://${path.resolve("design/pages/chat/diagnostics-decomposed.html")}`);
+    await gallery.evaluate(toPanel);
+    await gallery.screenshot({ path: path.join(out, `gallery_decomposed_cards_${platform}.png`) });
+    note(`screenshot: gallery_decomposed_cards_${platform}.png`);
+    await gallery.close();
+
+    // A question the LLM does not split keeps the one search query and no
+    // "Found by". A new conversation, so no rewrite adds the first question.
+    await page.click("[data-new-conversation]");
+    await ask("What did the lighthouse keeper do every evening?");
+    await answered(1);
+    await page.click(".diagnostics > summary");
+    const single = await panel(page, 0);
+    note(`not split: ${JSON.stringify(single.summary)}`);
+    note(`not split: found-by chips ${single.cards.filter((card) => card.chips[0].startsWith("Found by")).length}, first chips ${JSON.stringify(single.cards[0].chips)}`);
   } else {
     throw new Error(`unknown action ${action}`);
   }

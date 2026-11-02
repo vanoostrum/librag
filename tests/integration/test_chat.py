@@ -206,7 +206,8 @@ def test_retrieval_lists_the_candidates_and_the_context(
     fused = [p["passage_id"] for p in retrieval["stages"]["fusion"]["passages"]]
     assert [c["passage_id"] for c in retrieval["candidates"]] == fused
     assert retrieval["candidates"] == [
-        {key: known[passage][key] for key in CANDIDATE_FIELDS} for passage in fused
+        {key: known[passage][key] for key in CANDIDATE_FIELDS} | {"found_by": ["Q1"]}
+        for passage in fused
     ]
 
 
