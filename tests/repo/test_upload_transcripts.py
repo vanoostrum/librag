@@ -377,6 +377,33 @@ def test_ignores_the_sandbox_access_token(
     assert all(line.endswith("token=none") for line in log)
 
 
+def test_uses_the_proxy_token_without_a_key(
+    tmp_path: Path, project: Path, transcript: Path
+) -> None:
+    """In a cloud session without a key, gcloud uses the token the proxy adds."""
+    env = fake_env(tmp_path, FACTORY_GCS_BUCKET="factory-logs")
+    run_hook(env, transcript, project)
+    wait_for_uploads(tmp_path, 1)
+
+    log = (tmp_path / "gcloud.log").read_text(encoding="utf-8").splitlines()
+    assert len(log) == 1
+    assert log[0].startswith("storage rsync ")
+    assert log[0].endswith("token=proxy-injected")
+    assert (session_folder(tmp_path) / "metadata.json").is_file()
+
+
+def test_does_nothing_without_a_way_to_sign_in(
+    tmp_path: Path, project: Path, transcript: Path
+) -> None:
+    """With a bucket but no key and no proxy token, the hook calls no Google tool."""
+    env = fake_env(tmp_path, FACTORY_GCS_BUCKET="factory-logs")
+    del env["CLOUDSDK_AUTH_ACCESS_TOKEN"]
+    run_hook(env, transcript, project)
+    time.sleep(1)
+
+    assert not (tmp_path / "gcloud.log").exists()
+
+
 def test_does_nothing_without_a_bucket(
     tmp_path: Path, project: Path, transcript: Path
 ) -> None:
@@ -398,7 +425,7 @@ def test_settings_run_the_hook(event: str) -> None:
 
 
 def test_settings_name_the_bucket() -> None:
-    """Every session gets the bucket name; only the key stays in the environment."""
+    """Every session gets the bucket name; the key stays out of the repo."""
     settings = json.loads(SETTINGS.read_text(encoding="utf-8"))
     assert settings["env"]["FACTORY_GCS_BUCKET"] == "sous-factory-transcripts"
     assert "FACTORY_GCS_KEY" not in settings["env"]
