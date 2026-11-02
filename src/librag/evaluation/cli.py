@@ -69,11 +69,27 @@ def _parser() -> argparse.ArgumentParser:
         help="Keep the evaluation books in the library after the run.",
     )
     run.add_argument("--reports-dir", type=Path, default=Path("eval-reports"))
+    run.add_argument(
+        "--decompose",
+        action="store_true",
+        help="Split each question into sub-questions with the LLM (one call each).",
+    )
+    run.add_argument(
+        "--model",
+        help="The chat model that splits the questions; else the default chat model.",
+    )
     return parser
 
 
-def _search_body(question: Question, ids: Mapping[str, str]) -> dict[str, Any]:
+def _search_body(
+    question: Question, ids: Mapping[str, str], args: argparse.Namespace
+) -> dict[str, Any]:
     keys = question.books or list(ids)
+    decompose = (
+        {"decompose": True, **({"model": args.model} if args.model else {})}
+        if args.decompose
+        else {}
+    )
     return {
         "query": question.question,
         "dense_k": CANDIDATES_PER_STAGE,
@@ -83,6 +99,7 @@ def _search_body(question: Question, ids: Mapping[str, str]) -> dict[str, Any]:
         # Only the evaluation books, so the rest of the library never shows up.
         "book_ids": [ids[key] for key in keys],
         "authors": list(question.authors),
+        **decompose,
     }
 
 
@@ -140,8 +157,10 @@ def _evaluate(
     missing = find_missing(evalset, _passage_texts(evalset, args.books_dir, books))
     scored = []
     settings: dict[str, Any] = {}
+    sub_questions: dict[str, list[str]] = {}
     for question in evalset.questions:
-        body = stack.search(_search_body(question, ids))
+        body = stack.search(_search_body(question, ids, args))
+        sub_questions[question.id] = [query["text"] for query in body["queries"]]
         if not settings:
             settings = body["settings"]
             _check_models(evalset, books, settings["embedding_model"])
@@ -153,6 +172,9 @@ def _evaluate(
         "url": stack.url,
         "evaluation_set": str(args.set),
         "search_settings": settings,
+        "decompose": args.decompose,
+        # The search queries of each question: its sub-questions when split.
+        **({"sub_questions": sub_questions} if args.decompose else {}),
         "books": {
             key: {
                 "book_id": entry["id"],

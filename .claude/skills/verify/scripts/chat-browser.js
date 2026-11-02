@@ -305,11 +305,13 @@ async function main() {
     note(`screenshot: gallery_decomposed_cards_${platform}.png`);
     await gallery.close();
 
-    // A question the LLM does not split keeps the one search query and no "Found by".
+    // A question the LLM does not split keeps the one search query and no
+    // "Found by". A new conversation, so no rewrite adds the first question.
+    await page.click("[data-new-conversation]");
     await ask("What did the lighthouse keeper do every evening?");
-    await answered(2);
-    await page.locator(".diagnostics > summary").nth(1).click();
-    const single = await panel(page, 1);
+    await answered(1);
+    await page.click(".diagnostics > summary");
+    const single = await panel(page, 0);
     note(`not split: ${JSON.stringify(single.summary)}`);
     note(`not split: found-by chips ${single.cards.filter((card) => card.chips[0].startsWith("Found by")).length}, first chips ${JSON.stringify(single.cards[0].chips)}`);
   } else {
