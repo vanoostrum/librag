@@ -17,6 +17,8 @@ One of:
 
 Optional steering arguments follow it, as Steering in `CLAUDE.md` describes.
 
+When `factory-next` starts this step, the prompt also has a `Brief:`. It sums up the tickets that block this ticket: their goals, and the decisions and domain docs that this ticket builds on. This session starts fresh for each ticket, so the brief, `GLOSSARY.md`, and `docs/adr/` are what it knows of the other tickets.
+
 ## Steps
 
 1. **Get the ticket.**
@@ -25,7 +27,7 @@ Optional steering arguments follow it, as Steering in `CLAUDE.md` describes.
    - Steering arguments: write them under `## Steering` in the ticket description. They replace the values that are already there.
 2. Move the ticket to **Specifying**.
 3. **Grill.** Run the `grill-with-docs` skill on the ticket. It asks the human questions in rounds and reads the code to find facts. Follow it, with these factory rules:
-   - Read `GLOSSARY.md` and `docs/adr/` first, if they exist.
+   - Read `GLOSSARY.md` and `docs/adr/` first, if they exist. Then read the brief. Read a blocking ticket's full spec only when the brief leaves a question about it open.
    - If the ticket came from a plan, read the plan ticket's `## Plan` first. Ask only what the plan left open.
    - Ask the rounds in chat. This is an exception to the Chat rule in `CLAUDE.md`.
    - If the ticket is already clear, the first frontier can be empty. Then skip to the next step.
@@ -68,4 +70,4 @@ See Gates in `CLAUDE.md`. One approval covers the spec and the replan proposals.
 
 1. Apply the replan proposals, as the replan check in `factory-next` describes.
 2. Move the ticket to **Ready to build**. Comment `🤖 spec: success — <n> criteria`.
-3. Run `factory-next`. It starts the build lane if this ticket or another one is ready, and picks the next grill.
+3. Run `factory-next`. It starts the build lane if this ticket or another one is ready, and starts the next grill in a new session. This session's work ends here.
