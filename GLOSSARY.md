@@ -92,6 +92,10 @@ _Avoid_: Test set, benchmark, golden set
 A sentence from a book that a good answer to an evaluation question needs. Retrieval finds it when a passage contains it.
 _Avoid_: Gold passage, ground truth
 
+**Grade**:
+Theo's judgement of one answer: its quality from 1 to 5 and its citation accuracy (correct, partly correct, wrong).
+_Avoid_: Rating, score (a score comes from Ragas)
+
 **Live run**:
 A run of the e2e suite against the real AI providers, started by hand, with a cost cap.
 _Avoid_: Live test, integration run

@@ -95,6 +95,18 @@ class Stack:
         response = self._request("POST", "/api/rag/search", json=body)
         return self._json(response, "POST /api/rag/search")
 
+    def chat_models(self) -> list[str]:
+        """Return the IDs of the models that `GET /api/config/models` lists."""
+        response = self._request("GET", "/api/config/models")
+        return [
+            m["id"] for m in self._json(response, "GET /api/config/models")["models"]
+        ]
+
+    def chat(self, body: Mapping[str, Any]) -> dict[str, Any]:
+        """Return the response body of `POST /api/chat` for `body`."""
+        response = self._request("POST", "/api/chat", json=body)
+        return self._json(response, "POST /api/chat")
+
     def upload(self, path: Path) -> str:
         """Upload the EPUB at `path` and return its book ID."""
         files = {"file": (path.name, path.read_bytes(), "application/epub+zip")}
