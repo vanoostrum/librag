@@ -41,7 +41,7 @@ A book whose ingestion stopped without a result: it is left in parsing or indexi
 _Avoid_: Stuck, hung
 
 **Contextual enrichment**:
-A short context line that an LLM writes for a passage at indexing time, indexed with the passage but kept apart from its original text.
+A short context line that an LLM writes for a passage at indexing time, indexed with the passage but kept apart from its original text. Its text is the passage's *context line*.
 _Avoid_: Augmentation, annotation
 
 ## Questions and answers
