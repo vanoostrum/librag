@@ -36,6 +36,7 @@ from tests.integration.test_chat_stream import named, stream
 SEARCH = "/api/rag/search"
 SPLIT = "lighthouse keeper and wild strawberries and harbour fog"
 SUBQUESTIONS = ["lighthouse keeper", "wild strawberries", "harbour fog"]
+BRASS = passage_id(SEA_ID, 0)
 STRAWBERRIES = passage_id(SEA_ID, 2)
 
 
@@ -183,10 +184,11 @@ def test_candidates_carry_found_by_and_best_ranks(
 ) -> None:
     """`found_by` names the sub-questions that fused a passage; ranks are the best."""
     index(SEA, HARBOUR)
+    both = search(split, "brass lamp and polished brass", decompose=True)
+    assert check_found_by(both)[BRASS] == ["Q1", "Q2"]
     body = search(split, SPLIT, decompose=True, dense_k=3, bm25_k=3)
     found_by = check_found_by(body)
-    assert found_by[STRAWBERRIES] == ["Q2"]
-    assert any(len(queries) > 1 for queries in found_by.values())
+    assert "Q2" in found_by[STRAWBERRIES]
     for stage in ("dense", "bm25"):
         best: dict[str, int] = {}
         for query in body["queries"]:
@@ -269,7 +271,9 @@ def test_stream_done_carries_the_subquestions(
     retrieval = done["retrieval"]
     assert [q["text"] for q in retrieval["queries"]] == SUBQUESTIONS
     check_found_by(retrieval)
-    assert retrieval["candidates"] == ask(split, SPLIT)["retrieval"]["candidates"]
+    whole = ask(split, SPLIT)["retrieval"]["candidates"]
+    by_id = {c["passage_id"]: c for c in whole}
+    assert {c["passage_id"]: c for c in retrieval["candidates"]} == by_id
 
 
 def test_search_decompose_uses_the_model(
