@@ -399,11 +399,13 @@ def test_missing_epub_is_downloaded_from_gutenberg(
     """A book whose EPUB is not in the books folder is downloaded first."""
     epub = eval_dir / "eval" / "books" / "pg2.epub"
     epub.unlink()
-    gutenberg = _gutenberg({"/ebooks/2.epub3.images": make_epub(HARBOUR)})
+    # make_epub stamps each file with the current time, so build the EPUB once.
+    served = make_epub(HARBOUR)
+    gutenberg = _gutenberg({"/ebooks/2.epub3.images": served})
     code, out, _ = run("fetch", gutenberg=gutenberg)
     assert code == 0
     assert "downloading Harbour Tales (Project Gutenberg #2)" in out
-    assert epub.read_bytes() == make_epub(HARBOUR)
+    assert epub.read_bytes() == served
     assert library(client)[HARBOUR_ID] == "indexed"
 
 
