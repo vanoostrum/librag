@@ -7,7 +7,14 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from librag.prompts import NO_PASSAGE, AnswerPrompt, Prompt, RewritePrompt
+from librag.prompts import (
+    MAX_SUBQUESTIONS,
+    NO_PASSAGE,
+    AnswerPrompt,
+    DecomposePrompt,
+    Prompt,
+    RewritePrompt,
+)
 from librag.settings import Settings
 
 WORD = re.compile(r"\w+")
@@ -46,6 +53,15 @@ class Llm(Protocol):
         ...
 
 
+def strip_fence(text: str) -> str:
+    """Return `text` without a Markdown code fence around it."""
+    text = text.strip()
+    if text.startswith("```") and text.endswith("```"):
+        text = text[3:-3]
+        text = text.removeprefix("json")
+    return text.strip()
+
+
 def _words(text: str) -> int:
     return len(WORD.findall(text))
 
@@ -74,7 +90,8 @@ def _fake_answer(prompt: AnswerPrompt) -> dict[str, Any]:
 class FakeLlm:
     """A deterministic LLM that needs no network (ADR 0005).
 
-    Its rewrite appends the last turn's question to the question. Its answer
+    Its rewrite appends the last turn's question to the question. It splits a
+    search query on " and ", into at most 4 sub-questions. Its answer
     has a book part that cites passages 1 and 2 when the context has them and a
     synthesis part, or the no-passage answer when the context is empty. A
     token is a word, and it costs 0.
@@ -85,6 +102,9 @@ class FakeLlm:
         if isinstance(prompt, RewritePrompt):
             last = prompt.turns[-1].question if prompt.turns else ""
             text = f"{prompt.question} {last}".strip()
+        elif isinstance(prompt, DecomposePrompt):
+            parts = prompt.query.split(" and ", MAX_SUBQUESTIONS - 1)
+            text = json.dumps({"queries": [part.strip() for part in parts]})
         else:
             text = json.dumps(_fake_answer(prompt))
         sent = " ".join(message["content"] for message in prompt.messages())

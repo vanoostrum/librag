@@ -133,6 +133,7 @@ def test_rerank_settings_are_read_from_the_environment() -> None:
         ),
         ({"LIBRAG_QUERY_REWRITE": "sometimes"}, "LIBRAG_QUERY_REWRITE", "sometimes"),
         ({"LIBRAG_REINDEX_ENABLED": "yes"}, "LIBRAG_REINDEX_ENABLED", "yes"),
+        ({"LIBRAG_DECOMPOSE": "maybe"}, "LIBRAG_DECOMPOSE", "maybe"),
     ],
 )
 def test_invalid_chat_setting_stops_startup(
@@ -175,6 +176,12 @@ def test_reindex_switch_is_off_by_default() -> None:
     """LIBRAG_REINDEX_ENABLED is off unless the environment turns it on."""
     assert Settings.from_env({}).reindex_enabled is False
     assert Settings.from_env({"LIBRAG_REINDEX_ENABLED": "on"}).reindex_enabled is True
+
+
+def test_decompose_switch_is_off_by_default() -> None:
+    """LIBRAG_DECOMPOSE is off unless the environment turns it on."""
+    assert Settings.from_env({}).decompose is False
+    assert Settings.from_env({"LIBRAG_DECOMPOSE": "on"}).decompose is True
 
 
 def test_enrichment_is_off_by_default_with_claude_haiku() -> None:

@@ -17,7 +17,8 @@ from typing import Any
 from sqlalchemy import Engine, insert
 
 from librag.db import chat_usage, to_db_time
-from librag.llm import Completion, Llm, LlmError
+from librag.decompose import decompose
+from librag.llm import Completion, Llm, LlmError, strip_fence
 from librag.passages import count_tokens
 from librag.prompts import NO_PASSAGE, AnswerPrompt, Prompt, RewritePrompt, Turn
 from librag.search import Retrieval, Searcher, SearchRequest, retrieve
@@ -40,15 +41,6 @@ class Part:
 
 class AnswerFormatError(ValueError):
     """The LLM's reply is not the JSON answer that the prompt asks for."""
-
-
-def _strip_fence(text: str) -> str:
-    """Return `text` without a Markdown code fence around it."""
-    text = text.strip()
-    if text.startswith("```") and text.endswith("```"):
-        text = text[3:-3]
-        text = text.removeprefix("json")
-    return text.strip()
 
 
 def _part(item: object) -> Part:
@@ -77,7 +69,7 @@ def _part(item: object) -> Part:
 def parse_answer(text: str) -> list[Part]:
     """Return the parts of the LLM's JSON answer, or raise `AnswerFormatError`."""
     try:
-        data = json.loads(_strip_fence(text))
+        data = json.loads(strip_fence(text))
     except json.JSONDecodeError as error:
         msg = f"the answer is not JSON: {error}"
         raise AnswerFormatError(msg) from error
@@ -395,10 +387,23 @@ def _search_query(
     return usage.call(llm, request.model, prompt).text.strip() or request.question
 
 
-def _retrieve(searcher: Searcher, request: ChatRequest, query: str) -> Retrieval:
+def _retrieve(
+    searcher: Searcher, llm: Llm, request: ChatRequest, query: str, usage: _Usage
+) -> Retrieval:
+    """Search for `query`, split into sub-questions when LIBRAG_DECOMPOSE is on."""
+    queries = [query]
+    if searcher.settings.decompose:
+        queries = decompose(
+            lambda prompt: usage.call(llm, request.model, prompt), query
+        )
     return retrieve(
         searcher,
-        SearchRequest(query=query, book_ids=request.book_ids, authors=request.authors),
+        SearchRequest(
+            query=query,
+            queries=queries,
+            book_ids=request.book_ids,
+            authors=request.authors,
+        ),
     )
 
 
@@ -418,6 +423,7 @@ def _details(
         "citations": citations,
         "usage": usage.body(),
         "retrieval": {
+            "queries": retrieval.body["queries"],
             "stages": retrieval.body["stages"],
             "settings": retrieval.body["settings"],
             "candidates": retrieval.candidates(),
@@ -437,8 +443,9 @@ def chat(searcher: Searcher, llm: Llm, request: ChatRequest) -> dict[str, Any]:
     """Answer `request` from the context that search selects, and log its usage.
 
     With earlier turns and rewriting on, the LLM first rewrites the question
-    into a standalone search query. Raise `ChatError` when the LLM fails; the
-    request is logged either way.
+    into a standalone search query. With LIBRAG_DECOMPOSE on, it then splits
+    that query into sub-questions when it asks about several things. Raise
+    `ChatError` when the LLM fails; the request is logged either way.
     """
     settings = searcher.settings
     usage = _Usage()
@@ -447,7 +454,7 @@ def chat(searcher: Searcher, llm: Llm, request: ChatRequest) -> dict[str, Any]:
         search_query = _search_query(
             llm, request, usage, rewrite=settings.query_rewrite
         )
-        retrieval = _retrieve(searcher, request, search_query)
+        retrieval = _retrieve(searcher, llm, request, search_query, usage)
         context = retrieval.body["results"]
         turns = tuple(request.turns[-MAX_TURNS:])
         prompt = AnswerPrompt(request.question, context, turns)
@@ -556,7 +563,7 @@ def chat_stream(searcher: Searcher, llm: Llm, request: ChatRequest) -> Generator
         search_query = _search_query(
             llm, request, usage, rewrite=searcher.settings.query_rewrite
         )
-        retrieval = _retrieve(searcher, request, search_query)
+        retrieval = _retrieve(searcher, llm, request, search_query, usage)
         context = retrieval.body["results"]
         yield "status", {"step": "writing", "passages": len(context)}
         turns = tuple(request.turns[-MAX_TURNS:])
