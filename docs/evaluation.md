@@ -1,6 +1,6 @@
 # Retrieval evaluation
 
-The retrieval evaluation measures how well search finds the passages that answer a question. It runs the evaluation set in `eval/retrieval.toml` through `POST /api/rag/search` and reports Recall@5, Recall@10, Recall@20 and MRR for each retrieval stage: dense, BM25, fusion, and fusion with rerank. You run it by hand, on your own machine. It never runs in CI.
+The retrieval evaluation measures how well search finds the passages that answer a question. It runs the evaluation set in `eval/retrieval.toml` through `POST /api/rag/search` and reports Recall@5, Recall@10, Recall@20 and MRR for each retrieval stage: dense, BM25, fusion, and fusion with rerank. You run it by hand, on your own machine. It never runs in CI. [The answer evaluation](answer-evaluation.md) measures the answers that chat writes from these passages.
 
 ## Run it
 

@@ -45,6 +45,8 @@ docker compose -f compose.yaml -f compose.test.yaml down -v
 
 `scripts/eval-retrieval` measures retrieval on 4 Project Gutenberg books: Recall@5/10/20 and MRR for each search stage. See [docs/evaluation.md](docs/evaluation.md).
 
+`scripts/eval-answers` asks the same questions through chat on each model, serves a local page to grade the answers, and summarizes the grades and the opt-in Ragas scores. See [docs/answer-evaluation.md](docs/answer-evaluation.md).
+
 ## Settings
 
 The api, the worker and `migrate` read these environment variables:

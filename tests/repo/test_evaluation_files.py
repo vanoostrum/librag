@@ -33,8 +33,13 @@ def test_committed_set_covers_every_type() -> None:
 
 
 def test_books_and_reports_are_ignored() -> None:
-    """Git ignores the fetched EPUBs and the reports."""
-    for path in ("eval/books/pg84.epub", "eval-reports/retrieval-x.json"):
+    """Git ignores the fetched EPUBs, the reports and the grades."""
+    for path in (
+        "eval/books/pg84.epub",
+        "eval-reports/retrieval-x.json",
+        "eval-reports/answers-x.json",
+        "eval-reports/grades.json",
+    ):
         result = subprocess.run(  # noqa: S603 - fixed arguments
             ["git", "check-ignore", "-q", path],  # noqa: S607 - git on PATH
             cwd=ROOT,
@@ -73,4 +78,27 @@ def test_script_runs_its_command_with_the_eval_group(
     assert result.stdout.strip() == (
         f"{ROOT} | uv run --group eval python -m librag.evaluation {command} "
         "--keep-books"
+    )
+
+
+def test_eval_answers_runs_the_answers_command_with_the_eval_group(
+    tmp_path: Path,
+) -> None:
+    """scripts/eval-answers passes its arguments to `librag.evaluation.answers_cli`."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    uv = bin_dir / "uv"
+    uv.write_text('#!/usr/bin/env bash\necho "$PWD | uv $*"\n', encoding="utf-8")
+    uv.chmod(0o755)
+    result = subprocess.run(  # noqa: S603 - the script is in the repo
+        [str(ROOT / "scripts" / "eval-answers"), "run", "--ragas"],
+        env={**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"},
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert result.stdout.strip() == (
+        f"{ROOT} | uv run --group eval python -m librag.evaluation.answers_cli "
+        "run --ragas"
     )

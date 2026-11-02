@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from tests.e2e.live import (
+from librag.evaluation.usage import (
     BudgetReachedError,
     ChatRecord,
     EmbeddingRecord,

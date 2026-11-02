@@ -51,7 +51,7 @@ def missing_keys(models: Iterable[str], environ: Mapping[str, str]) -> list[str]
         for provider in (model.partition("/")[0] for model in models)
         if provider in PROVIDER_KEYS
     )
-    return [key for key in needed if not environ.get(key)]
+    return [key for key in needed if not environ.get(key, "")]
 
 
 class BudgetReachedError(Exception):
