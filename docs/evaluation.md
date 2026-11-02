@@ -47,6 +47,10 @@ If a quote is in no passage of its book, the table lists it under "Evidence quot
 
 The JSON report holds the same metrics, and for each question the first relevant rank in each stage and the rank of each quote. It also records the search settings, each book's index configuration, and the number of books in the library. BM25 weighs words by how rare they are in the whole collection, so your own books shift the BM25 scores a little. Compare two runs only when the rest of the library is the same.
 
+## Measure contextual enrichment
+
+[Contextual enrichment](enrichment.md#measure-it) is measured with two runs, one with `LIBRAG_ENRICHMENT` off and one with it on.
+
 ## The evaluation set
 
 `eval/retrieval.toml` lists the 4 books by their Project Gutenberg number, then the questions:

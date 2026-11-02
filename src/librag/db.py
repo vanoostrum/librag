@@ -36,6 +36,8 @@ worker_heartbeats = Table(
 # The passage settings, the embedding model, its vector size and the BM25 method
 # are the book's index configuration. The embedding tokens and cost add up over
 # the batches of its indexing; the cost is null when LiteLLM does not know it.
+# `enrichment_model` is null when the book was indexed without contextual
+# enrichment; the enrichment tokens and cost add up over its context lines.
 books = Table(
     "books",
     metadata,
@@ -56,6 +58,10 @@ books = Table(
     Column("bm25_method", String(64)),
     Column("embedding_tokens", Integer(), nullable=False, server_default="0"),
     Column("embedding_cost_usd", Float(), server_default="0"),
+    Column("enrichment_model", String(255)),
+    Column("enrichment_input_tokens", Integer(), nullable=False, server_default="0"),
+    Column("enrichment_output_tokens", Integer(), nullable=False, server_default="0"),
+    Column("enrichment_cost_usd", Float(), server_default="0"),
 )
 
 # The work queue that the worker polls. `status` is queued, running, done or failed.
@@ -75,7 +81,8 @@ ingestion_jobs = Table(
 )
 
 # A book's passages, with their source locations. `id` derives from the book ID
-# and `position` (ADR 0006).
+# and `position` (ADR 0006). `context` is the passage's context line, or null
+# when the book was indexed without contextual enrichment.
 passages = Table(
     "passages",
     metadata,
@@ -88,6 +95,7 @@ passages = Table(
     Column("spine_index", Integer(), nullable=False),
     Column("first_paragraph", Integer(), nullable=False),
     Column("last_paragraph", Integer(), nullable=False),
+    Column("context", Text()),
     Index("ix_passages_book_id_position", "book_id", "position", unique=True),
 )
 

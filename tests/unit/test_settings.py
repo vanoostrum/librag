@@ -175,3 +175,16 @@ def test_reindex_switch_is_off_by_default() -> None:
     """LIBRAG_REINDEX_ENABLED is off unless the environment turns it on."""
     assert Settings.from_env({}).reindex_enabled is False
     assert Settings.from_env({"LIBRAG_REINDEX_ENABLED": "on"}).reindex_enabled is True
+
+
+def test_enrichment_is_off_by_default_with_claude_haiku() -> None:
+    """Contextual enrichment is off unless asked for, and Claude Haiku 5.5 writes it."""
+    defaults = Settings.from_env({})
+    assert (defaults.enrichment, defaults.enrichment_model) == (
+        False,
+        "anthropic/claude-haiku-5-5",
+    )
+    on = Settings.from_env(
+        {"LIBRAG_ENRICHMENT": "on", "LIBRAG_ENRICHMENT_MODEL": "openai/gpt-6.1-terra"}
+    )
+    assert (on.enrichment, on.enrichment_model) == (True, "openai/gpt-6.1-terra")

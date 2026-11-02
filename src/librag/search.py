@@ -135,6 +135,7 @@ def _result(rank: int, candidate: _Candidate) -> dict[str, Any]:
         "chapter": payload["chapter_title"],
         "section": payload["section_title"],
         "text": payload["text"],
+        "context": payload.get("context"),
         "score": candidate.score,
         "fusion_score": point.score,
         "rerank_score": candidate.rerank_score,
@@ -148,11 +149,12 @@ class Retrieval:
     body: dict[str, Any]
     payloads: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
 
-    def candidates(self) -> list[dict[str, Any]]:
+    def candidates(self, *, with_context: bool = False) -> list[dict[str, Any]]:
         """Return the book and text of each passage in any stage.
 
         The fused candidates come first, in fusion order, then the passages
-        that only dense or BM25 found, in the order of those stages.
+        that only dense or BM25 found, in the order of those stages. With
+        `with_context`, each also has its context line, or None.
         """
         ids = [
             passage["passage_id"]
@@ -167,6 +169,11 @@ class Retrieval:
                 "chapter": self.payloads[passage]["chapter_title"],
                 "section": self.payloads[passage]["section_title"],
                 "text": self.payloads[passage]["text"],
+                **(
+                    {"context": self.payloads[passage].get("context")}
+                    if with_context
+                    else {}
+                ),
             }
             for passage in dict.fromkeys(ids)
         ]
