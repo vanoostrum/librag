@@ -596,3 +596,11 @@ a:hover { color: var(--accent-hover); }
 .diag-subqs { margin: var(--space-2) 0 0; padding: 0; list-style: none; display: grid; gap: var(--space-1); }
 .diag-subqs li { display: flex; gap: var(--space-2); align-items: baseline; }
 .diag-subq { flex: none; padding: 0 6px; border: 1px solid var(--rule); border-radius: 4px; color: var(--ink-muted); font-size: 12px; }
+
+/* Chat: the Stop button while an answer streams, and a stopped answer (LIBRAG-26). */
+.button-stop { display: inline-flex; align-items: center; gap: var(--space-2); background: var(--ink); }
+.button-stop:hover { background: var(--ink-soft); }
+.button-stop::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: currentColor; }
+.turn-stopped { display: flex; align-items: center; gap: var(--space-3); padding-top: var(--space-3); border-top: 1px dashed var(--rule-strong); font-family: var(--sans); font-size: 15px; color: var(--ink-muted); }
+.turn-stopped__text { flex: 1; }
+.question + .turn-stopped { padding-top: 0; border-top: 0; }
