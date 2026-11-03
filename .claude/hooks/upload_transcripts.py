@@ -37,6 +37,17 @@ its tokens per model, and its subagents with their own tokens.
 - The gzip files have a fixed timestamp, so an unchanged file has the same
   bytes, and `gcloud storage rsync` skips it.
 
+Project thread sessions in Claude Code on the web do not run the repo's hooks.
+There, the session starts a watcher once, as CLAUDE.md says:
+
+    python3 .claude/hooks/upload_transcripts.py --watch
+
+The watcher runs in the background until the container stops. Every
+`FACTORY_GCS_WATCH_INTERVAL` seconds (default 120) it looks at the sessions in
+Claude Code's `projects` folder, and uploads each one that changed since its
+last look. Only one watcher runs at a time. Where the hooks do run, the watcher
+uploads the same files to the same folder, so running both does no harm.
+
 Secret environment values are replaced before upload. The background process
 logs each upload, or its error, to `factory-transcripts/upload.log` in the
 temp folder.
@@ -69,6 +80,11 @@ PROXY_TOKEN = "proxy-injected"  # noqa: S105 - a marker, not a secret.
 INTERVAL_ENV = "FACTORY_GCS_STOP_INTERVAL"
 DEFAULT_STOP_INTERVAL = 300.0
 UPLOAD_FLAG = "--upload"
+WATCH_FLAG = "--watch"
+WATCH_LOOP_FLAG = "--watch-loop"
+WATCH_INTERVAL_ENV = "FACTORY_GCS_WATCH_INTERVAL"
+DEFAULT_WATCH_INTERVAL = 120.0
+WATCH_EVENT = "Watch"
 TICKET_BRANCH = re.compile(r"^([a-z]+)-(\d+)/")
 TICKET_KEY = re.compile(r"\b[A-Z][A-Z0-9]*-\d+\b")
 FACTORY_SKILL = re.compile(r"^factory[-:]([a-z]+)$")
@@ -455,11 +471,108 @@ def upload_locked(event: dict[str, Any]) -> None:
         log(f"uploaded {session} ({event.get('hook_event_name')})")
 
 
+def configured() -> bool:
+    """Return whether a bucket is named and there is a way to sign in."""
+    return bool(os.environ.get(BUCKET_ENV, "")) and bool(
+        os.environ.get(KEY_ENV, "") or proxy_auth()
+    )
+
+
+def claude_projects() -> Path:
+    """Return Claude Code's folder of session transcripts."""
+    config = os.environ.get("CLAUDE_CONFIG_DIR", "") or str(Path.home() / ".claude")
+    return Path(config) / "projects"
+
+
+def last_change(transcript: Path) -> float:
+    """Return the newest modification time of a session's transcript files."""
+    times = [path.stat().st_mtime for path in transcripts(transcript).values()]
+    return max(times, default=0.0)
+
+
+def watch_once(cwd: str, seen: dict[str, float]) -> None:
+    """Upload each session that changed since the last look."""
+    for transcript in sorted(claude_projects().glob("*/*.jsonl")):
+        try:
+            changed = last_change(transcript)
+        except OSError:
+            continue
+        session = transcript.stem
+        if seen.get(session) == changed:
+            continue
+        seen[session] = changed
+        upload_locked(
+            {
+                "session_id": session,
+                "transcript_path": str(transcript),
+                "cwd": cwd,
+                "hook_event_name": WATCH_EVENT,
+            }
+        )
+
+
+def watch_loop() -> None:
+    """Upload changed sessions until the container stops. One loop runs at a time."""
+    with (state_dir() / "watch.lock").open("w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return
+        (state_dir() / "watch.pid").write_text(str(os.getpid()), encoding="utf-8")
+        interval = float(
+            os.environ.get(WATCH_INTERVAL_ENV, "") or DEFAULT_WATCH_INTERVAL
+        )
+        cwd = str(Path.cwd())
+        seen: dict[str, float] = {}
+        log(f"watching {claude_projects()} every {interval:g}s")
+        while True:
+            watch_once(cwd, seen)
+            time.sleep(interval)
+
+
+def watching() -> bool:
+    """Return whether a watcher holds the watch lock."""
+    with (state_dir() / "watch.lock").open("w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return True
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        return False
+
+
+def say(message: str) -> None:
+    """Tell the session what the watcher command did."""
+    sys.stdout.write(message + "\n")
+
+
+def start_watcher() -> None:
+    """Start the watcher in the background, unless one is running."""
+    if not configured():
+        say(f"Transcript watcher not started: {BUCKET_ENV} or a sign-in is missing.")
+        return
+    if watching():
+        say("Transcript watcher already running.")
+        return
+    subprocess.Popen(  # noqa: S603
+        [sys.executable, __file__, WATCH_LOOP_FLAG],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    say(f"Transcript watcher started; it logs to {state_dir() / 'upload.log'}.")
+
+
 def main() -> None:
     """Start a background upload, or run it when called with the upload flag."""
-    if not os.environ.get(BUCKET_ENV, ""):
+    if sys.argv[1:2] == [WATCH_FLAG]:
+        start_watcher()
         return
-    if not (os.environ.get(KEY_ENV, "") or proxy_auth()):
+    if not configured():
+        return
+    if sys.argv[1:2] == [WATCH_LOOP_FLAG]:
+        watch_loop()
         return
     if sys.argv[1:2] == [UPLOAD_FLAG]:
         upload_locked(json.loads(sys.argv[2]))

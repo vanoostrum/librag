@@ -19,6 +19,7 @@
 - **Test seams.** Test a feature at the highest seam: its HTTP route, with `TestClient`. Add a unit test only when the route test cannot cover a case well: many input combinations, a case that no request can reach, or a failure that is hard to locate from the route. Do not repeat in a unit test what a route test already checks. Test behavior that a client sees, not internals.
 - pytest reports line and branch coverage on every run. There is no minimum. A branch that no test reaches is a sign that a case needs a test.
 - How to run and verify: the `project-verify` skill.
+- **Transcripts.** Hooks in `.claude/settings.json` upload session transcripts to Google Cloud Storage. Project thread sessions on claude.ai do not run those hooks. So at the start of every session, run `python3 .claude/hooks/upload_transcripts.py --watch` once. It starts a background uploader, or says that one is already running or that the bucket settings are missing. The script's docstring explains how it works.
 - **pstack.** `.claude/settings.json` installs the pstack plugin. Load the `bstack` skill before any `pstack:` skill; a hook in `.claude/hooks/` blocks pstack skills until bstack is loaded. Where bstack differs from pstack, including pstack's session-start instruction to use `pstack:poteto-mode`, bstack wins.
 
 ## Factory

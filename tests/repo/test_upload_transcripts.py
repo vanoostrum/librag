@@ -7,9 +7,11 @@ would land in the bucket.
 """
 
 import base64
+import contextlib
 import gzip
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -459,3 +461,111 @@ def test_settings_name_the_bucket() -> None:
     settings = json.loads(SETTINGS.read_text(encoding="utf-8"))
     assert settings["env"]["FACTORY_GCS_BUCKET"] == "sous-factory-transcripts"
     assert "FACTORY_GCS_KEY" not in settings["env"]
+
+
+def watched_env(tmp_path: Path, transcript: Path) -> dict[str, str]:
+    """Return an environment whose Claude Code folder holds `transcript`'s session.
+
+    Claude Code keeps each session as `projects/<project>/<session id>.jsonl`,
+    next to a folder of the same name with the subagent transcripts.
+    """
+    config = tmp_path / "claude"
+    project_folder = config / "projects" / "-home-user-librag"
+    project_folder.parent.mkdir(parents=True)
+    transcript.parent.rename(project_folder)
+    env = fake_env(tmp_path, FACTORY_GCS_BUCKET="factory-logs")
+    env.update(CLAUDE_CONFIG_DIR=str(config), FACTORY_GCS_WATCH_INTERVAL="0.2")
+    return env
+
+
+def run_script(env: dict[str, str], cwd: Path, *args: str) -> str:
+    """Run the script with arguments, as a session does, and return its output."""
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, str(HOOK), *args],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=cwd,
+        check=True,
+        timeout=10,
+    )
+    return result.stdout
+
+
+def stop_watcher(tmp_path: Path) -> None:
+    """Stop the background watcher that a test started."""
+    pid_file = tmp_path / "tmp" / "factory-transcripts" / "watch.pid"
+    with contextlib.suppress(OSError, ValueError):
+        os.kill(int(pid_file.read_text("utf-8")), signal.SIGTERM)
+
+
+def test_watch_uploads_without_hooks(
+    tmp_path: Path, project: Path, transcript: Path
+) -> None:
+    """A session whose hooks do not run starts the watcher; it uploads the session."""
+    env = watched_env(tmp_path, transcript)
+    try:
+        run_script(env, project, "--watch")
+        wait_for_uploads(tmp_path, 1)
+    finally:
+        stop_watcher(tmp_path)
+
+    data = metadata(tmp_path)
+    assert data["event"] == "Watch"
+    assert data["branch"] == "librag-12/version-endpoint"
+    assert data["tickets"] == ["LIBRAG-12"]
+    assert (session_folder(tmp_path) / "subagents" / "agent-a1.jsonl.gz").is_file()
+
+
+def test_watch_uploads_again_only_after_a_change(
+    tmp_path: Path, project: Path, transcript: Path
+) -> None:
+    """The watcher skips an unchanged session, and uploads it again once it grows."""
+    env = watched_env(tmp_path, transcript)
+    main = tmp_path / "claude" / "projects" / "-home-user-librag" / f"{SESSION}.jsonl"
+    try:
+        run_script(env, project, "--watch")
+        wait_for_uploads(tmp_path, 1)
+        time.sleep(1)
+        upload_log = tmp_path / "tmp" / "factory-transcripts" / "upload.log"
+        assert upload_log.read_text("utf-8").count(" uploaded ") == 1
+
+        with main.open("a", encoding="utf-8") as file:
+            file.write(json.dumps(reply(30, "m6", OPUS, 1)) + "\n")
+        wait_for_uploads(tmp_path, 2)
+    finally:
+        stop_watcher(tmp_path)
+
+
+def test_watch_starts_one_watcher(
+    tmp_path: Path, project: Path, transcript: Path
+) -> None:
+    """Starting the watcher twice leaves one running."""
+    env = watched_env(tmp_path, transcript)
+    try:
+        first = run_script(env, project, "--watch")
+        wait_for_uploads(tmp_path, 1)
+        second = run_script(env, project, "--watch")
+    finally:
+        stop_watcher(tmp_path)
+
+    assert "started" in first
+    assert "already running" in second
+
+
+def test_watch_does_nothing_without_a_way_to_sign_in(
+    tmp_path: Path, project: Path, transcript: Path
+) -> None:
+    """Without a bucket or a way to sign in, no watcher starts."""
+    env = watched_env(tmp_path, transcript)
+    del env["CLOUDSDK_AUTH_ACCESS_TOKEN"]
+    output = run_script(env, project, "--watch")
+
+    assert "not started" in output
+    assert not (tmp_path / "tmp" / "factory-transcripts" / "watch.pid").exists()
+
+
+def test_claude_md_starts_the_watcher() -> None:
+    """Sessions that skip the repo's hooks are told to start the watcher."""
+    text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "python3 .claude/hooks/upload_transcripts.py --watch" in text
