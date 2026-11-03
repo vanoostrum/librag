@@ -87,8 +87,6 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # pytest relies on assert. S101 is limited to tests; application code stays checked.
 "tests/**/*.py" = ["S101"]
-# Claude Code runs hook scripts as standalone files, not as a package.
-".claude/hooks/*.py" = ["INP001"]
 # The verify skill runs its scripts as standalone files.
 ".claude/skills/*/scripts/*.py" = ["INP001"]
 # Alembic loads migration scripts by path, not as a package.
