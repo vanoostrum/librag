@@ -2,7 +2,9 @@
 """HTTP tests for streaming answers with POST /api/chat/stream."""
 
 import json
-from collections.abc import Callable, Iterator
+import re
+import threading
+from collections.abc import Callable, Generator, Iterator
 from http import HTTPStatus
 from typing import Any, override
 
@@ -12,8 +14,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 
 from librag.chat import ABORTED
-from librag.llm import Completion, LlmError
-from librag.prompts import NO_PASSAGE, Prompt
+from librag.llm import Completion, FakeLlm, LlmError
+from librag.prompts import NO_PASSAGE, Prompt, RewritePrompt
 from tests.integration.test_chat import (
     DEFAULT_MODEL,
     HARBOUR,
@@ -30,6 +32,8 @@ from tests.integration.test_chat import (
 )
 
 STREAM = "/api/chat/stream"
+# Seconds that a test LLM and client wait for each other, at most.
+WAIT = 5
 
 Event = tuple[str, dict[str, Any]]
 
@@ -351,31 +355,30 @@ def test_default_model_is_used_without_one(client: TestClient) -> None:
     assert named(found, "done")[0]["model"] == DEFAULT_MODEL
 
 
-def test_stream_the_client_leaves_is_logged(
-    client: TestClient, engine: Engine, index: Callable[..., None]
-) -> None:
-    """A client that disconnects halfway still gets its stream a usage row.
+def leave(client: TestClient, question: str, **fields: object) -> bytes:
+    """Ask on the stream, and disconnect when the app's LLM is `waiting`.
 
-    TestClient reads a response to its end, so the test sends the request to
-    the app as an ASGI server does, and disconnects after the first event.
+    TestClient reads a response to its end, so this sends the request to the
+    app as an ASGI server does. It sets the LLM's `left` event at the moment
+    the client disconnects, and returns what the client got.
     """
-    index(SEA)
-    body = json.dumps({"question": "lighthouse keeper"}).encode()
+    llm = client.app.state.llm  # ty: ignore[unresolved-attribute]
+    body = json.dumps({"question": question, **fields}).encode()
     sent: list[dict[str, Any]] = []
-    first_event = anyio.Event()
-
     requests = [{"type": "http.request", "body": body, "more_body": False}]
+
+    def got() -> bytes:
+        return b"".join(m["body"] for m in sent if m["type"] == "http.response.body")
 
     async def receive() -> dict[str, Any]:
         if requests:
             return requests.pop()
-        await first_event.wait()
+        await anyio.to_thread.run_sync(llm.waiting.wait, WAIT)
+        llm.left.set()
         return {"type": "http.disconnect"}
 
     async def send(message: dict[str, Any]) -> None:
         sent.append(message)
-        if message["type"] == "http.response.body":
-            first_event.set()
 
     scope = {
         "type": "http",
@@ -394,11 +397,147 @@ def test_stream_the_client_leaves_is_logged(
         "app": client.app,
     }
     client.portal.call(client.app, scope, receive, send)  # ty: ignore[unresolved-attribute]
-    bodies = [m["body"] for m in sent if m["type"] == "http.response.body"]
-    assert b"event: done" not in b"".join(bodies)
+    return got()
+
+
+def words(text: str) -> int:
+    """Return the tokens of `text` as the fake LLM counts them: its words."""
+    return len(re.findall(r"\w+", text))
+
+
+class StoppedLlm(FakeLlm):
+    """A fake LLM whose answer the client stops after its first book claim.
+
+    The answer is book claims of one chunk each. After the first one, it waits
+    until the client has left; it then sends one more claim, the last one the
+    server reads. It records the prompt, the text it sent, and whether the
+    server closed its stream.
+    """
+
+    def __init__(self, cost_usd: float | None = 0.0) -> None:
+        """Answer with a known price, or with None for a model without one."""
+        self.waiting = threading.Event()
+        self.left = threading.Event()
+        self.cost_usd = cost_usd
+        self.prompt: Prompt | None = None
+        self.sent = ""
+        self.closed = False
+
+    @override
+    def stream(self, model: str, prompt: Prompt) -> Generator[str | Completion]:
+        """Yield one book claim per chunk; wait for the client after the first."""
+        self.prompt = prompt
+        claims = [
+            json.dumps({"kind": "book", "text": f"Claim {n}.", "citations": [1]})
+            for n in range(1, 10)
+        ]
+        chunks = ['{"parts": [' + claims[0], *[", " + c for c in claims[1:]], "]}"]
+        try:
+            for n, chunk in enumerate(chunks):
+                if n == 1:
+                    self.waiting.set()
+                    self.left.wait(WAIT)
+                self.sent += chunk
+                yield chunk
+        except GeneratorExit:
+            self.closed = True
+            raise
+        yield self.complete(model, prompt)
+
+    @override
+    def estimate(self, model: str, prompt: Prompt, text: str) -> Completion:
+        """Count as the fake LLM does, at this LLM's price."""
+        estimate = super().estimate(model, prompt, text)
+        return Completion(
+            text, estimate.input_tokens, estimate.output_tokens, self.cost_usd
+        )
+
+
+def sent_words(prompt: Prompt | None) -> int:
+    """Return the input tokens of `prompt` as the fake LLM counts them."""
+    assert prompt is not None
+    return words(" ".join(message["content"] for message in prompt.messages()))
+
+
+def test_stopped_answer_is_logged_with_the_tokens_that_streamed(
+    client: TestClient, engine: Engine, index: Callable[..., None]
+) -> None:
+    """The client stops after a part: one row, with tokens for what streamed."""
+    index(SEA)
+    llm = StoppedLlm()
+    client.app.state.llm = llm  # ty: ignore[unresolved-attribute]
+    got = leave(client, "lighthouse keeper")
+    assert b"Claim 1." in got
+    assert b"event: done" not in got
     [row] = usage_rows(engine)
     assert row["error"] == ABORTED
-    assert row["search_query"] == "lighthouse keeper"
+    assert row["input_tokens"] == sent_words(llm.prompt) > 0
+    assert row["output_tokens"] == words(llm.sent) > 0
+    assert row["cost_usd"] == 0.0
+
+
+def test_stopped_answer_closes_the_llm_stream(
+    client: TestClient, index: Callable[..., None]
+) -> None:
+    """The server stops reading the LLM's stream when the client leaves."""
+    index(SEA)
+    llm = StoppedLlm()
+    client.app.state.llm = llm  # ty: ignore[unresolved-attribute]
+    leave(client, "lighthouse keeper")
+    assert llm.closed
+    assert "Claim 9." not in llm.sent
+
+
+def test_stopped_answer_without_a_price_has_no_cost(
+    client: TestClient, engine: Engine, index: Callable[..., None]
+) -> None:
+    """A stopped request with a model that has no price logs its cost as None."""
+    index(SEA)
+    client.app.state.llm = StoppedLlm(cost_usd=None)  # ty: ignore[unresolved-attribute]
+    leave(client, "lighthouse keeper")
+    [row] = usage_rows(engine)
+    assert row["error"] == ABORTED
+    assert row["cost_usd"] is None
+
+
+class SearchingLlm(FakeLlm):
+    """A fake LLM whose rewrite waits until the client has left."""
+
+    def __init__(self) -> None:
+        """Record each completion."""
+        self.waiting = threading.Event()
+        self.left = threading.Event()
+        self.completions: list[Completion] = []
+
+    @override
+    def complete(self, model: str, prompt: Prompt) -> Completion:
+        """Wait for the client to leave in the rewrite, then answer as the fake."""
+        if isinstance(prompt, RewritePrompt):
+            self.waiting.set()
+            self.left.wait(WAIT)
+        completion = super().complete(model, prompt)
+        self.completions.append(completion)
+        return completion
+
+
+def test_stream_the_client_leaves_while_searching_is_logged(
+    client: TestClient, engine: Engine, index: Callable[..., None]
+) -> None:
+    """A client that leaves while searching: one row, with the rewrite's tokens."""
+    index(SEA)
+    llm = SearchingLlm()
+    client.app.state.llm = llm  # ty: ignore[unresolved-attribute]
+    got = leave(client, "lighthouse keeper", turns=TURNS)
+    assert b"event: part" not in got
+    [row] = usage_rows(engine)
+    assert row["error"] == ABORTED
+    assert row["search_query"] == llm.completions[0].text
+    [rewrite] = llm.completions
+    assert (row["input_tokens"], row["output_tokens"]) == (
+        rewrite.input_tokens,
+        rewrite.output_tokens,
+    )
+    assert row["input_tokens"] > 0
 
 
 def test_done_carries_the_same_candidates_and_context_as_chat(

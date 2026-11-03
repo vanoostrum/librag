@@ -3,7 +3,7 @@
 
 import json
 import re
-from collections.abc import Iterator
+from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -45,11 +45,16 @@ class Llm(Protocol):
         """Return the model's reply to `prompt`, or raise `LlmError`."""
         ...
 
-    def stream(self, model: str, prompt: Prompt) -> Iterator[str | Completion]:
+    def stream(self, model: str, prompt: Prompt) -> Generator[str | Completion]:
         """Yield the reply's text in pieces, then its `Completion`.
 
-        Raise `LlmError` when the provider fails, also halfway.
+        Raise `LlmError` when the provider fails, also halfway. Closing the
+        generator before the end stops the provider's stream.
         """
+        ...
+
+    def estimate(self, model: str, prompt: Prompt, text: str) -> Completion:
+        """Return the estimated usage of a reply that stopped after `text`."""
         ...
 
 
@@ -97,7 +102,7 @@ class FakeLlm:
     token is a word, and it costs 0.
     """
 
-    def complete(self, model: str, prompt: Prompt) -> Completion:  # noqa: ARG002
+    def complete(self, model: str, prompt: Prompt) -> Completion:
         """Return the fake reply to `prompt`, for any model."""
         if isinstance(prompt, RewritePrompt):
             last = prompt.turns[-1].question if prompt.turns else ""
@@ -107,16 +112,20 @@ class FakeLlm:
             text = json.dumps({"queries": [part.strip() for part in parts]})
         else:
             text = json.dumps(_fake_answer(prompt))
-        sent = " ".join(message["content"] for message in prompt.messages())
-        return Completion(text, _words(sent), _words(text), 0.0)
+        return self.estimate(model, prompt, text)
 
-    def stream(self, model: str, prompt: Prompt) -> Iterator[str | Completion]:
+    def stream(self, model: str, prompt: Prompt) -> Generator[str | Completion]:
         """Yield the fake reply in chunks of 16 characters, then its completion."""
         completion = self.complete(model, prompt)
         text = completion.text
         for start in range(0, len(text), FAKE_CHUNK):
             yield text[start : start + FAKE_CHUNK]
         yield completion
+
+    def estimate(self, model: str, prompt: Prompt, text: str) -> Completion:  # noqa: ARG002
+        """Count the words of the prompt and of `text`, at no cost."""
+        sent = " ".join(message["content"] for message in prompt.messages())
+        return Completion(text, _words(sent), _words(text), 0.0)
 
 
 class LiteLlm:
@@ -141,7 +150,7 @@ class LiteLlm:
             cost_usd=cost(litellm, model, response),
         )
 
-    def stream(self, model: str, prompt: Prompt) -> Iterator[str | Completion]:
+    def stream(self, model: str, prompt: Prompt) -> Generator[str | Completion]:
         """Yield the reply as the provider streams it, then its tokens and cost."""
         import litellm  # noqa: PLC0415
 
@@ -155,6 +164,9 @@ class LiteLlm:
                 stream=True,
                 stream_options={"include_usage": True},
             )
+        except Exception as error:
+            raise LlmError(str(error)) from error
+        try:
             for chunk in response:
                 chunks.append(chunk)
                 text = chunk.choices[0].delta.content if chunk.choices else None
@@ -163,6 +175,8 @@ class LiteLlm:
             whole: Any = litellm.stream_chunk_builder(chunks, messages=messages)
         except Exception as error:
             raise LlmError(str(error)) from error
+        finally:
+            _close_provider_stream(response)
         yield Completion(
             text=whole.choices[0].message.content or "",
             input_tokens=whole.usage.prompt_tokens,
@@ -170,15 +184,56 @@ class LiteLlm:
             cost_usd=cost(litellm, model, whole),
         )
 
+    def estimate(self, model: str, prompt: Prompt, text: str) -> Completion:
+        """Count the prompt and `text` with the model's tokenizer, and price them."""
+        import litellm  # noqa: PLC0415
 
-def cost(litellm: Any, model: str, response: object) -> float | None:  # noqa: ANN401
-    """Return LiteLLM's cost of `response`, or None when it has no price.
+        input_tokens = litellm.token_counter(model=model, messages=prompt.messages())
+        output_tokens = litellm.token_counter(
+            model=model, text=text, count_response_tokens=True
+        )
+        price: float | None = None
+        if _has_price(litellm, model):
+            try:
+                price = sum(
+                    litellm.cost_per_token(
+                        model=model,
+                        prompt_tokens=input_tokens,
+                        completion_tokens=output_tokens,
+                    )
+                )
+            except Exception:  # noqa: BLE001 - LiteLLM raises any error for an unknown price
+                price = None
+        return Completion(text, input_tokens, output_tokens, price)
 
-    For a model missing from its price table, LiteLLM can return 0 instead of
-    failing, so the table is checked first.
+
+def _close_provider_stream(response: object) -> None:
+    """Close the provider's HTTP stream inside LiteLLM's stream wrapper.
+
+    The wrapper has no `close`. Its `completion_stream` is the provider SDK's
+    stream (OpenAI: it has `close`), or LiteLLM's own reader of the HTTP lines
+    (Anthropic: the lines are its `streaming_response`).
+    """
+    stream = getattr(response, "completion_stream", None)
+    for target in (stream, getattr(stream, "streaming_response", None)):
+        close = getattr(target, "close", None)
+        if callable(close):
+            close()
+
+
+def _has_price(litellm: Any, model: str) -> bool:  # noqa: ANN401
+    """Return whether LiteLLM's price table has `model`.
+
+    For a model missing from it, LiteLLM can return a cost of 0 instead of
+    failing.
     """
     name = litellm.get_llm_provider(model)[0]
-    if name not in litellm.model_cost and model not in litellm.model_cost:
+    return name in litellm.model_cost or model in litellm.model_cost
+
+
+def cost(litellm: Any, model: str, response: object) -> float | None:  # noqa: ANN401
+    """Return LiteLLM's cost of `response`, or None when it has no price."""
+    if not _has_price(litellm, model):
         return None
     try:
         return float(litellm.completion_cost(completion_response=response))

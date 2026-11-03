@@ -5,6 +5,8 @@ LiteLLM's `mock_response` builds a real response without a network call.
 """
 
 import functools
+from collections.abc import Callable, Generator, Iterator
+from types import SimpleNamespace
 
 import litellm
 import pytest
@@ -92,3 +94,108 @@ def test_live_llm_stream_raises_the_provider_error(
     mock_completion(monkeypatch, Exception("the API is overloaded"))
     with pytest.raises(LlmError, match="the API is overloaded"):
         list(LiteLlm().stream("anthropic/claude-sonnet-5-5", PROMPT))
+
+
+class ProviderStream:
+    """The provider's HTTP stream: chunks of one word, and whether it was closed."""
+
+    def __init__(self) -> None:
+        """Start unread and open."""
+        self.read = 0
+        self.closed = False
+
+    def chunks(self) -> Generator[SimpleNamespace]:
+        """Yield chunks in the shape LiteLLM gives them, until closed."""
+        try:
+            while True:
+                self.read += 1
+                delta = SimpleNamespace(content=f"word{self.read} ")
+                yield SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
+        finally:
+            self.closed = True
+
+
+class StreamWrapper:
+    """LiteLLM's stream wrapper: it reads the provider's stream, but has no close."""
+
+    def __init__(self, completion_stream: object, chunks: Iterator[object]) -> None:
+        """Wrap `completion_stream`, which reads `chunks`."""
+        self.completion_stream = completion_stream
+        self._chunks = chunks
+
+    def __iter__(self) -> Iterator[object]:
+        """Yield the provider's chunks."""
+        return self._chunks
+
+
+def openai_shape(provider: ProviderStream) -> StreamWrapper:
+    """OpenAI: the wrapped stream is the SDK's stream, which has `close`."""
+    chunks = provider.chunks()
+    return StreamWrapper(SimpleNamespace(close=chunks.close), chunks)
+
+
+def anthropic_shape(provider: ProviderStream) -> StreamWrapper:
+    """Anthropic: the wrapped stream holds the HTTP lines as `streaming_response`."""
+    chunks = provider.chunks()
+    return StreamWrapper(SimpleNamespace(streaming_response=chunks), chunks)
+
+
+@pytest.mark.parametrize("shape", [openai_shape, anthropic_shape])
+def test_closing_the_stream_closes_the_provider_stream(
+    monkeypatch: pytest.MonkeyPatch,
+    shape: Callable[[ProviderStream], StreamWrapper],
+) -> None:
+    """A stream that the caller stops closes the provider's HTTP stream.
+
+    The provider then stops writing, and stops charging for output.
+    """
+    provider = ProviderStream()
+    # Others, such as LiteLLM's callbacks, can hold the wrapper, so it is not
+    # collected (and so closed) when the stream ends.
+    wrapper = shape(provider)
+    monkeypatch.setattr(litellm, "completion", lambda **_: wrapper)
+    stream = LiteLlm().stream("anthropic/claude-sonnet-5-5", PROMPT)
+    assert [next(stream), next(stream)] == ["word1 ", "word2 "]
+    stream.close()
+    assert provider.closed
+    assert provider.read == 2  # noqa: PLR2004
+
+
+def test_live_llm_estimates_a_stopped_reply() -> None:
+    """A reply stopped halfway is counted with the model's tokenizer and priced."""
+    estimate = LiteLlm().estimate(
+        "anthropic/claude-sonnet-5-5", PROMPT, '{"parts": [{"kind": "book",'
+    )
+    assert estimate.input_tokens > 0
+    assert estimate.output_tokens > 0
+    assert estimate.cost_usd is not None
+    assert estimate.cost_usd > 0
+
+
+def test_live_llm_estimate_without_a_price_has_no_cost() -> None:
+    """For a model that LiteLLM has no price for, the estimated cost is None."""
+    estimate = LiteLlm().estimate("openai/no-such-chat-model", PROMPT, "Some text")
+    assert estimate.input_tokens > 0
+    assert estimate.output_tokens > 0
+    assert estimate.cost_usd is None
+
+
+def test_provider_error_midway_closes_the_provider_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A provider that fails halfway raises LlmError, and its stream is closed."""
+    provider = ProviderStream()
+    chunks = provider.chunks()
+
+    def failing() -> Iterator[object]:
+        yield next(chunks)
+        msg = "connection reset"
+        raise ConnectionError(msg)
+
+    wrapper = StreamWrapper(SimpleNamespace(close=chunks.close), failing())
+    monkeypatch.setattr(litellm, "completion", lambda **_: wrapper)
+    stream = LiteLlm().stream("anthropic/claude-sonnet-5-5", PROMPT)
+    assert next(stream) == "word1 "
+    with pytest.raises(LlmError, match="connection reset"):
+        next(stream)
+    assert provider.closed

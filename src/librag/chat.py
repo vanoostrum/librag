@@ -9,7 +9,8 @@ without a passage that is in the context.
 
 import json
 import time
-from collections.abc import Generator, Iterator, Mapping, Sequence
+from collections.abc import Generator, Mapping, Sequence
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -321,15 +322,25 @@ class _Usage:
         self._add(completion)
         return completion
 
-    def stream(self, llm: Llm, model: str, prompt: Prompt) -> Iterator[str]:
-        """Yield the reply's text as it streams, and count its usage at the end."""
+    def stream(self, llm: Llm, model: str, prompt: Prompt) -> Generator[str]:
+        """Yield the reply's text as it streams, and count its usage at the end.
+
+        Closed before the end, it closes the LLM's stream and counts an
+        estimate for the text that streamed.
+        """
         start = time.perf_counter()
+        streamed: list[str] = []
         try:
-            for item in llm.stream(model, prompt):
-                if isinstance(item, Completion):
-                    self._add(item)
-                else:
-                    yield item
+            with closing(llm.stream(model, prompt)) as items:
+                for item in items:
+                    if isinstance(item, Completion):
+                        self._add(item)
+                    else:
+                        streamed.append(item)
+                        yield item
+        except GeneratorExit:
+            self._add(llm.estimate(model, prompt, "".join(streamed)))
+            raise
         finally:
             self.latency_ms += (time.perf_counter() - start) * 1000
 
@@ -530,8 +541,9 @@ def _stream_answer(
         answer = _StreamedAnswer(prompt.passages)
         reader = PartReader()
         try:
-            for chunk in usage.stream(llm, model, prompt):
-                yield from answer.add(reader.feed(chunk))
+            with closing(usage.stream(llm, model, prompt)) as chunks:
+                for chunk in chunks:
+                    yield from answer.add(reader.feed(chunk))
             yield from answer.add(reader.finish())
         except AnswerFormatError as error:
             if answer.sent:
