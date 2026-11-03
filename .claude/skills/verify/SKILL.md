@@ -97,7 +97,7 @@ Proof standards:
 - Check the version against `pyproject.toml`, not against a value copied from an earlier run.
 - No mocks. The stack uses a real Qdrant and a real database. `compose.test.env` selects the in-process fake AI providers, so verify needs no API keys.
 
-In the factory, `factory-build` pastes the transcripts into the PR body and attaches the screenshots to the Linear ticket. `.verify/` is not committed, and a cloud container is deleted after the session.
+In sous, `sous:build` pastes the transcripts into the PR body and attaches the screenshots to the Linear ticket. `.verify/` is not committed, and a cloud container is deleted after the session.
 
 ## Cleanup
 
