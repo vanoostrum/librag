@@ -6,6 +6,8 @@
   "use strict";
 
   const MODEL_KEY = "librag.chat.model";
+  // The reason a stream is aborted when the user presses Stop.
+  const STOP = "stop";
   const LABELS = {
     synthesis: "Synthesis",
     general: "General knowledge, not from your library",
@@ -103,18 +105,25 @@
     return ticked.length === bookBoxes.length ? [] : ticked.map((b) => b.value);
   }
 
-  // The ask bar: disabled while an answer streams, or with no book ticked.
+  // The ask bar: Stop while an answer streams; Ask, disabled with no book ticked.
 
   function updateAsk() {
     const busy = streaming !== null;
     const noBooks = bookIds() === null;
     input.disabled = busy;
-    askButton.disabled = busy || noBooks;
+    askButton.type = busy ? "button" : "submit";
+    askButton.textContent = busy ? "Stop" : "Ask";
+    askButton.classList.toggle("button-stop", busy);
+    askButton.disabled = !busy && noBooks;
     form.classList.toggle("ask--disabled", busy);
-    for (const retry of conversation.querySelectorAll(".turn-error button")) {
+    for (const retry of conversation.querySelectorAll(".turn-error button, .turn-stopped button")) {
       retry.disabled = busy || noBooks;
     }
   }
+
+  askButton.addEventListener("click", () => {
+    if (streaming) streaming.abort(STOP);
+  });
 
   function showConversation(started) {
     head.hidden = !started;
@@ -372,19 +381,37 @@
     };
   }
 
-  function failTurn(turn, message) {
-    turn.status.remove();
-    const notice = element("div", "notice turn-error");
-    notice.setAttribute("role", "alert");
-    notice.append(element("span", "notice__text", `The model didn't answer: ${message}`));
+  // Try again asks the turn's question again, in place of the turn.
+  function retryButton(turn) {
     const retry = element("button", "button-quiet", "Try again");
     retry.type = "button";
     retry.addEventListener("click", () => {
       if (streaming || bookIds() === null) return;
       ask(turn.question, turn.section);
     });
-    notice.append(retry);
+    return retry;
+  }
+
+  function failTurn(turn, message) {
+    turn.status.remove();
+    const notice = element("div", "notice turn-error");
+    notice.setAttribute("role", "alert");
+    notice.append(element("span", "notice__text", `The model didn't answer: ${message}`), retryButton(turn));
     turn.section.append(notice);
+  }
+
+  // A stopped turn keeps the parts that arrived. It is not `answered`, so it is
+  // never sent as history.
+  function stopTurn(turn) {
+    turn.status.remove();
+    if (!turn.parts.length) {
+      turn.answer.remove();
+      turn.sources.remove();
+    }
+    const line = element("div", "turn-stopped");
+    line.setAttribute("role", "status");
+    line.append(element("span", "turn-stopped__text", "You stopped this answer."), retryButton(turn));
+    turn.section.append(line);
   }
 
   // The stream.
@@ -481,9 +508,11 @@
       if (!controller.signal.aborted) failTurn(turn, error.message);
     } finally {
       if (streaming === controller) {
+        const stopped = controller.signal.reason === STOP;
+        if (stopped) stopTurn(turn);
         streaming = null;
         updateAsk();
-        if (document.activeElement === document.body) input.focus();
+        if (stopped || document.activeElement === document.body) input.focus();
       }
     }
   }
