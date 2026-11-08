@@ -11,11 +11,15 @@
 //             rewritten follow-up, rerank off, and a failed turn without it
 //   decomposed  the diagnostics of a question split into sub-questions, and of
 //             one that is not split; needs a stack with LIBRAG_DECOMPOSE=on
+//   stop      Stop while an answer streams: after a part, before any part,
+//             a question after a stopped turn, and "Try again" on one
 // <platform> is desktop (1280x800) or mobile (390x844).
 //
 // The fake LLM answers at once, so the page's fetch is wrapped: it passes the
 // server's events through one at a time, and can hold them after the first
-// part (for the streaming screenshot). For the failed answer it replaces the
+// part (for the streaming screenshot), or after the first progress line (to
+// stop before any part). An abort from the page ends the wrapped stream, as it
+// ends a real one. For the failed answer it replaces the
 // server's stream with a provider error, which only a live or scripted LLM gives.
 "use strict";
 
@@ -27,7 +31,7 @@ const WINDOWS = { desktop: { width: 1280, height: 800 }, mobile: { width: 390, h
 const PROVIDER_ERROR = "Rate limit reached for gpt-6.1-terra. Try again in a minute.";
 
 function wrapFetch() {
-  window.__chat = { hold: false, release: null, fail: null, noRerank: false };
+  window.__chat = { hold: false, holdStart: false, release: null, fail: null, noRerank: false };
   const realFetch = window.fetch.bind(window);
   const encoder = new TextEncoder();
   window.fetch = async (input, init) => {
@@ -40,8 +44,10 @@ function wrapFetch() {
       ];
       return new Response(new Blob(events), { headers: { "content-type": "text/event-stream" } });
     }
+    control.release = null;
     const response = await realFetch(input, init);
     if (!response.ok) return response;
+    const signal = init && init.signal;
     const text = await response.text();
     let blocks = text.split("\n\n").filter((b) => b.trim());
     if (control.noRerank) {
@@ -59,14 +65,23 @@ function wrapFetch() {
     }
     const body = new ReadableStream({
       async start(controller) {
+        let aborted = false;
+        signal?.addEventListener("abort", () => {
+          aborted = true;
+          controller.error(new DOMException("The user aborted a request.", "AbortError"));
+          control.release?.();
+        });
         for (const block of blocks) {
+          if (aborted) return;
           controller.enqueue(encoder.encode(`${block}\n\n`));
           await new Promise((resolve) => setTimeout(resolve, 50));
-          if (block.startsWith("event: part") && control.hold) {
+          const held = (block.startsWith("event: part") && control.hold)
+            || (block.startsWith("event: status") && control.holdStart);
+          if (held && !aborted) {
             await new Promise((resolve) => { control.release = resolve; });
           }
         }
-        controller.close();
+        if (!aborted) controller.close();
       },
     });
     return new Response(body, { status: response.status, headers: response.headers });
@@ -86,7 +101,10 @@ async function summary(page) {
         sources: [...turn.querySelectorAll(".source summary")].map((s) => s.textContent.trim()),
         diagnostics: turn.querySelectorAll(".diagnostics").length,
         error: turn.querySelector(".turn-error .notice__text")?.textContent.trim() ?? null,
+        stopped: turn.querySelector(".turn-stopped__text")?.textContent.trim() ?? null,
       })),
+      askButton: form.querySelector(".ask__bar button").textContent.trim(),
+      focus: document.activeElement?.className || document.activeElement?.tagName || null,
       askDisabled: form.querySelector(".ask__input").disabled,
       askButtonDisabled: form.querySelector(".ask__bar button").disabled,
       model: form.querySelector("select").value,
@@ -120,7 +138,7 @@ async function panel(page, turnIndex) {
 async function main() {
   const [url, out, action, platform] = process.argv.slice(2);
   if (!url || !out || !action || !WINDOWS[platform]) {
-    throw new Error("usage: chat-browser.js <url> <evidence dir> <no-books|chat|diagnostics|decomposed> <desktop|mobile>");
+    throw new Error("usage: chat-browser.js <url> <evidence dir> <no-books|chat|diagnostics|decomposed|stop> <desktop|mobile>");
   }
   fs.mkdirSync(out, { recursive: true });
   const log = [];
@@ -314,6 +332,60 @@ async function main() {
     const single = await panel(page, 0);
     note(`not split: ${JSON.stringify(single.summary)}`);
     note(`not split: found-by chips ${single.cards.filter((card) => card.chips[0].startsWith("Found by")).length}, first chips ${JSON.stringify(single.cards[0].chips)}`);
+  } else if (action === "stop") {
+    const stopped = (n) => page.waitForFunction(
+      (count) => document.querySelectorAll(".turn .turn-stopped").length >= count, n,
+    );
+    const held = () => page.waitForFunction(() => window.__chat.release !== null);
+
+    // Stop after the first part: the part and its sources stay.
+    await page.evaluate(() => { window.__chat.hold = true; });
+    await ask("What did the lighthouse keeper do every evening?");
+    await held();
+    await state("streaming");
+    await shot("streaming");
+    await page.click(".ask__bar button");
+    await stopped(1);
+    await state("stopped after a part");
+    await page.evaluate(() => { window.__chat.hold = false; });
+    await shot("stopped");
+
+    // A question after the stopped turn does not send it as history.
+    await ask("And what did the keeper log?");
+    await answered(1);
+    note(`asked after the stopped turn, sent: ${lastSent()}`);
+
+    // "Try again" asks again in place of the stopped turn, with no turns before it.
+    await page.click(".turn-stopped button");
+    await answered(2);
+    note(`try again on the first turn, sent: ${lastSent()}`);
+    await state("tried again");
+
+    // A stopped third turn: "Try again" sends the two answered turns before it.
+    await page.evaluate(() => { window.__chat.hold = true; });
+    await ask("Which book mentions the brass lamp?");
+    await held();
+    await page.click(".ask__bar button");
+    await stopped(1);
+    await page.evaluate(() => { window.__chat.hold = false; });
+    await page.click(".turn-stopped button");
+    await answered(3);
+    note(`try again on the third turn, sent: ${lastSent()}`);
+    await state("third turn tried again");
+
+    // Stop before any part: only the question and the stopped line.
+    await page.click("[data-new-conversation]");
+    await page.evaluate(() => { window.__chat.holdStart = true; });
+    await ask("Which of the two gives practical advice?");
+    await held();
+    await state("searching");
+    await page.click(".ask__bar button");
+    await stopped(1);
+    await page.evaluate(() => { window.__chat.holdStart = false; });
+    await state("stopped before a part");
+    const early = await page.evaluate(() => [...document.querySelector(".turn").children].map((c) => c.className));
+    note(`stopped-early turn children: ${JSON.stringify(early)}`);
+    await shot("stopped_early");
   } else {
     throw new Error(`unknown action ${action}`);
   }

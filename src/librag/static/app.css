@@ -460,6 +460,20 @@ a:hover { color: var(--accent-hover); }
 
 .button-primary:disabled { background: var(--rule-strong); color: var(--surface); cursor: not-allowed; }
 
+/* While an answer streams, Ask turns into Stop: ink, with a square icon. */
+.button-stop { display: inline-flex; align-items: center; gap: var(--space-2); background: var(--ink); }
+
+.button-stop:hover { background: var(--ink-soft); }
+
+.button-stop::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: currentColor; }
+
+/* A stopped answer: a grey line, not the red error notice, because the user chose to stop. */
+.turn-stopped { display: flex; align-items: center; gap: var(--space-3); padding-top: var(--space-3); border-top: 1px dashed var(--rule-strong); font-family: var(--sans); font-size: 15px; color: var(--ink-muted); }
+
+.turn-stopped__text { flex: 1; }
+
+.question + .turn-stopped { padding-top: 0; border-top: 0; }
+
 /* The picker panel is placed against the ask form, above the ask bar. */
 .picker { position: static; }
 
