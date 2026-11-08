@@ -5,16 +5,16 @@
     ]
   },
   "extraKnownMarketplaces": {
-    "sous": {
+    "craft": {
       "source": {
         "source": "github",
-        "repo": "vanoostrum/sous",
-        "ref": "v0.1.0"
+        "repo": "vanoostrum/craft",
+        "ref": "v2.0.0"
       }
     }
   },
   "enabledPlugins": {
-    "sous@sous": true,
-    "pstack@sous": true
+    "craft@craft": true,
+    "pstack@craft": true
   }
 }

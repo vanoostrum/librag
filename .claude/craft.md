@@ -1,6 +1,6 @@
-# Kitchen config
+# Craft config
 
-The sous plugin reads these values. Its rules are in the `sous:rules` skill.
+The craft plugin reads these values. Its rules are in the `craft:rules` skill.
 
 | Key | Value |
 |---|---|
