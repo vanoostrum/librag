@@ -1,5 +1,5 @@
 # Copyright (C) 2026 Theo van Oostrum
-"""LibRag is a kitchen of the sous plugin."""
+"""LibRag is a project of the craft plugin."""
 
 import json
 import re
@@ -16,27 +16,27 @@ KEYS = (
 )
 
 
-def test_settings_install_sous_at_a_tag() -> None:
-    """Terminal and web sessions get sous and pstack from the sous marketplace."""
+def test_settings_install_craft_at_a_tag() -> None:
+    """Terminal and web sessions get craft and pstack from the craft marketplace."""
     settings = json.loads((ROOT / ".claude" / "settings.json").read_text("utf-8"))
-    source = settings["extraKnownMarketplaces"]["sous"]["source"]
-    assert source["repo"] == "vanoostrum/sous"
+    source = settings["extraKnownMarketplaces"]["craft"]["source"]
+    assert source["repo"] == "vanoostrum/craft"
     assert re.fullmatch(r"v\d+\.\d+\.\d+", source["ref"])
-    assert settings["enabledPlugins"] == {"sous@sous": True, "pstack@sous": True}
+    assert settings["enabledPlugins"] == {"craft@craft": True, "pstack@craft": True}
 
 
-def test_kitchen_config_has_every_key() -> None:
-    """`.claude/kitchen.md` holds each value that the sous steps read."""
-    text = (ROOT / ".claude" / "kitchen.md").read_text(encoding="utf-8")
+def test_craft_config_has_every_key() -> None:
+    """`.claude/craft.md` holds each value that the craft steps read."""
+    text = (ROOT / ".claude" / "craft.md").read_text(encoding="utf-8")
     rows = dict(re.findall(r"^\| ([^|]+?) \| ([^|]+?) \|$", text, re.MULTILINE))
     for key in KEYS:
         assert rows.get(key, "").startswith("`"), key
 
 
-def test_kitchen_skills_resolve_in_project_threads() -> None:
-    """`CLAUDE.md` imports the config and loads kitchen skills by path."""
+def test_project_skills_resolve_in_project_threads() -> None:
+    """`CLAUDE.md` imports the config and loads project skills by path."""
     text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
-    assert "\n@.claude/kitchen.md\n" in text
+    assert "\n@.claude/craft.md\n" in text
     assert "If a skill is unknown, read `.claude/skills/<name>/SKILL.md`" in text
     for skill in ("project-verify", "verify"):
         assert (ROOT / ".claude" / "skills" / skill / "SKILL.md").is_file()
