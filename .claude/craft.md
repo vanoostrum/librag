@@ -4,7 +4,8 @@ The craft plugin reads these values. Its rules are in the `craft:rules` skill.
 
 | Key | Value |
 |---|---|
-| Linear team | `LIBRAG` |
+| Linear team | `CRAFT` |
+| Linear project | `LibRag` |
 | GitHub repo | `vanoostrum/librag` |
 | Base branch | `main` |
 | Required CI checks | `checks`, `e2e` |
