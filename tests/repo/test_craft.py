@@ -16,13 +16,11 @@ KEYS = (
 )
 
 
-def test_settings_install_craft_from_the_default_branch() -> None:
-    """Sessions get the latest craft and pstack from the craft marketplace."""
+def test_settings_leave_plugins_to_the_account() -> None:
+    """The repo settings neither add the craft marketplace nor enable plugins."""
     settings = json.loads((ROOT / ".claude" / "settings.json").read_text("utf-8"))
-    source = settings["extraKnownMarketplaces"]["craft"]["source"]
-    assert source["repo"] == "vanoostrum/craft"
-    assert "ref" not in source
-    assert settings["enabledPlugins"] == {"craft@craft": True, "pstack@craft": True}
+    assert "extraKnownMarketplaces" not in settings
+    assert "enabledPlugins" not in settings
 
 
 def test_craft_config_has_every_key() -> None:
