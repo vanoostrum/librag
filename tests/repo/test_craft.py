@@ -16,12 +16,12 @@ KEYS = (
 )
 
 
-def test_settings_install_craft_at_a_tag() -> None:
-    """Terminal and web sessions get craft and pstack from the craft marketplace."""
+def test_settings_install_craft_from_the_default_branch() -> None:
+    """Sessions get the latest craft and pstack from the craft marketplace."""
     settings = json.loads((ROOT / ".claude" / "settings.json").read_text("utf-8"))
     source = settings["extraKnownMarketplaces"]["craft"]["source"]
     assert source["repo"] == "vanoostrum/craft"
-    assert re.fullmatch(r"v\d+\.\d+\.\d+", source["ref"])
+    assert "ref" not in source
     assert settings["enabledPlugins"] == {"craft@craft": True, "pstack@craft": True}
 
 

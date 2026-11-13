@@ -8,8 +8,7 @@
     "craft": {
       "source": {
         "source": "github",
-        "repo": "vanoostrum/craft",
-        "ref": "v2.0.0"
+        "repo": "vanoostrum/craft"
       }
     }
   },
