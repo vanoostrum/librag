@@ -3,18 +3,5 @@
     "allow": [
       "Bash(.verify/bin/qdrant-v1.15.5-*/qdrant:*)"
     ]
-  },
-  "extraKnownMarketplaces": {
-    "craft": {
-      "source": {
-        "source": "github",
-        "repo": "vanoostrum/craft",
-        "ref": "v2.0.0"
-      }
-    }
-  },
-  "enabledPlugins": {
-    "craft@craft": true,
-    "pstack@craft": true
   }
 }
